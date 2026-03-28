@@ -1,5 +1,5 @@
 <a href="https://verino.vercel.app" target="_blank">
-  <img src="https://raw.githubusercontent.com/boastack/verino/refs/heads/main/assets/banner2.png" alt="verino" width="100%" />
+  <img src="https://raw.githubusercontent.com/boastack/verino/refs/heads/main/assets/banner1.png" alt="verino" width="100%" />
 </a>
 
 <h1 align="center">verino</h1>
