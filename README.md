@@ -125,10 +125,10 @@ npm i @verino/svelte
 # Alpine.js
 npm i @verino/alpine
 
-# Web Component (framework-free)
+# Web Component
 npm i @verino/web-component
 
-# Vanilla JS / TypeScript
+# Vanilla JS
 npm i verino
 ```
 
