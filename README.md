@@ -144,7 +144,25 @@ A pre-built IIFE bundle exposes `window.Verino.init`, identical to `initOTP`:
 </script>
 ```
 
-Web Component CDN bundle: `https://unpkg.com/verino/dist/verino-wc.min.js`
+Alpine.js CDN bundle — exposes `window.VerinoAlpine`:
+
+```html
+<script defer src="https://unpkg.com/alpinejs"></script>
+<script src="https://unpkg.com/verino/dist/verino-alpine.min.js"></script>
+<script>
+  document.addEventListener('alpine:init', () => Alpine.plugin(VerinoAlpine))
+</script>
+```
+
+Web Component CDN bundle — auto-registers `<verino-input>`:
+
+```html
+<script src="https://unpkg.com/verino/dist/verino-wc.min.js"></script>
+<verino-input length="6" name="otp"></verino-input>
+<script>
+  document.querySelector('verino-input').addEventListener('complete', (e) => console.log(e.detail.code))
+</script>
+```
 
 ---
 

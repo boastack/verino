@@ -1,7 +1,7 @@
 {
   "name": "verino",
   "version": "1.0.0",
-  "description": "Reliable OTP inputs for any framework from a single core.",
+  "description": "Reliable OTP input state machine that powers React, Vue, Svelte, Alpine, Vanilla JS, and Web Components.",
   "type": "module",
   "main": "./dist/index.js",
   "module": "./dist/index.js",
