@@ -1,3 +1,7 @@
+<a href="https://verino.vercel.app" target="_blank">
+  <img src="https://raw.githubusercontent.com/boastack/verino/refs/heads/main/assets/banner4.png" alt="verino" width="100%" />
+</a>
+
 <h1 align="center">@verino/web-component</h1>
 
 <h3 align="center">
@@ -292,7 +296,6 @@ verino-input {
 }
 ```
 
-See the [full CSS custom properties list](https://www.npmjs.com/package/verino#theming) in the main verino docs.
 
 ---
 

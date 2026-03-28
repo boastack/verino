@@ -63,7 +63,7 @@ verino/
 
 ```bash
 pnpm build          # build all packages → dist/
-pnpm build:cdn      # build IIFE CDN bundles (verino.min.js + verino-wc.min.js)
+pnpm build:cdn      # build IIFE CDN bundles (verino.min.js + verino-wc.min.js + verino-alpine.min.js)
 pnpm typecheck      # type-check all packages without emitting
 pnpm test           # run all Jest unit tests
 pnpm test:watch     # run tests in watch mode
