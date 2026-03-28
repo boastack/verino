@@ -1,0 +1,89 @@
+name: PR Check
+
+on:
+  pull_request:
+    types: [opened, edited, synchronize, reopened]
+
+jobs:
+  title-check:
+    name: Conventional Commit Title
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: amannn/action-semantic-pull-request@v5
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          types: |
+            feat
+            fix
+            docs
+            style
+            refactor
+            perf
+            test
+            chore
+            revert
+          requireScope: false
+          subjectPattern: ^[a-z].+[^.]$
+          subjectPatternError: >
+            The PR title must start with a lowercase letter
+            and must not end with a period.
+
+  size-check:
+    name: Bundle Size Check
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v3
+        with:
+          version: 10
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build all packages
+        run: pnpm build
+
+      - name: Check CDN bundle size limit
+        run: |
+          pnpm build:cdn
+          SIZE_BYTES=$(wc -c < dist/verino.min.js)
+          SIZE_KB=$(( SIZE_BYTES / 1024 ))
+          echo "CDN bundle size: ${SIZE_KB}KB (${SIZE_BYTES} bytes)"
+          if [ "$SIZE_BYTES" -gt 12288 ]; then
+            echo "ERROR: CDN bundle exceeds 12KB limit (${SIZE_BYTES} bytes)"
+            exit 1
+          fi
+          echo "OK: Bundle size is within the 12KB limit"
+
+  changeset-check:
+    name: Changeset Required
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: pnpm/action-setup@v3
+        with:
+          version: 10
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Check for changeset
+        run: pnpm changeset status --since=origin/main

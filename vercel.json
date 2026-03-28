@@ -1,0 +1,7 @@
+{
+  "buildCommand": "pnpm build",
+  "outputDirectory": ".",
+  "rewrites": [
+    { "source": "/", "destination": "/examples/vanilla.html" }
+  ]
+}

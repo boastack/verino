@@ -1,0 +1,14 @@
+blank_issues_enabled: false
+
+contact_links:
+  - name: 💬 Ask a Question
+    url: https://github.com/verinojs/verino/discussions/new?category=q-a
+    about: Use GitHub Discussions for usage questions — not Issues. Most questions get answered within 24 hours.
+
+  - name: 📖 Documentation
+    url: https://verino.dev/docs
+    about: Check the docs first — installation, all options, every framework, examples, and troubleshooting are covered.
+
+  - name: 🔧 Troubleshooting Guide
+    url: https://verino.dev/docs/troubleshooting
+    about: Common issues and their solutions — SMS autofill, password manager conflicts, focus management, and more.

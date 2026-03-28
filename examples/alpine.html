@@ -1,0 +1,319 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Verino - Reliable OTP inputs for any framework from a single core.</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&family=Geist+Mono:wght@500;600&display=swap" rel="stylesheet">
+  <link rel="icon" type="image/png" href="../assets/favicon.png">
+  <!-- Stylesheet -->
+  <style>
+    *,
+    *::before,
+    *::after {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      color: #0A0A0A;
+      font-size: 14px;
+      font-family: 'Geist', sans-serif;
+      line-height: 1.5;
+      background: #F5F5F5;
+    }
+
+    .main-wrapper {
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      min-height: 100vh;
+      padding: 16px;
+    }
+
+    .card {
+      background: #FFFFFF;
+      border: 1px solid #E5E5E5;
+      border-radius: 12px;
+      padding: 32px;
+      width: 100%;
+      max-width: 492px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
+
+    h1 {
+      font-size: 24px;
+      font-weight: 600;
+      letter-spacing: -0.4px;
+      margin-bottom: 12px;
+      line-height: 1.2;
+    }
+
+    .subtitle {
+      font-size: 16px;
+      color: #5C5C5C;
+      line-height: 1.5;
+      text-align: center;
+      margin-bottom: 8px;
+    }
+
+    .subtitle strong {
+      color: #0A0A0A;
+      font-weight: 500;
+    }
+
+    .verino-wrapper {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding-top: 24px;
+      font-family: 'Geist Mono', monospace;
+    }
+
+    .verino-timer,
+    .verino-resend {
+      font-family: 'Geist', sans-serif;
+    }
+
+    .btn {
+      width: 100%;
+      height: 48px;
+      border-radius: 10px;
+      font-family: 'Geist', sans-serif;
+      font-size: 14px;
+      font-weight: 500;
+      transition: all 150ms ease;
+      border: 1px solid #0A0A0A;
+      cursor: pointer;
+    }
+
+    .btn+.btn {
+      margin-top: 16px;
+    }
+
+    .btn-primary {
+      color: #FFFFFF;
+      background: #0A0A0A;
+      border-color: #0A0A0A;
+    }
+
+    .btn-primary:hover {
+      background: #262626;
+      border-color: #262626;
+    }
+
+    .btn-secondary {
+      color: #0A0A0A;
+      background: transparent;
+      border-color: #D3D3D3;
+    }
+
+    .btn-secondary:hover {
+      color: #0A0A0A;
+      border-color: #A1A1A1;
+    }
+
+    .usage {
+      display: flex;
+      justify-content: center;
+      flex-wrap: wrap;
+      margin-top: 32px;
+      gap: 12px;
+    }
+
+    .badge {
+      background: #F5F5F5;
+      border: 1px solid #E5E5E5;
+      color: #0A0A0A;
+      font-size: 12px;
+      font-family: 'Geist', sans-serif;
+      padding: 4px 12px;
+      border-radius: 99px;
+      cursor: pointer;
+    }
+
+    .badge.active {
+      color: #FFFFFF;
+      background: #0A0A0A;
+      border: 1px solid #0A0A0A;
+    }
+
+    .status {
+      width: 100%;
+      margin: 20px 0;
+      font-size: 14px;
+      text-align: center;
+    }
+
+    .status.error {
+      color: #FB2C36;
+    }
+
+    .status.success {
+      color: #00C950;
+    }
+
+    /* Responsive */
+    @media (max-width: 768px) {
+      :root {
+        --verino-size: 48px;
+        --verino-gap: 8px;
+      }
+
+      .card {
+        padding: 24px;
+        max-width: 100%;
+      }
+
+      h1 {
+        font-size: 20px;
+      }
+
+      .subtitle {
+        font-size: 14px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <!-- Main Wrapper -->
+  <main class="main-wrapper">
+    <div class="card">
+      <h1>Confirm it's you</h1>
+      <p class="subtitle">A <span id="digit-count">6</span>-digit verification code was sent to <strong>he****@example.com</strong> to protect your account.</p>
+      <!-- Verino container -->
+      <div class="verino-wrapper"></div>
+      <!-- /Verino container -->
+      <p class="status" id="status"></p>
+      <button class="btn btn-primary" id="btn-verify" type="button">Verify Account</button>
+      <button class="btn btn-secondary" id="btn-reset" type="button">Reset Code</button>
+      <div class="usage">
+        <button class="badge active" type="button" data-mode="numeric">numeric</button>
+        <button class="badge" type="button" data-mode="alphabet">alphabet</button>
+        <button class="badge" type="button" data-mode="alphanumeric">alphanumeric</button>
+        <button class="badge" type="button" data-mode="any">any</button>
+        <button class="badge" type="button" data-mode="regex">regex</button>
+        <button class="badge" type="button" data-mode="classic">classic</button>
+        <button class="badge" type="button" data-mode="separator">separator</button>
+        <button class="badge" type="button" data-mode="masked">masked</button>
+        <button class="badge" type="button" data-mode="5-digit">5-digit</button>
+      </div>
+    </div>
+  </main>
+  <!-- /Main Wrapper -->
+
+  <!-- JavaScript -->
+  <script type="module">
+    import Alpine from 'https://esm.sh/alpinejs@3?bundle'
+    import { VerinoAlpine } from '../packages/alpine/dist/index.js'
+
+    Alpine.plugin(VerinoAlpine)
+
+    const statusEl   = document.getElementById('status')
+    const verifyBtn  = document.getElementById('btn-verify')
+    const resetBtn   = document.getElementById('btn-reset')
+    const container  = document.querySelector('.verino-wrapper')
+    const digitCount = document.getElementById('digit-count')
+    const badges     = document.querySelectorAll('.badge')
+
+    function setStatus(msg, type = '') {
+      statusEl.textContent = msg
+      statusEl.className = 'status' + (type ? ` ${type}` : '')
+    }
+
+    // Options per badge mode
+    const modeConfigs = {
+      numeric:      { type: 'numeric',      length: 6, placeholder: '○', timer: 60 },
+      alphabet:     { type: 'alphabet',     length: 6, placeholder: '○', timer: 60 },
+      alphanumeric: { type: 'alphanumeric', length: 6, placeholder: '○', timer: 60 },
+      any:          { type: 'any',          length: 6, placeholder: '○', timer: 60 },
+      regex:        { pattern: /^[A-Z0-9]$/, length: 6, placeholder: '○', timer: 60 },
+      classic:      { type: 'numeric',      length: 6, placeholder: '',  timer: 60 },
+      separator:    { type: 'numeric',      length: 6, placeholder: '○', timer: 60, separatorAfter: 3 },
+      masked:       { type: 'numeric',      length: 6, placeholder: '○', timer: 60, masked: true },
+      '5-digit':    { type: 'numeric',      length: 5, placeholder: '○', timer: 60 },
+    }
+
+    let currentMode = 'numeric'
+    let otpEl = null
+
+    // Expose config globally so x-verino expression can resolve it
+    window._verinoCfg = {}
+
+    function mount(mode) {
+      // Remove old x-verino element and its timer/resend siblings
+      while (container.firstChild) container.removeChild(container.firstChild)
+
+      const config = modeConfigs[mode]
+      const expectedLength = config.length
+
+      // Update subtitle digit count
+      digitCount.textContent = expectedLength
+
+      window._verinoCfg = {
+        ...config,
+        sound: true,
+        pasteTransformer: (raw) => raw.replace(/[\s-]/g, ''),
+        onComplete: (code) => {
+          console.log('OTP completed:', code)
+          setStatus('')
+        },
+        onResend: () => setStatus('A new code has been sent.'),
+      }
+
+      const el = document.createElement('div')
+      el.setAttribute('x-data', '')
+      el.setAttribute('x-verino', '_verinoCfg')
+      container.appendChild(el)
+      Alpine.initTree(el)
+      otpEl = el
+
+      // Wire verify button for this mode
+      verifyBtn.onclick = () => {
+        const code = otpEl._verino.getCode()
+        if (code.length < expectedLength) {
+          otpEl._verino.setError(true)
+          setStatus(`Please enter all ${expectedLength} digit${expectedLength === 1 ? '' : 's'}.`, 'error')
+          return
+        }
+        const correctCode = expectedLength === 5 ? '32026' : '032026'
+        if (code === correctCode) {
+          setStatus('Verification successful!', 'success')
+        } else {
+          otpEl._verino.setError(true)
+          setStatus(`Incorrect code. Try ${correctCode}`, 'error')
+        }
+      }
+    }
+
+    // Badge switching
+    badges.forEach(badge => {
+      badge.addEventListener('click', () => {
+        const mode = badge.dataset.mode
+        if (mode === currentMode) return
+
+        badges.forEach(b => b.classList.remove('active'))
+        badge.classList.add('active')
+
+        setStatus('')
+        currentMode = mode
+        mount(mode)
+      })
+    })
+
+    resetBtn.addEventListener('click', () => {
+      otpEl._verino.reset()
+      setStatus('')
+    })
+
+    // Start Alpine, then mount initial mode
+    Alpine.start()
+    mount(currentMode)
+  </script>
+</body>
+</html>

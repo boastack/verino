@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Verino Web Component — Test Fixture</title>
+  <style>
+    body { font-family: sans-serif; padding: 32px; }
+  </style>
+  <!-- Import map: resolves bare 'verino' specifier used by the web-component dist -->
+  <script type="importmap">
+    {
+      "imports": {
+        "verino": "/packages/verino/dist/index.js",
+        "verino/core": "/packages/verino/dist/core/index.js"
+      }
+    }
+  </script>
+</head>
+<body>
+  <!--
+    Primary component: 6-slot numeric with 30-second timer + separator at position 3.
+    auto-focus is absent (defaults to true) so it focuses on mount.
+  -->
+  <verino-input
+    id="otp"
+    length="6"
+    type="numeric"
+    timer="30"
+    separator-after="3"
+    separator="—"
+  ></verino-input>
+
+  <!--
+    Masked component: 4-slot numeric with custom mask char "*".
+    auto-focus="false" prevents it from stealing focus from the primary component.
+  -->
+  <verino-input
+    id="otp-masked"
+    length="4"
+    type="numeric"
+    masked
+    mask-char="*"
+    auto-focus="false"
+  ></verino-input>
+
+  <!--
+    Event tracker: events dispatched by #otp are recorded as data attributes
+    so Playwright tests can assert them with toHaveAttribute().
+    last-complete  — code from the most recent 'complete' event
+    last-change    — code from the most recent 'change' event
+    expired        — set to 'true' when the 'expire' event fires
+  -->
+  <div id="events"></div>
+
+  <script type="module">
+    import '../../packages/web-component/dist/index.js'
+
+    const otp    = document.getElementById('otp')
+    const events = document.getElementById('events')
+
+    otp.addEventListener('complete', (e) => { events.dataset.lastComplete = e.detail.code })
+    otp.addEventListener('change',   (e) => { events.dataset.lastChange   = e.detail.code })
+    otp.addEventListener('expire',   ()  => { events.dataset.expired      = 'true' })
+  </script>
+</body>
+</html>

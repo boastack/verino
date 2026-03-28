@@ -1,0 +1,131 @@
+name: 🐛 Bug Report
+description: Report a bug in Verino
+title: "[Bug]: "
+labels: ["bug", "needs-triage"]
+assignees: []
+
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time to report a bug! Please fill out this form as completely as you can — the more detail you provide, the faster we can fix it.
+
+        **Before submitting, please check:**
+        - [Existing issues](https://github.com/verinojs/verino/issues) — it may already be reported
+        - [Troubleshooting guide](https://verino.dev/docs/troubleshooting) — it may already be solved
+
+  - type: dropdown
+    id: package
+    attributes:
+      label: Which package is affected?
+      description: Select the Verino package where the bug occurs.
+      options:
+        - "verino (vanilla / core)"
+        - "@verino/react"
+        - "@verino/vue"
+        - "@verino/svelte"
+        - "@verino/alpine"
+        - "@verino/web-component"
+        - "Not sure"
+    validations:
+      required: true
+
+  - type: input
+    id: version
+    attributes:
+      label: Verino version
+      description: "Run `npm list @verino/react` (or the relevant package) in your project to find the version."
+      placeholder: "e.g. 1.2.0"
+    validations:
+      required: true
+
+  - type: dropdown
+    id: browser
+    attributes:
+      label: Browser(s) affected
+      description: Select all browsers where you can reproduce this bug.
+      multiple: true
+      options:
+        - Chrome
+        - Firefox
+        - Safari
+        - Samsung Internet
+        - Edge
+        - Other
+    validations:
+      required: true
+
+  - type: dropdown
+    id: os
+    attributes:
+      label: Operating System
+      options:
+        - macOS
+        - Windows
+        - Linux
+        - iOS
+        - Android
+        - Other
+    validations:
+      required: true
+
+  - type: textarea
+    id: description
+    attributes:
+      label: Bug description
+      description: A clear and concise description of what the bug is. What happened? What did you expect to happen?
+      placeholder: |
+        What happened:
+        When I type into a 6-digit OTP field, the cursor jumps to slot 0 after filling slot 3.
+
+        What I expected:
+        The cursor should advance to slot 4 after slot 3 is filled.
+    validations:
+      required: true
+
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Steps to reproduce
+      description: Step-by-step instructions to reproduce the bug.
+      placeholder: |
+        1. Install @verino/react v1.x.x
+        2. Render `<OTPInput length={6} />`
+        3. Type '1', '2', '3' into the field
+        4. Notice the cursor jumps back to slot 0
+    validations:
+      required: true
+
+  - type: input
+    id: reproduction-link
+    attributes:
+      label: Reproduction link
+      description: A StackBlitz, CodeSandbox, or GitHub repo with a minimal reproduction. This makes fixing the bug **10x faster** — please include one if at all possible.
+      placeholder: "https://stackblitz.com/edit/..."
+
+  - type: textarea
+    id: code
+    attributes:
+      label: Minimal code example
+      description: The smallest possible code that reproduces the bug.
+      render: tsx
+      placeholder: |
+        import { useOTP, HiddenOTPInput } from '@verino/react'
+
+        export function OTPInput() {
+          const otp = useOTP({ length: 6 })
+          return (
+            <div {...otp.wrapperProps} style={{ position: 'relative', display: 'inline-flex', gap: 8 }}>
+              <HiddenOTPInput {...otp.hiddenInputProps} />
+              {otp.slotValues.map((_, i) => (
+                <div key={i} className="slot">{otp.getSlotProps(i).char}</div>
+              ))}
+            </div>
+          )
+        }
+
+  - type: textarea
+    id: additional
+    attributes:
+      label: Additional context
+      description: Anything else that might be relevant — screenshots, console errors, network logs, related issues, etc.

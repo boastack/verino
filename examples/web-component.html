@@ -1,0 +1,345 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Verino - Reliable OTP inputs for any framework from a single core.</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&family=Geist+Mono:wght@500;600&display=swap" rel="stylesheet">
+  <link rel="icon" type="image/png" href="../assets/favicon.png">
+  <style>
+    *,
+    *::before,
+    *::after {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      color: #0A0A0A;
+      font-size: 14px;
+      font-family: 'Geist', sans-serif;
+      line-height: 1.5;
+      background: #F5F5F5;
+    }
+
+    .main-wrapper {
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      min-height: 100vh;
+      padding: 16px;
+    }
+
+    .card {
+      background: #FFFFFF;
+      border: 1px solid #E5E5E5;
+      border-radius: 12px;
+      padding: 32px;
+      width: 100%;
+      max-width: 492px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
+
+    h1 {
+      font-size: 24px;
+      font-weight: 600;
+      letter-spacing: -0.4px;
+      margin-bottom: 12px;
+      line-height: 1.2;
+    }
+
+    .subtitle {
+      font-size: 16px;
+      color: #5C5C5C;
+      line-height: 1.5;
+      text-align: center;
+      margin-bottom: 8px;
+    }
+
+    .subtitle strong {
+      color: #0A0A0A;
+      font-weight: 500;
+    }
+
+    /* Slot font via CSS custom property cascade into shadow root */
+    verino-input {
+      --verino-size:           56px;
+      --verino-gap:            12px;
+      --verino-radius:         10px;
+      --verino-font-size:      24px;
+      --verino-color:          #0A0A0A;
+      --verino-bg:             #FAFAFA;
+      --verino-bg-filled:      #FFFFFF;
+      --verino-border-color:   #E5E5E5;
+      --verino-active-color:   #3D3D3D;
+      --verino-error-color:    #FB2C36;
+      --verino-success-color:  #00C950;
+      --verino-placeholder-color: #D3D3D3;
+      --verino-slot-font: 'Geist Mono', monospace;
+    }
+
+    .btn {
+      width: 100%;
+      height: 48px;
+      border-radius: 10px;
+      font-family: 'Geist', sans-serif;
+      font-size: 14px;
+      font-weight: 500;
+      transition: all 150ms ease;
+      border: 1px solid #0A0A0A;
+      cursor: pointer;
+    }
+
+    .btn + .btn {
+      margin-top: 16px;
+    }
+
+    .btn-primary {
+      color: #FFFFFF;
+      background: #0A0A0A;
+      border-color: #0A0A0A;
+    }
+
+    .btn-primary:hover {
+      background: #262626;
+      border-color: #262626;
+    }
+
+    .btn-secondary {
+      color: #0A0A0A;
+      background: transparent;
+      border-color: #D3D3D3;
+    }
+
+    .btn-secondary:hover {
+      border-color: #A1A1A1;
+    }
+
+    .usage {
+      display: flex;
+      justify-content: center;
+      flex-wrap: wrap;
+      margin-top: 32px;
+      gap: 12px;
+    }
+
+    .badge {
+      background: #F5F5F5;
+      border: 1px solid #E5E5E5;
+      color: #0A0A0A;
+      font-size: 12px;
+      font-family: 'Geist', sans-serif;
+      padding: 4px 12px;
+      border-radius: 99px;
+      cursor: pointer;
+    }
+
+    .badge.active {
+      color: #FFFFFF;
+      background: #0A0A0A;
+      border-color: #0A0A0A;
+    }
+
+    .status {
+      width: 100%;
+      margin: 20px 0;
+      font-size: 14px;
+      text-align: center;
+    }
+
+    .status.error   { color: #FB2C36; }
+    .status.success { color: #00C950; }
+
+    @media (max-width: 768px) {
+      verino-input {
+        --verino-size: 48px;
+        --verino-gap:  8px;
+      }
+
+      .card {
+        padding: 24px;
+        max-width: 100%;
+      }
+
+      h1 { font-size: 20px; }
+      .subtitle { font-size: 14px; }
+    }
+  </style>
+</head>
+<body>
+  <main class="main-wrapper">
+    <div class="card">
+      <h1>Confirm it's you</h1>
+      <p class="subtitle">
+        A <span id="digit-counter">6</span>-digit verification code was sent to
+        <strong>he****@example.com</strong> to protect your account.
+      </p>
+
+      <!--
+        <verino-input> — Shadow DOM custom element.
+        HTML attributes set static config. JS setters handle functions and RegExp.
+        All --verino-* CSS custom properties cascade into the shadow root.
+      -->
+      <verino-input
+        id="otp"
+        length="6"
+        type="numeric"
+        timer="60"
+        placeholder="○"
+        name="otp_code"
+        sound
+      ></verino-input>
+
+      <p class="status" id="status"></p>
+      <button class="btn btn-primary"   id="btn-verify" type="button">Verify Account</button>
+      <button class="btn btn-secondary" id="btn-reset"  type="button">Reset Code</button>
+
+      <div class="usage">
+        <button class="badge active" type="button" data-mode="numeric">numeric</button>
+        <button class="badge"        type="button" data-mode="alphabet">alphabet</button>
+        <button class="badge"        type="button" data-mode="alphanumeric">alphanumeric</button>
+        <button class="badge"        type="button" data-mode="any">any</button>
+        <button class="badge"        type="button" data-mode="regex">regex</button>
+        <button class="badge"        type="button" data-mode="classic">classic</button>
+        <button class="badge"        type="button" data-mode="separator">separator</button>
+        <button class="badge"        type="button" data-mode="masked">masked</button>
+        <button class="badge"        type="button" data-mode="5-digit">5-digit</button>
+      </div>
+    </div>
+  </main>
+
+  <!-- Auto-registers <verino-input> globally -->
+  <script type="module" src="../packages/web-component/dist/index.js"></script>
+
+  <script type="module">
+    const el         = document.getElementById('otp')
+    const statusEl   = document.getElementById('status')
+    const verifyBtn  = document.getElementById('btn-verify')
+    const resetBtn   = document.getElementById('btn-reset')
+    const badges     = document.querySelectorAll('.badge')
+    const digitSpan  = document.getElementById('digit-counter')
+
+    function setStatus(msg, type = '') {
+      statusEl.textContent = msg
+      statusEl.className = 'status' + (type ? ` ${type}` : '')
+    }
+
+    // Options per badge mode
+    const modeConfigs = {
+      numeric:      { length: 6, type: 'numeric',      placeholder: '○', separatorAfter: null, masked: false },
+      alphabet:     { length: 6, type: 'alphabet',     placeholder: '○', separatorAfter: null, masked: false },
+      alphanumeric: { length: 6, type: 'alphanumeric', placeholder: '○', separatorAfter: null, masked: false },
+      any:          { length: 6, type: 'any',          placeholder: '○', separatorAfter: null, masked: false },
+      regex:        { length: 6, type: 'numeric',      placeholder: '○', separatorAfter: null, masked: false, pattern: /^[A-Z0-9]$/ },
+      classic:      { length: 6, type: 'numeric',      placeholder: '',  separatorAfter: null, masked: false },
+      separator:    { length: 6, type: 'numeric',      placeholder: '○', separatorAfter: '3',  masked: false },
+      masked:       { length: 6, type: 'numeric',      placeholder: '○', separatorAfter: null, masked: true  },
+      '5-digit':    { length: 5, type: 'numeric',      placeholder: '○', separatorAfter: null, masked: false },
+    }
+
+    let currentMode = 'numeric'
+
+    function applyMode(mode) {
+      const cfg = modeConfigs[mode]
+
+      // HTML attributes (strings / boolean attrs)
+      el.setAttribute('length',      String(cfg.length))
+      el.setAttribute('type',        cfg.type)
+      el.setAttribute('placeholder', cfg.placeholder)
+
+      if (cfg.separatorAfter) {
+        el.setAttribute('separator-after', cfg.separatorAfter)
+      } else {
+        el.removeAttribute('separator-after')
+      }
+
+      if (cfg.masked) {
+        el.setAttribute('masked', '')
+      } else {
+        el.removeAttribute('masked')
+      }
+
+      // JS-only setter — RegExp cannot be expressed as an HTML attribute
+      el.pattern = cfg.pattern ?? undefined
+
+      digitSpan.textContent = String(cfg.length)
+    }
+
+    // Wire JS-only callbacks once — they survive attribute changes
+    el.pasteTransformer = (raw) => raw.replace(/[\s-]/g, '')
+
+    el.onComplete = (code) => {
+      console.log('OTP completed:', code)
+      setStatus('')
+    }
+
+    el.onResend = () => {
+      setStatus('A new code has been sent.')
+    }
+
+    // Listen to custom events (bubble through shadow DOM boundary)
+    el.addEventListener('complete', (e) => {
+      console.log('complete event:', e.detail.code)
+    })
+
+    el.addEventListener('expire', () => {
+      console.log('expire event')
+    })
+
+    el.addEventListener('change', (e) => {
+      console.log('change event:', e.detail.code)
+    })
+
+    // Verify button
+    verifyBtn.addEventListener('click', () => {
+      const cfg  = modeConfigs[currentMode]
+      const code = el.getCode()
+
+      if (code.length < cfg.length) {
+        el.setError(true)
+        setStatus(`Please enter all ${cfg.length} digit${cfg.length === 1 ? '' : 's'}.`, 'error')
+        return
+      }
+
+      const correctCode = cfg.length === 5 ? '32026' : '032026'
+      if (code === correctCode) {
+        el.setSuccess(true)
+        setStatus('Verification successful!', 'success')
+      } else {
+        el.setError(true)
+        setStatus(`Incorrect code. Try ${correctCode}`, 'error')
+      }
+    })
+
+    // Reset button
+    resetBtn.addEventListener('click', () => {
+      el.reset()
+      setStatus('')
+    })
+
+    // Badge switching
+    badges.forEach(badge => {
+      badge.addEventListener('click', () => {
+        const mode = badge.dataset.mode
+        if (mode === currentMode) return
+
+        badges.forEach(b => b.classList.remove('active'))
+        badge.classList.add('active')
+
+        setStatus('')
+        currentMode = mode
+        el.reset()
+        applyMode(mode)
+      })
+    })
+
+    // Apply initial mode
+    applyMode(currentMode)
+  </script>
+</body>
+</html>

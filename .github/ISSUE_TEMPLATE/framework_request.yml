@@ -1,0 +1,89 @@
+name: 🌐 Framework Request
+description: Request support for a new JavaScript framework
+title: "[Framework]: Add support for "
+labels: ["framework-request", "needs-triage"]
+assignees: []
+
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Want to use Verino in a framework we don't officially support yet? Tell us about it!
+
+        Currently supported: **React**, **Vue**, **Svelte**, **Alpine.js**, **Vanilla JS**, **Web Components**
+
+        If your framework can use Web Components (`<verino-input>`), it may already work — check the [Web Components docs](https://verino.dev/docs/web-component) first.
+
+  - type: input
+    id: framework
+    attributes:
+      label: Framework name
+      placeholder: "e.g. Solid.js, Qwik, Lit, Astro, Angular"
+    validations:
+      required: true
+
+  - type: input
+    id: framework-url
+    attributes:
+      label: Framework website
+      placeholder: "https://solidjs.com"
+    validations:
+      required: true
+
+  - type: input
+    id: npm-downloads
+    attributes:
+      label: Weekly npm downloads
+      description: Check npmjs.com/package/[framework-name]. This helps us understand community size and prioritize.
+      placeholder: "e.g. 1,200,000"
+
+  - type: input
+    id: npm-package
+    attributes:
+      label: npm package name
+      description: The main framework package on npm.
+      placeholder: "e.g. solid-js"
+
+  - type: textarea
+    id: use-case
+    attributes:
+      label: Why do you need this?
+      description: Tell us about your project and why you specifically need a Verino adapter for this framework (rather than using the `<verino-input>` Web Component).
+      placeholder: |
+        I'm building a banking app with Solid.js and need a polished OTP input with timer support.
+        The Web Component works but I'd prefer a native Solid primitive with proper reactive stores
+        so I can integrate it with my existing createSignal/createStore patterns.
+    validations:
+      required: true
+
+  - type: textarea
+    id: ideal-api
+    attributes:
+      label: What would the ideal API look like?
+      description: Show us how you'd like to use it. A rough sketch is fine.
+      placeholder: |
+        // Ideally something like:
+        import { createOTP } from '@verino/solid'
+
+        function App() {
+          const otp = createOTP({ length: 6, onComplete: verify })
+          return (
+            <div {...otp.wrapperProps}>
+              <input {...otp.hiddenInputProps} />
+              <For each={otp.slotValues()}>
+                {(char, i) => <div class="slot">{char}</div>}
+              </For>
+            </div>
+          )
+        }
+
+  - type: checkboxes
+    id: contribution
+    attributes:
+      label: Contribution interest
+      description: Building adapters is significant work. Any help you can offer makes this much more likely to happen.
+      options:
+        - label: "I'm willing to help implement this framework package"
+        - label: "I can help with testing and QA"
+        - label: "I can write documentation and examples"
+        - label: "I can provide a StackBlitz playground example"

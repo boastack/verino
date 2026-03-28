@@ -1,0 +1,11 @@
+{
+  "files": [],
+  "references": [
+    { "path": "packages/verino" },
+    { "path": "packages/react" },
+    { "path": "packages/vue" },
+    { "path": "packages/svelte" },
+    { "path": "packages/alpine" },
+    { "path": "packages/web-component" }
+  ]
+}

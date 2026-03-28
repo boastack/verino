@@ -1,0 +1,24 @@
+# Verino — .gitignore
+node_modules/
+dist/
+*.tsbuildinfo
+.DS_Store
+
+# Turbo
+.turbo/cache/
+packages/*/.turbo/
+
+# Jest
+coverage/
+
+# Playwright
+test-results/
+playwright-report/
+.playwright/
+
+# npm
+*.tgz
+
+# Editor
+.vscode/
+.idea/

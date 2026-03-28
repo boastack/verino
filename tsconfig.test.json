@@ -1,0 +1,23 @@
+{
+  "compilerOptions": {
+    "target":           "ES2020",
+    "module":           "ESNext",
+    "moduleResolution": "bundler",
+    "lib":              ["ES2020", "DOM"],
+    "types": ["jest", "node"],
+    "strict":           true,
+    "esModuleInterop":  true,
+    "skipLibCheck":     true,
+    "noEmit":           true,
+    "baseUrl":          ".",
+    "jsx": "react-jsx",
+    "paths": {
+      "verino":         ["packages/verino/src/index.ts"],
+      "verino/core":    ["packages/verino/src/core/index.ts"],
+      "@verino/react":  ["packages/react/src/index.tsx"],
+      "@verino/vue":    ["packages/vue/src/index.ts"],
+      "@verino/svelte": ["packages/svelte/src/index.ts"]
+    }
+  },
+  "include": ["tests/**/*.ts", "tests/**/*.tsx"]
+}

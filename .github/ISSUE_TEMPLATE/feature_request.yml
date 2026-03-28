@@ -1,0 +1,90 @@
+name: ✨ Feature Request
+description: Suggest a new feature or improvement for Verino
+title: "[Feature]: "
+labels: ["enhancement", "needs-triage"]
+assignees: []
+
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Got an idea? We'd love to hear it! Verino is built for developers, and real-world usage feedback is the best source of feature ideas.
+
+        **Before submitting, please check:**
+        - [Existing feature requests](https://github.com/verinojs/verino/issues?q=label%3Aenhancement) — it may already be requested
+        - [Discussions](https://github.com/verinojs/verino/discussions) — it may already be in progress
+
+  - type: dropdown
+    id: package
+    attributes:
+      label: Which package(s) would this affect?
+      description: Select all that apply.
+      multiple: true
+      options:
+        - "verino core (all frameworks benefit)"
+        - "@verino/react"
+        - "@verino/vue"
+        - "@verino/svelte"
+        - "@verino/alpine"
+        - "@verino/web-component"
+        - "New framework support"
+        - "Documentation"
+        - "Developer experience / tooling"
+    validations:
+      required: true
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: What problem does this solve?
+      description: Describe the problem or limitation you're running into. Great features solve real problems — help us understand yours.
+      placeholder: |
+        I'm building a PIN entry field and I want users to be able to replace a filled digit by typing over it.
+        Currently, when a slot is filled and focused, typing a new digit appends to the next slot instead of
+        replacing the current one. I have to backspace first, which feels clunky.
+    validations:
+      required: true
+
+  - type: textarea
+    id: solution
+    attributes:
+      label: Proposed solution
+      description: How would you like this to work? If you have an API design in mind, include it — even a rough sketch helps.
+      placeholder: |
+        A `selectOnFocus` option that, when enabled, makes typing on a filled slot replace its value:
+
+        const otp = useOTP({ length: 6, selectOnFocus: true })
+
+        Or a new `replaceOnType` boolean option for even more explicit control.
+    validations:
+      required: true
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives you've considered
+      description: What workarounds have you tried? What other approaches could solve the same problem?
+      placeholder: |
+        I tried wrapping the onKeyDown handler but couldn't intercept it cleanly.
+        I also considered using `defaultValue` to pre-fill but that doesn't help with the interaction model.
+
+  - type: dropdown
+    id: priority
+    attributes:
+      label: How important is this to you?
+      options:
+        - "Nice to have — would improve my experience"
+        - "Important — would significantly help my project"
+        - "Blocking — preventing me from adopting Verino"
+    validations:
+      required: true
+
+  - type: checkboxes
+    id: contribution
+    attributes:
+      label: Contribution interest
+      description: Would you like to help make this happen?
+      options:
+        - label: "Yes, I'd like to open a PR to implement this feature"
+        - label: "I can help test an implementation"
+        - label: "I can help write documentation for this feature"

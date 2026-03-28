@@ -1,0 +1,49 @@
+{
+  "name": "@verino/vue",
+  "version": "1.0.0",
+  "description": "Vue adapter for verino. Build reliable OTP inputs from a single core.",
+  "type": "module",
+  "main": "./dist/index.cjs",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "require": "./dist/index.cjs"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "sideEffects": false,
+  "scripts": {
+    "build": "tsup",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "verino": "workspace:*"
+  },
+  "peerDependencies": {
+    "vue": ">=3"
+  },
+  "devDependencies": {
+    "tsup": "^8.0.0",
+    "typescript": "^5.0.0",
+    "vue": "^3.0.0"
+  },
+  "author": "Olawale Balo",
+  "license": "MIT",
+  "homepage": "https://verino.vercel.app",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/boastack/verino",
+    "directory": "packages/vue"
+  },
+  "bugs": {
+    "url": "https://github.com/boastack/verino/issues"
+  },
+  "publishConfig": {
+    "access": "public"
+  }
+}
