@@ -41,7 +41,7 @@ Maintainers have the right and responsibility to remove, edit, or reject comment
 
 ## Scope
 
-This Code of Conduct applies within all project spaces — including the GitHub repository, issue tracker, pull requests, discussions, and npm package comments — and also applies when an individual is officially representing the project in public spaces, such as when using an official project social media account or acting as an appointed representative at an online or offline event.
+This Code of Conduct applies within all project spaces, including the GitHub repository, issue tracker, pull requests, discussions, and npm package comments, and also applies when an individual is officially representing the project in public spaces, such as when using an official project social media account or acting as an appointed representative at an online or offline event.
 
 ---
 
@@ -49,9 +49,9 @@ This Code of Conduct applies within all project spaces — including the GitHub 
 
 If you experience or witness unacceptable behavior, please report it by:
 
-**Option A — Email:** [verino.conduct@gmail.com](mailto:verino.conduct@gmail.com)
+**Option A — Email:** [conduct@boastack.io](mailto:conduct@boastack.io)
 
-**Option B — GitHub:** Open a [private security advisory](https://github.com/verinojs/verino/security/advisories/new) (it supports confidential communication).
+**Option B — GitHub:** Open a [private security advisory](https://github.com/boastack/verino/security/advisories/new) (it supports confidential communication).
 
 All reports will be handled with complete confidentiality. The maintainer is committed to protecting the privacy of the reporter. You will receive an acknowledgment within **48 hours** and a full response within **7 days**.
 

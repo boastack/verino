@@ -1,8 +1,8 @@
 # Contributing to Verino
 
-First off — **thank you**. Seriously. Whether you're fixing a typo, reporting a bug, or adding a whole new framework adapter, every contribution matters and is genuinely appreciated. Verino is built for the entire web development community, and it gets better because of people like you.
+First off — **thank you**. Whether you're fixing a typo, reporting a bug, or adding a whole new framework adapter, every contribution matters and is genuinely appreciated. Verino is built for the entire web development community, and it gets better because of people like you.
 
-This guide covers everything you need to know to contribute. Don't worry if this is your first open source contribution — we'll walk you through it.
+This guide covers everything you need to know to contribute. Don’t worry if this is your first open source contribution, we’ll walk you through it.
 
 ---
 
@@ -10,9 +10,9 @@ This guide covers everything you need to know to contribute. Don't worry if this
 
 Contributing doesn't have to mean writing code. Here are all the ways you can help:
 
-**Report bugs** — If something isn't working as expected, [open a bug report](https://github.com/verinojs/verino/issues/new?template=bug_report.yml). A clear reproduction is the most valuable thing you can give.
+**Report bugs** — If something isn't working as expected, [open a bug report](https://github.com/boastack/verino/issues/new?template=bug_report.yml). A clear reproduction is the most valuable thing you can give.
 
-**Suggest features** — Have an idea that would make Verino more useful? [Open a feature request](https://github.com/verinojs/verino/issues/new?template=feature_request.yml). We read every one.
+**Suggest features** — Have an idea that would make Verino more useful? [Open a feature request](https://github.com/boastack/verino/issues/new?template=feature_request.yml). We read every one.
 
 **Improve documentation** — Spotted something unclear, missing, or wrong in the docs? Documentation PRs are always welcome and often the most impactful contributions.
 
@@ -20,9 +20,9 @@ Contributing doesn't have to mean writing code. Here are all the ways you can he
 
 **Fix typos** — Yes, typo PRs are genuinely welcome. Good docs matter.
 
-**Add framework support** — Want Verino in a framework we don't support yet? [Open a framework request](https://github.com/verinojs/verino/issues/new?template=framework_request.yml) first to discuss — then we'd love your help building it.
+**Add framework support** — Want Verino in a framework we don't support yet? [Open a framework request](https://github.com/boastack/verino/issues/new?template=framework_request.yml) first to discuss, then we'd love your help building it.
 
-**Sponsor the project** — Verino is solo maintained. If it saves you time on your project, [consider sponsoring](https://github.com/sponsors/verinojs). It keeps the lights on and the library MIT licensed.
+**Sponsor the project** — Verino is solo maintained. If it saves you time on your project, [consider sponsoring](https://github.com/sponsors/boastack). It keeps the lights on and the library MIT licensed.
 
 ---
 
@@ -37,7 +37,7 @@ Contributing doesn't have to mean writing code. Here are all the ways you can he
 ### Clone and Install
 
 ```bash
-git clone https://github.com/verinojs/verino.git
+git clone https://github.com/boastack/verino.git
 cd verino
 pnpm install
 ```
@@ -135,10 +135,10 @@ npx playwright test tests/vanilla.spec.ts  # one file
 - Write unit tests for any new core machine behavior
 - Write or update tests for any option/callback you add
 - If you change the vanilla DOM adapter, add tests to `vanilla.unit.test.ts`
-- Run the full suite before submitting your PR — zero tolerance for regressions
+- Run the full suite before submitting your PR, zero tolerance for regressions
 - Test in Chrome, Firefox, and Safari if your change touches browser APIs
 
-Framework adapters (React, Vue, Svelte) are not unit tested directly — their logic routes through the core, which is fully covered.
+Framework adapters (React, Vue, Svelte) each have unit tests focused on adapter-specific behaviour (hook integration, reactive updates). Input logic is fully covered by `tests/core.test.ts`.
 
 ---
 
@@ -150,7 +150,7 @@ Framework adapters (React, Vue, Svelte) are not unit tested directly — their l
 4. **Run `pnpm test`** — all tests must pass
 5. **Run `pnpm build`** — build must succeed with no TypeScript errors
 6. **Run `pnpm typecheck`** — strict mode, no errors allowed
-7. **Push** your branch and [open a pull request](https://github.com/verinojs/verino/compare)
+7. **Push** your branch and [open a pull request](https://github.com/boastack/verino/compare)
 8. **Fill out the PR template** completely — the more context you provide, the faster the review
 9. **Wait for review** — we aim to respond within 48 hours
 10. **Address feedback** — be patient, reviews are thorough
@@ -160,11 +160,11 @@ Framework adapters (React, Vue, Svelte) are not unit tested directly — their l
 
 ## Adding Framework Support
 
-New framework adapters are very welcome! Before writing code, please [open a framework request issue](https://github.com/verinojs/verino/issues/new?template=framework_request.yml) to discuss the approach. This saves everyone time.
+New framework adapters are very welcome! Before writing code, please [open a framework request issue](https://github.com/boastack/verino/issues/new?template=framework_request.yml) to discuss the approach. This saves everyone time.
 
 Requirements for a new framework package:
 
-- Implements the full `OTPOptions` surface from `@verino/core`
+- Implements the full `OTPOptions` surface from `verino/core`
 - Exports a composable/hook/directive with the same API shape as existing adapters
 - Includes a `README.md` with full usage documentation
 - Passes a set of usage tests
@@ -179,7 +179,6 @@ Documentation is just as important as code. If something is unclear or missing, 
 
 - Package docs live in each `packages/*/README.md`
 - Root `README.md` is the monorepo overview (GitHub landing page)
-- `CLAUDE.md` contains the authoritative internal architecture guide
 - Run `pnpm build` after docs changes to ensure nothing broke
 - Follow existing structure — heading levels, table format, code block language tags
 
@@ -202,9 +201,9 @@ The codebase is TypeScript strict. A few things to keep in mind:
 
 Stuck? Have a question about how to approach something?
 
-- **[GitHub Discussions](https://github.com/verinojs/verino/discussions)** — best place for questions about contributing
-- **[GitHub Issues](https://github.com/verinojs/verino/issues)** — bugs and feature requests only
-- **[@verinojs on Twitter](https://twitter.com/verinojs)** — quick questions
+- **[GitHub Discussions](https://github.com/boastack/verino/discussions)** — best place for questions about contributing
+- **[GitHub Issues](https://github.com/boastack/verino/issues)** — bugs and feature requests only
+- **[@boastack on Twitter](https://twitter.com/boastack)** — quick questions
 - Be patient — Verino is solo maintained alongside a day job
 
 ---

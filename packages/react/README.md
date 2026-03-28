@@ -410,4 +410,4 @@ Renders a `position: absolute; opacity: 0` input covering the slot row. Spread `
 
 ## License
 
-MIT © [Olawale Balo](https://github.com/walebuilds)
+MIT © 2026 [Olawale Balo](https://github.com/walebuilds)

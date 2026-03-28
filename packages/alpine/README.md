@@ -346,4 +346,4 @@ el._verino = {
 
 ## License
 
-MIT © [Olawale Balo](https://github.com/walebuilds)
+MIT © 2026 [Olawale Balo](https://github.com/walebuilds)

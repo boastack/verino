@@ -9,7 +9,7 @@
 </h3>
 
 <p align="center">
-  By <a href="https://github.com/walebuilds">@Olawale Balo</a> — Product Designer + Design Engineer
+  Built by <a href="https://github.com/walebuilds">@Olawale Balo</a> — Product Designer + Design Engineer
 </p>
 
 <p align="center">
@@ -232,12 +232,11 @@ function OTPField() {
 | PIN entry | `masked: true`, `blurOnComplete: true` |
 | Alphanumeric code | `type: 'alphanumeric'`, `pasteTransformer` |
 | Invite / referral code | `separatorAfter: [3, 6]`, `pattern: /^[A-Z0-9]$/` |
-| Hex activation key | `pattern: /^[0-9A-F]$/`, `separatorAfter: [5, 10, 15]` |
-| Custom timer UI | `timer: 60`, `onTick: (r) => setRemaining(r)` |
-| Native form submission | `name: 'otp_code'` |
+| Hex activation key | `pattern: /^[0-9A-F]$/` |
 | Async verification lock | `setDisabled(true/false)` around API call |
-| Display-only field | `readOnly: true` |
+| Native form submission | `name: 'otp_code'` |
 | Pre-fill on mount | `defaultValue: '123456'` |
+| Display-only field | `readOnly: true` |
 
 ---
 
@@ -284,4 +283,4 @@ pnpm typecheck
 
 ## License
 
-MIT © [Olawale Balo](https://github.com/walebuilds)
+MIT © 2026 [Olawale Balo](https://github.com/walebuilds)

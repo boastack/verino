@@ -2,7 +2,7 @@ blank_issues_enabled: false
 
 contact_links:
   - name: 💬 Ask a Question
-    url: https://github.com/verinojs/verino/discussions/new?category=q-a
+    url: https://github.com/boastack/verino/discussions/new?category=q-a
     about: Use GitHub Discussions for usage questions — not Issues. Most questions get answered within 24 hours.
 
   - name: 📖 Documentation

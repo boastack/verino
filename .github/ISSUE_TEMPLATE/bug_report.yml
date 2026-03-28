@@ -11,7 +11,7 @@ body:
         Thanks for taking the time to report a bug! Please fill out this form as completely as you can — the more detail you provide, the faster we can fix it.
 
         **Before submitting, please check:**
-        - [Existing issues](https://github.com/verinojs/verino/issues) — it may already be reported
+        - [Existing issues](https://github.com/boastack/verino/issues) — it may already be reported
         - [Troubleshooting guide](https://verino.dev/docs/troubleshooting) — it may already be solved
 
   - type: dropdown

@@ -19,13 +19,13 @@ Public issues are visible to everyone, including potential attackers. Use one of
 
 ### Option A — GitHub Private Security Advisory (preferred)
 
-[github.com/verinojs/verino/security/advisories/new](https://github.com/verinojs/verino/security/advisories/new)
+[github.com/boastack/verino/security/advisories/new](https://github.com/boastack/verino/security/advisories/new)
 
 GitHub's advisory system allows us to collaborate privately on a fix before any public disclosure.
 
 ### Option B — Email
 
-[security@verino.dev](mailto:security@verino.dev)
+[security@boastack.io](mailto:security@boastack.io)
 
 Please encrypt sensitive reports with our PGP key if possible.
 
@@ -96,7 +96,7 @@ Verino is a **UI component library** for rendering OTP input fields. Understandi
 
 ### Important note for users
 
-Verino renders input fields. It does not validate whether an OTP code is correct — that is always the responsibility of your server. **Never trust client-side validation alone.** A user can bypass any JavaScript validation; only your server can definitively verify an OTP.
+Verino renders input fields. It does not validate whether an OTP code is correct, that is always the responsibility of your server. **Never trust client-side validation alone.** A user can bypass any JavaScript validation; only your server can definitively verify an OTP.
 
 ---
 

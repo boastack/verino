@@ -9,7 +9,7 @@
 </h3>
 
 <p align="center">
-  By <a href="https://github.com/walebuilds">@Olawale Balo</a> — Product Designer + Design Engineer
+  Built by <a href="https://github.com/walebuilds">@Olawale Balo</a> — Product Designer + Design Engineer
 </p>
 
 <p align="center">
@@ -698,4 +698,4 @@ import { pmGuardPlugin }      from 'verino/plugins/pm-guard'
 
 ## License
 
-MIT © [Olawale Balo](https://github.com/walebuilds)
+MIT © 2026 [Olawale Balo](https://github.com/walebuilds)

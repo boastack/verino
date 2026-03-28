@@ -11,8 +11,8 @@ body:
         Got an idea? We'd love to hear it! Verino is built for developers, and real-world usage feedback is the best source of feature ideas.
 
         **Before submitting, please check:**
-        - [Existing feature requests](https://github.com/verinojs/verino/issues?q=label%3Aenhancement) — it may already be requested
-        - [Discussions](https://github.com/verinojs/verino/discussions) — it may already be in progress
+        - [Existing feature requests](https://github.com/boastack/verino/issues?q=label%3Aenhancement) — it may already be requested
+        - [Discussions](https://github.com/boastack/verino/discussions) — it may already be in progress
 
   - type: dropdown
     id: package
