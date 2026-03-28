@@ -85,9 +85,10 @@ verino renders the full OTP field inside the element, wires all event handlers, 
 | 2FA / TOTP with grouping | `separatorAfter: 3` |
 | PIN entry | `masked: true`, `blurOnComplete: true` |
 | Alphanumeric code | `type: 'alphanumeric'`, `pasteTransformer` |
-| Built-in countdown + Resend UI | `timer: 60`, `onResend` |
-| Custom timer display | `timer: 60`, `onTick: (r) => ...` |
-| Async verification lock | `el._verino.setDisabled(true/false)` |
+| Invite / referral code | `separatorAfter: [3, 6]`, `pattern: /^[A-Z0-9]$/` |
+| Hex activation key | `pattern: /^[0-9A-F]$/` |
+| Async verification lock | `setDisabled(true/false)` around API call |
+| Native form submission | `name: 'otp_code'` |
 | Pre-fill on mount | `defaultValue: '123456'` |
 | Display-only field | `readOnly: true` |
 
@@ -142,6 +143,7 @@ Supply `onTick` to power your own UI instead:
   }
 </script>
 ```
+
 ### Separator and masking
 
 Single separator (groups a 6-digit field as `[*][*][*] — [*][*][*]`):
@@ -174,11 +176,6 @@ Slot `data-*` attributes use string values `'true'` / `'false'`. Wrapper-level a
 [data-success="true"]                  { border-color: #00C950; }
 [data-disabled="true"]                 { opacity: 0.45; }
 [data-readonly="true"]                 { cursor: default; }
-
-/* Wrapper-level — presence attributes */
-[data-complete] { ... }
-[data-invalid]  { ... }
-[data-success]  { ... }
 ```
 
 Scope to a specific field using an `id` or class:
@@ -186,6 +183,16 @@ Scope to a specific field using an `id` or class:
 ```css
 #otp-field [data-active="true"][data-focus="true"] { border-color: #6366F1; }
 ```
+
+#### Wrapper attributes
+
+Set on the wrapper element as boolean presence attributes (no value):
+
+- `data-complete`
+- `data-invalid`
+- `data-success`
+- `data-disabled`
+- `data-readonly`
 
 #### Slot attributes
 
@@ -208,16 +215,6 @@ Slot-level attributes use string values (`"true"` / `"false"`):
   border-radius: 0;
 }
 ```
-
-#### Wrapper attributes
-
-Set on the wrapper element as boolean presence attributes (no value):
-
-- `data-complete`
-- `data-invalid`
-- `data-success`
-- `data-disabled`
-- `data-readonly`
 
 #### CSS classes
 
@@ -269,7 +266,6 @@ Style the OTP field by setting `--verino-*` CSS custom properties on the wrapper
   --verino-masked-size:       16px;
 }
 ```
-
 
 ---
 

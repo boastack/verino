@@ -427,7 +427,7 @@ All options are accepted by every adapter unless otherwise noted.
 | `onResend` | `() => void` | — | Fired when resend is triggered |
 | `onTick` | `(remaining: number) => void` | — | Fired every second; suppresses built-in timer UI in vanilla/alpine/web-component |
 | `onInvalidChar` | `(char: string, index: number) => void` | — | Fired when a typed character is rejected |
-| `onChange` | `(code: string) => void` | — | Fired on every user interaction — framework adapters only (React, Vue, Svelte) |
+| `onChange` | `(code: string) => void` | — | Fired on every user interaction — framework adapters only (React, Vue, Svelte, Alpine) |
 | `onFocus` | `() => void` | — | Fired when hidden input gains focus |
 | `onBlur` | `() => void` | — | Fired when hidden input loses focus |
 | `timer` | `number` | `0` | Countdown duration in seconds (`0` = disabled) |

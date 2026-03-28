@@ -67,17 +67,18 @@ import '@verino/web-component'
 
 ## Common Patterns
 
-| Pattern | Key attributes / properties |
+| Pattern | Key options |
 |---|---|
-| SMS / email OTP | `type="numeric"` `timer="60"` |
-| 2FA / TOTP with grouping | `separator-after="3"` |
-| PIN entry | `masked` `blur-on-complete` |
-| Alphanumeric code | `type="alphanumeric"` + `pasteTransformer` property |
-| Grouped code | `separator-after="3,6"` + `pattern` property |
-| Hex activation key | `separator-after="2,4,6"` + `pattern` property |
-| Async verification lock | `el.setDisabled(true/false)` around API call |
-| Pre-fill on mount | `default-value="123456"` |
-| Display-only field | `readonly` |
+| SMS / email OTP | `type: 'numeric'`, `timer: 60`, `onResend` |
+| 2FA / TOTP with grouping | `separatorAfter: 3` |
+| PIN entry | `masked: true`, `blurOnComplete: true` |
+| Alphanumeric code | `type: 'alphanumeric'`, `pasteTransformer` |
+| Invite / referral code | `separatorAfter: [3, 6]`, `pattern: /^[A-Z0-9]$/` |
+| Hex activation key | `pattern: /^[0-9A-F]$/` |
+| Async verification lock | `setDisabled(true/false)` around API call |
+| Native form submission | `name: 'otp_code'` |
+| Pre-fill on mount | `defaultValue: '123456'` |
+| Display-only field | `readOnly: true` |
 
 ---
 
@@ -295,7 +296,6 @@ verino-input {
   --verino-slot-font:         inherit;
 }
 ```
-
 
 ---
 

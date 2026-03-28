@@ -81,8 +81,10 @@ function OTPField() {
 | 2FA / TOTP with grouping | `separatorAfter: 3` |
 | PIN entry | `masked: true`, `blurOnComplete: true` |
 | Alphanumeric code | `type: 'alphanumeric'`, `pasteTransformer` |
-| react-hook-form integration | `value: code`, `onChange: setCode` |
-| Async verification lock | `disabled: isVerifying` via React state |
+| Invite / referral code | `separatorAfter: [3, 6]`, `pattern: /^[A-Z0-9]$/` |
+| Hex activation key | `pattern: /^[0-9A-F]$/` |
+| Async verification lock | `setDisabled(true/false)` around API call |
+| Native form submission | `name: 'otp_code'` |
 | Pre-fill on mount | `defaultValue: '123456'` |
 | Display-only field | `readOnly: true` |
 
@@ -295,7 +297,6 @@ Style the field by setting `--verino-*` CSS custom properties on the wrapper ele
   --verino-masked-size:       16px;
 }
 ```
-
 
 ---
 

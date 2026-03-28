@@ -95,8 +95,10 @@ const otp = useOTP({ length: 6, onComplete: (code) => verify(code) })
 | 2FA / TOTP with grouping | `separatorAfter: 3` |
 | PIN entry | `masked: true`, `blurOnComplete: true` |
 | Alphanumeric code | `type: 'alphanumeric'`, `pasteTransformer` |
-| Reactive controlled value | `value: codeRef` (pass a `Ref<string>`) |
-| Async verification lock | `otp.isDisabled.value = true/false` |
+| Invite / referral code | `separatorAfter: [3, 6]`, `pattern: /^[A-Z0-9]$/` |
+| Hex activation key | `pattern: /^[0-9A-F]$/` |
+| Async verification lock | `setDisabled(true/false)` around API call |
+| Native form submission | `name: 'otp_code'` |
 | Pre-fill on mount | `defaultValue: '123456'` |
 | Display-only field | `readOnly: true` |
 
@@ -302,7 +304,6 @@ Style the field by setting `--verino-*` CSS custom properties on the wrapper ele
   --verino-masked-size:       16px;
 }
 ```
-
 
 ---
 
