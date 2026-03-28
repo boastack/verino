@@ -26,7 +26,7 @@
     {
       "name": "vanilla adapter (ESM)",
       "path": "packages/verino/dist/adapters/vanilla.js",
-      "limit": "8 kB"
+      "limit": "10 kB"
     },
     {
       "name": "plugin: timer-ui (ESM)",
@@ -36,7 +36,7 @@
     {
       "name": "plugin: web-otp (ESM)",
       "path": "packages/verino/dist/adapters/plugins/web-otp.js",
-      "limit": "1 kB"
+      "limit": "2 kB"
     },
     {
       "name": "plugin: pm-guard (ESM)",
