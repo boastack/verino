@@ -135,7 +135,7 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           name: dist-${{ github.sha }}
-          path: .
+          path: packages
 
       - name: Install Playwright browsers
         run: pnpm exec playwright install --with-deps ${{ matrix.browser }}
@@ -175,7 +175,7 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           name: dist-${{ github.sha }}
-          path: .
+          path: packages
 
       - name: Check bundle sizes
         run: pnpm size
