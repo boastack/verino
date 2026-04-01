@@ -37,7 +37,7 @@ import {
   type InputProps,
   type SlotEntry,
   type InputType,
-} from 'verino'
+} from '@verino/core'
 
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -68,8 +68,8 @@ export type ReactOTPOptions = OTPOptions & {
    */
   onChange?: (code: string) => void
   /**
-   * Visual separator after slot index (0-based). Accepts single or array.
-   * @example separatorAfter: 3      →  [*][*][*] — [*][*][*]
+   * Visual separator after the Nth slot (1-based). Accepts single or array.
+   * @example separatorAfter: 3      →  [*][*][*] — [*][*][*]   (splits after 3rd)
    * @example separatorAfter: [2, 4] →  [*][*] — [*][*] — [*][*]
    */
   separatorAfter?: number | number[]
@@ -366,7 +366,8 @@ export function useOTP(options: ReactOTPOptions = {}): UseOTPResult {
 
     // Subscriber fires during the loop above but is suppressed.
     // Apply final state in one shot so React sees a single consistent update.
-    setState({ ...otp.state })
+    // getSnapshot() deep-clones slotValues so React holds an isolated copy.
+    setState(otp.getSnapshot())
 
     if (inputRef.current) {
       inputRef.current.value = incoming
@@ -393,7 +394,7 @@ export function useOTP(options: ReactOTPOptions = {}): UseOTPResult {
       suppressOnChangeRef.current = false
     }
 
-    setState({ ...otp.state })
+    setState(otp.getSnapshot())
     if (inputRef.current) {
       inputRef.current.value = filtered
       inputRef.current.setSelectionRange(filtered.length, filtered.length)
@@ -639,7 +640,6 @@ export function useOTP(options: ReactOTPOptions = {}): UseOTPResult {
     wrapperProps,
   }
 }
-
 
 
 // ─────────────────────────────────────────────────────────────────────────────

@@ -5,5 +5,6 @@ export default defineConfig({
   format: ['esm', 'cjs'],
   dts:    true,
   clean:  true,
-  external: ['react', 'verino'],
+  sourcemap: false,
+  external: ['react', '@verino/core'],
 })

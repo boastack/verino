@@ -9,108 +9,107 @@
 </h3>
 
 <p align="center">
-  Built by <a href="https://github.com/walebuilds">@Olawale Balo</a> — Product Designer + Design Engineer
-</p>
-
-<p align="center">
   <a href="https://verino.vercel.app"><img src="https://img.shields.io/badge/verino.vercel.app-live-20C55C" alt="Live demo" /></a>&nbsp;
-  <a href="https://www.npmjs.com/package/verino"><img src="https://img.shields.io/npm/v/verino?color=20C55C&label=verino" alt="npm version" /></a>&nbsp;
-  <a href="https://bundlephobia.com/package/verino"><img src="https://img.shields.io/bundlephobia/minzip/verino?color=20C55C&label=gzip" alt="gzip size" /></a>&nbsp;
-  <img src="https://img.shields.io/badge/Dependencies-0-20C55C" alt="Zero dependencies" />&nbsp;
+  <a href="https://www.npmjs.com/package/@verino/core"><img src="https://img.shields.io/npm/v/@verino/core?color=20C55C&label=version" alt="npm version" /></a>&nbsp;
+  <a href="https://bundlephobia.com/package/@verino/core"><img src="https://img.shields.io/bundlephobia/minzip/@verino/core?color=20C55C&label=core+gzip" alt="gzip size" /></a>&nbsp;
+  <img src="https://img.shields.io/badge/dependencies-0-20C55C" alt="Zero dependencies" />&nbsp;
   <a href="https://www.typescriptlang.org"><img src="https://img.shields.io/badge/TypeScript-strict-20C55C" alt="TypeScript" /></a>
 </p>
 
 ---
 
-## What is verino?
+## Overview
 
-verino is a headless OTP and verification code input library. The core is a zero-dependency, zero DOM TypeScript state machine with an event system. Each framework package wraps that core using idiomatic primitives such as a hook, composable, store and action, directive, or custom element, without reimplementing any logic.
+Verino is a headless OTP and verification code input library built around a single principle: **one state machine powers every framework adapter without reimplementing any logic.**
 
-Every adapter shares the same single hidden input architecture. One real `<input>` captures keyboard events, native SMS autofill with `autocomplete="one-time-code"`, and the Web OTP API, while visual slot elements are purely decorative and driven by `data-*` attributes.
+`@verino/core` is a zero-dependency, zero-DOM TypeScript state machine that handles character filtering, cursor movement, paste normalization, timer management, and a typed event system. Every adapter (React, Vue, Svelte, Alpine.js, Vanilla JS, and Web Components) wraps this core using the idiomatic primitives of its framework, such as hooks, composables, stores with actions, directives, or custom elements, without adding extra logic.
+
+The key architectural decision is the **single hidden input.** A single `<input>` sits over purely decorative visual slots and captures keyboard events, paste, SMS autofill via `autocomplete="one-time-code"`, and the Web OTP API natively. Fixes ship once and apply to every framework simultaneously.
+
+---
+
+## Monorepo Architecture
+
+```
+verino/
+├── packages/
+│   ├── core/            @verino/core          — pure state machine, zero DOM
+│   ├── vanilla/         @verino/vanilla        — DOM adapter + plugins
+│   ├── react/           @verino/react          — useOTP hook + HiddenOTPInput
+│   ├── vue/             @verino/vue            — useOTP composable (Ref<T>)
+│   ├── svelte/          @verino/svelte         — useOTP store + use:action
+│   ├── alpine/          @verino/alpine         — x-verino directive
+│   └── web-component/   @verino/web-component  — <verino-input> custom element
+├── tests/               unit (Jest), SSR, and E2E (Playwright) tests
+├── examples/            runnable per-framework demos
+├── .github/             CI workflows, issue templates, CONTRIBUTING.md
+├── turbo.json
+├── pnpm-workspace.yaml
+└── tsconfig.base.json
+```
+
+**Dependency graph:** every adapter declares `@verino/core` as a direct dependency. No adapter depends on another adapter, and there are no circular references.
+
+```
+@verino/core
+└── @verino/vanilla   (also ships timerUIPlugin, webOTPPlugin, pmGuardPlugin)
+└── @verino/react
+└── @verino/vue
+└── @verino/svelte
+└── @verino/alpine
+└── @verino/web-component
+```
 
 ---
 
 ## Packages
 
-| Package | Description | Version |
+| Package | Install | Description |
 |---|---|---|
-| [`verino`](./packages/verino) | Core state machine + vanilla DOM adapter | [![npm](https://img.shields.io/npm/v/verino?color=20C55C)](https://www.npmjs.com/package/verino) |
-| [`@verino/react`](./packages/react) | `useOTP` hook + `HiddenOTPInput` component | [![npm](https://img.shields.io/npm/v/@verino/react?color=20C55C)](https://www.npmjs.com/package/@verino/react) |
-| [`@verino/vue`](./packages/vue) | `useOTP` composable | [![npm](https://img.shields.io/npm/v/@verino/vue?color=20C55C)](https://www.npmjs.com/package/@verino/vue) |
-| [`@verino/svelte`](./packages/svelte) | `useOTP` store + `action` | [![npm](https://img.shields.io/npm/v/@verino/svelte?color=20C55C)](https://www.npmjs.com/package/@verino/svelte) |
-| [`@verino/alpine`](./packages/alpine) | `x-verino` directive | [![npm](https://img.shields.io/npm/v/@verino/alpine?color=20C55C)](https://www.npmjs.com/package/@verino/alpine) |
-| [`@verino/web-component`](./packages/web-component) | `<verino-input>` custom element | [![npm](https://img.shields.io/npm/v/@verino/web-component?color=20C55C)](https://www.npmjs.com/package/@verino/web-component) |
+| [`@verino/core`](./packages/core/README.md) | `npm i @verino/core` | Pure OTP state machine — zero DOM, zero framework |
+| [`@verino/vanilla`](./packages/vanilla/README.md) | `npm i @verino/vanilla` | Vanilla DOM adapter + `timerUIPlugin`, `webOTPPlugin`, `pmGuardPlugin` |
+| [`@verino/react`](./packages/react/README.md) | `npm i @verino/react` | `useOTP` hook + `HiddenOTPInput` component (React ≥ 18) |
+| [`@verino/vue`](./packages/vue/README.md) | `npm i @verino/vue` | `useOTP` composable with `Ref<T>` reactive state (Vue ≥ 3) |
+| [`@verino/svelte`](./packages/svelte/README.md) | `npm i @verino/svelte` | `useOTP` store + `use:action` directive (Svelte ≥ 4) |
+| [`@verino/alpine`](./packages/alpine/README.md) | `npm i @verino/alpine` | `VerinoAlpine` plugin — `x-verino` directive (Alpine.js ≥ 3) |
+| [`@verino/web-component`](./packages/web-component/README.md) | `npm i @verino/web-component` | `<verino-input>` Shadow DOM custom element |
 
----
-
-## Architecture
-
-```
-verino (core + vanilla adapter)
-├── createOTP()        ← pure state machine, zero DOM
-├── initOTP()          ← vanilla DOM adapter
-└── adapters/
-    └── plugins/
-        ├── timerUIPlugin   ← built-in countdown + resend UI
-        ├── webOTPPlugin    ← SMS autofill via Web OTP API
-        └── pmGuardPlugin   ← password manager badge guard
-
-@verino/react          → useOTP hook + HiddenOTPInput
-@verino/vue            → useOTP composable
-@verino/svelte         → useOTP store + Svelte action
-@verino/alpine         → VerinoAlpine plugin (x-verino directive)
-@verino/web-component  → VerinoInput custom element (<verino-input>)
-```
-
-All adapter packages import `createOTP` from `verino`. No adapter reimplements event handling, character filtering, cursor movement, paste logic, or timer management.
-
----
-
-## Features
-
-- **One core, six adapters.** A single pure state machine powers every adapter (React, Vue, Svelte, Alpine.js, Vanilla JS, and Web Components) so fixes and improvements ship to all frameworks simultaneously.
-- **Native autofill, no synthetic events.** A transparent `<input>` overlays the visual slots, capturing keyboard input, paste, SMS autofill, Web OTP API, password managers, screen readers, and IME natively.
-- **Accessible by default.** `role="group"`, `aria-labelledby`, per-slot screen reader labels, `inputMode`, and `autocomplete="one-time-code"` are built in, with all visual slots marked `aria-hidden`.
-- **Full programmatic control.** `setError`, `setSuccess`, `setDisabled`, `setReadOnly`, `reset()`, `focus(i)`, and `getCode()` are available across every adapter for seamless integration with async flows and external state.
-- **Built-in timer and resend.** Pass `timer: 60` for a live countdown badge and cooldown-aware resend button wired to `reset()`, or provide `onTick` to power custom UI with the same timer logic.
-- **Rich event system.** Subscribers receive a typed `OTPEvent` discriminated union alongside state (`INPUT`, `DELETE`, `PASTE`, `COMPLETE`, `RESET`, `ERROR`, `SUCCESS`, and more) for precise, event-driven reactions.
-- **Password manager guard.** Floating credential badges from LastPass, 1Password, Dashlane, Bitwarden, and Keeper are automatically detected and repositioned via `MutationObserver` before they overlap your slots.
-- **CSS variable theming.** Size, gap, radius, font, border, active ring, error and success states, caret, and placeholder are exposed as scoped CSS custom properties with no stylesheet overrides required.
-
----
-
-## How verino compares
-
-| Feature | verino | input-otp | react-otp-input |
-|---|---|---|---|
-| Pure headless state machine | ✅ | ✗ | ✗ |
-| Typed event system | ✅ | ✗ | ✗ |
-| Web OTP API (SMS intercept) | ✅ | ✗ | ✗ |
-| Built-in timer and resend | ✅ | ✗ | ✗ |
-| Masked mode | ✅ | ✗ | ✗ |
-| Programmatic API (`setError`, `setSuccess`, `reset`, `focus`) | ✅ | ✗ | ✗ |
-| Haptic and sound feedback | ✅ | ✗ | ✗ |
-| `blurOnComplete` | ✅ | ✗ | ✗ |
-| `onInvalidChar` callback | ✅ | ✗ | ✗ |
-| `readOnly` mode | ✅ | ✗ | ✗ |
-| `data-*` state attributes | ✅ | ✗ | ✗ |
-| CSS variable theming | ✅ | ✗ | ✗ |
-| Vanilla JS | ✅ | ✗ | ✗ |
-| Vue | ✅ | ✗ | ✗ |
-| Svelte | ✅ | ✗ | ✗ |
-| Alpine.js | ✅ | ✗ | ✗ |
-| Web Component | ✅ | ✗ | ✗ |
-| React | ✅ | ✅ | ✅ |
-| Single hidden input | ✅ | ✅ | ✗ |
-| Password manager guard | ✅ | ✅ | ✗ |
-| Zero dependencies | ✅ | ✅ | ✗ |
-| TypeScript | ✅ | ✅ | ✅ |
+> **You only need to install the adapter for your framework.** `@verino/core` is listed as a direct dependency of each adapter and installs automatically.
 
 ---
 
 ## Installation
 
-Install only the adapter for your framework — `verino` is declared as a dependency and installed automatically:
+### Monorepo development setup
+
+**Prerequisites:** Node.js ≥ 18, pnpm ≥ 8.
+
+```bash
+git clone https://github.com/boastack/verino.git
+cd verino
+pnpm install
+```
+
+### Available scripts
+
+```bash
+pnpm build          # build all packages via Turborepo
+pnpm build:cdn      # build CDN IIFE bundles
+pnpm build:all      # build + CDN in one step
+pnpm dev            # watch mode — rebuilds on change
+pnpm test           # run Jest unit tests
+pnpm test:coverage  # run tests with coverage report
+pnpm test:e2e       # run Playwright end-to-end tests
+pnpm typecheck      # type-check all packages
+pnpm size           # check bundle sizes against declared limits
+pnpm release        # build + publish via Changesets
+```
+
+---
+
+## Quick Start
+
+Install only the adapter for your framework:
 
 ```bash
 # React
@@ -129,44 +128,8 @@ npm i @verino/alpine
 npm i @verino/web-component
 
 # Vanilla JS
-npm i verino
+npm i @verino/vanilla
 ```
-
-### CDN
-
-A pre-built IIFE bundle exposes `window.Verino.init`, identical to `initOTP`:
-
-```html
-<script src="https://unpkg.com/verino/dist/verino.min.js"></script>
-<div class="verino-wrapper"></div>
-<script>
-  Verino.init('.verino-wrapper', { onComplete: (code) => console.log(code) })
-</script>
-```
-
-Alpine.js CDN bundle — exposes `window.VerinoAlpine`:
-
-```html
-<script defer src="https://unpkg.com/alpinejs"></script>
-<script src="https://unpkg.com/verino/dist/verino-alpine.min.js"></script>
-<script>
-  document.addEventListener('alpine:init', () => Alpine.plugin(VerinoAlpine))
-</script>
-```
-
-Web Component CDN bundle — auto-registers `<verino-input>`:
-
-```html
-<script src="https://unpkg.com/verino/dist/verino-wc.min.js"></script>
-<verino-input length="6" name="otp"></verino-input>
-<script>
-  document.querySelector('verino-input').addEventListener('complete', (e) => console.log(e.detail.code))
-</script>
-```
-
----
-
-## Quick Example
 
 ### React
 
@@ -196,13 +159,66 @@ function OTPField() {
 }
 ```
 
+### Vue
+
+```vue
+<script setup lang="ts">
+import { useOTP } from '@verino/vue'
+const otp = useOTP({ length: 6, onComplete: (code) => verify(code) })
+</script>
+
+<template>
+  <div v-bind="otp.wrapperAttrs.value" style="position: relative; display: inline-flex; gap: 8px">
+    <input :ref="(el) => (otp.inputRef.value = el)" v-bind="otp.hiddenInputAttrs.value"
+      style="position: absolute; inset: 0; opacity: 0; z-index: 1"
+      @keydown="otp.onKeydown" @input="otp.onChange" @paste="otp.onPaste"
+      @focus="otp.onFocus" @blur="otp.onBlur" />
+    <div v-for="slot in otp.getSlots()" :key="slot.index" aria-hidden="true"
+      :class="['slot', slot.isActive && 'is-active', slot.isFilled && 'is-filled']">
+      {{ slot.isFilled ? slot.value : otp.placeholder }}
+    </div>
+  </div>
+</template>
+```
+
+### Svelte
+
+```svelte
+<script>
+  import { useOTP } from '@verino/svelte'
+  const otp = useOTP({ length: 6, onComplete: (code) => verify(code) })
+  const { slots, wrapperAttrs } = otp
+</script>
+
+<div {...$wrapperAttrs} style="position: relative; display: inline-flex; gap: 8px">
+  <input use:otp.action style="position: absolute; inset: 0; opacity: 0; z-index: 1" />
+  {#each $slots as slot (slot.index)}
+    <div aria-hidden="true" class="slot" class:is-active={slot.isActive} class:is-filled={slot.isFilled}>
+      {slot.isFilled ? slot.value : otp.placeholder}
+    </div>
+  {/each}
+</div>
+```
+
+### Alpine.js
+
+```html
+<script defer src="https://unpkg.com/alpinejs"></script>
+<script src="https://unpkg.com/@verino/alpine/dist/verino-alpine.min.js"></script>
+<script>
+  document.addEventListener('alpine:init', () => Alpine.plugin(VerinoAlpine))
+</script>
+
+<div x-data x-verino="{ length: 6, onComplete: (code) => verify(code) }"></div>
+```
+
 ### Vanilla JS
 
 ```html
 <div class="verino-wrapper" data-length="6" data-timer="60"></div>
 
 <script type="module">
-  import { initOTP } from 'verino'
+  import { initOTP } from '@verino/vanilla'
   const [otp] = initOTP('.verino-wrapper', {
     onComplete: (code) => verify(code),
   })
@@ -212,7 +228,7 @@ function OTPField() {
 ### Web Component
 
 ```html
-<script type="module" src="https://unpkg.com/@verino/web-component"></script>
+<script src="https://unpkg.com/@verino/web-component/dist/verino-wc.min.js"></script>
 <verino-input length="6" timer="60"></verino-input>
 
 <script>
@@ -225,59 +241,154 @@ function OTPField() {
 
 ## Common Patterns
 
-| Pattern | Key options |
+| Use case | Key options |
 |---|---|
 | SMS / email OTP | `type: 'numeric'`, `timer: 60`, `onResend` |
-| 2FA / TOTP with grouping | `separatorAfter: 3` |
+| TOTP / 2FA with separator | `separatorAfter: 3` |
 | PIN entry | `masked: true`, `blurOnComplete: true` |
 | Alphanumeric code | `type: 'alphanumeric'`, `pasteTransformer` |
 | Invite / referral code | `separatorAfter: [3, 6]`, `pattern: /^[A-Z0-9]$/` |
 | Hex activation key | `pattern: /^[0-9A-F]$/` |
-| Async verification lock | `setDisabled(true/false)` around API call |
+| Async verification lock | `setDisabled(true / false)` around the API call |
 | Native form submission | `name: 'otp_code'` |
 | Pre-fill on mount | `defaultValue: '123456'` |
-| Display-only field | `readOnly: true` |
+| Display-only / read-only | `readOnly: true` |
 
 ---
 
-## Monorepo Development
+## CDN
 
-This repository is a [pnpm](https://pnpm.io) workspace managed by [Turborepo](https://turbo.build).
+```html
+<!-- Vanilla JS -->
+<script src="https://unpkg.com/@verino/vanilla/dist/verino.min.js"></script>
 
-```bash
-pnpm install        # install dependencies
-pnpm build          # build all packages
-pnpm build:cdn      # build CDN bundles
-pnpm test           # run unit tests
-pnpm typecheck      # type-check all packages
-pnpm dev            # watch mode
+<!-- Alpine.js plugin -->
+<script defer src="https://unpkg.com/alpinejs"></script>
+<script src="https://unpkg.com/@verino/alpine/dist/verino-alpine.min.js"></script>
+<script>
+  document.addEventListener('alpine:init', () => Alpine.plugin(VerinoAlpine))
+</script>
+
+<!-- Web Component (auto-registers <verino-input>) -->
+<script src="https://unpkg.com/@verino/web-component/dist/verino-wc.min.js"></script>
 ```
 
-```
-verino/
-├── packages/
-│   ├── verino/          # core + vanilla adapter
-│   ├── react/
-│   ├── vue/
-│   ├── svelte/
-│   ├── alpine/
-│   └── web-component/
-├── tests/               # unit, SSR, and e2e tests
-├── examples/            # per-framework demos
-└── dist/                # CDN bundles (generated)
-```
+---
+
+## How verino compares
+
+Verino is the only OTP library built on a single core that supports all major web frameworks. The alternatives below are the most widely used within each ecosystem.
+
+### React ecosystem
+
+| Feature | verino | `input-otp` | `react-otp-input` |
+|---|---|---|---|
+| Pure headless state machine | ✅ | ✗ | ✗ |
+| Typed event system | ✅ | ✗ | ✗ |
+| Web OTP API (SMS intercept) | ✅ | ✗ | ✗ |
+| Built-in timer and resend | ✅ | ✗ | ✗ |
+| Masked mode | ✅ | ✗ | ✗ |
+| Programmatic API | ✅ | ✗ | ✗ |
+| Haptic + sound feedback | ✅ | ✗ | ✗ |
+| CSS variable theming | ✅ | ✗ | ✗ |
+| `data-*` state attributes | ✅ | ✗ | ✗ |
+| Single hidden input | ✅ | ✅ | ✗ |
+| Password manager guard | ✅ | ✅ | ✗ |
+| Zero dependencies | ✅ | ✅ | ✗ |
+| TypeScript (strict) | ✅ | ✅ | ✅ |
+
+### Vue ecosystem
+
+| Feature | verino | `vue3-otp-input` | `vue-input-otp` |
+|---|---|---|---|
+| Pure headless state machine | ✅ | ✗ | ✗ |
+| Typed event system | ✅ | ✗ | ✗ |
+| Web OTP API (SMS intercept) | ✅ | ✗ | ✗ |
+| Built-in timer and resend | ✅ | ✗ | ✗ |
+| Masked mode | ✅ | ✗ | ✗ |
+| Programmatic API | ✅ | ✗ | ✗ |
+| Haptic + sound feedback | ✅ | ✗ | ✗ |
+| CSS variable theming | ✅ | ✗ | ✗ |
+| `data-*` state attributes | ✅ | ✗ | ✗ |
+| Reactive `Ref<T>` state | ✅ | ✗ | ✗ |
+| Single hidden input | ✅ | ✗ | ✅ |
+| Password manager guard | ✅ | ✗ | ✅ |
+| Zero dependencies | ✅ | ✗ | ✅ |
+| TypeScript (strict) | ✅ | ✗ | ✅ |
+
+### Svelte ecosystem
+
+| Feature | verino | `@k4ung/svelte-otp` | `svelte-otp` |
+|---|---|---|---|
+| Pure headless state machine | ✅ | ✗ | ✗ |
+| Typed event system | ✅ | ✗ | ✗ |
+| Web OTP API (SMS intercept) | ✅ | ✗ | ✗ |
+| Built-in timer and resend | ✅ | ✗ | ✗ |
+| Masked mode | ✅ | ✗ | ✅ |
+| Programmatic API | ✅ | ✗ | ✗ |
+| Haptic + sound feedback | ✅ | ✗ | ✗ |
+| CSS variable theming | ✅ | ✗ | ✗ |
+| `data-*` state attributes | ✅ | ✗ | ✗ |
+| Native Svelte stores | ✅ | ✗ | ✗ |
+| Single hidden input | ✅ | ✗ | ✗ |
+| Password manager guard | ✅ | ✗ | ✅ |
+| Zero dependencies | ✅ | ✅ | ✅ |
+| TypeScript (strict) | ✅ | ✗ | ✗ |
+
+### Cross-framework coverage
+
+| Framework / environment | verino | Single alternative |
+|---|---|---|
+| React | ✅ | ✅ |
+| Vue 3 | ✅ | Separate library |
+| Svelte 4+ | ✅ | Separate library |
+| Alpine.js | ✅ | ✗ |
+| Web Components | ✅ | ✗ |
+| Vanilla JS | ✅ | ✗ |
+| Shared core | ✅ | ✗ |
 
 ---
 
 ## Contributing
 
-See [CONTRIBUTING.md](./.github/CONTRIBUTING.md) for guidelines. Issues and pull requests are welcome.
+See [CONTRIBUTING.md](./.github/CONTRIBUTING.md) for guidelines.
 
 ```bash
-# Run all tests before submitting a PR
-pnpm test
-pnpm typecheck
+# Clone and install
+git clone https://github.com/boastack/verino.git
+cd verino && pnpm install
+
+# Run before opening a PR
+pnpm test && pnpm typecheck
 ```
+
+- Changes to `@verino/core` require corresponding tests in `tests/core.test.ts`.
+- All user-facing changes require a Changesets entry: `pnpm changeset`.
+- For a new framework adapter, open a [framework request](https://github.com/boastack/verino/issues/new?template=framework_request.yml) first.
+
+---
+
+## Versioning
+
+Verino follows [Semantic Versioning](https://semver.org). Releases are managed by [Changesets](https://github.com/changesets/changesets). Each package is versioned and published independently, a fix in `@verino/react` does not bump `@verino/vue`.
+
+- **Patch** — bug fixes, internal refactors, no API change.
+- **Minor** — new options, new exports, backwards-compatible additions.
+- **Major** — breaking changes to the public API or option shapes.
+
+---
+
+## Roadmap
+
+Verino continues to evolve with these upcoming enhancements:
+
+- SolidJS adapter
+- React Native adapter
+- Storybook playground with live components
+- Accessibility enhancements
+- Performance refinements
+
+[Open or upvote a feature request →](https://github.com/boastack/verino/issues/new?template=feature_request.yml)
 
 ---
 

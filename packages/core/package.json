@@ -1,9 +1,9 @@
 {
-  "name": "@verino/vue",
+  "name": "@verino/core",
   "version": "1.0.0",
-  "description": "Vue adapter for verino. Build reliable OTP inputs from a single core.",
+  "description": "Reliable OTP input state machine that powers React, Vue, Svelte, Alpine, Vanilla JS, and Web Components.",
   "type": "module",
-  "main": "./dist/index.cjs",
+  "main": "./dist/index.js",
   "module": "./dist/index.js",
   "types": "./dist/index.d.ts",
   "exports": {
@@ -13,32 +13,41 @@
       "require": "./dist/index.cjs"
     }
   },
-  "files": [
-    "dist"
-  ],
   "sideEffects": false,
+  "files": [
+    "dist",
+    "src",
+    "README.md",
+    "LICENSE",
+    "CHANGELOG.md"
+  ],
   "scripts": {
     "build": "tsup",
     "typecheck": "tsc --noEmit"
   },
-  "dependencies": {
-    "@verino/core": "workspace:*"
-  },
-  "peerDependencies": {
-    "vue": ">=3"
-  },
-  "devDependencies": {
-    "tsup": "^8.0.0",
-    "typescript": "^5.0.0",
-    "vue": "^3.0.0"
-  },
+  "keywords": [
+    "otp",
+    "otp-input",
+    "one-time-password",
+    "one-time-code",
+    "pin-input",
+    "verification-code",
+    "passcode",
+    "2fa",
+    "mfa",
+    "headless",
+    "accessible-otp",
+    "typescript",
+    "zero-dependencies",
+    "state-machine"
+  ],
   "author": "Olawale Balo",
   "license": "MIT",
   "homepage": "https://verino.vercel.app",
   "repository": {
     "type": "git",
     "url": "https://github.com/boastack/verino",
-    "directory": "packages/vue"
+    "directory": "packages/core"
   },
   "bugs": {
     "url": "https://github.com/boastack/verino/issues"

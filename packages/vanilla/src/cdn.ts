@@ -15,5 +15,5 @@
  * @license MIT
  */
 
-export { initOTP as init } from './adapters/vanilla.js'
-export { createOTP, filterChar, filterString, formatCountdown } from './core/index.js'
+export { initOTP as init } from './vanilla.js'
+export { createOTP, filterChar, filterString, formatCountdown } from '@verino/core'

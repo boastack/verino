@@ -5,14 +5,14 @@
 <h1 align="center">@verino/react</h1>
 
 <h3 align="center">
-  React adapter for <a href="https://www.npmjs.com/package/verino" target="_blank" rel="noopener noreferrer">verino</a>. Build reliable OTP inputs from a single core.
+  React adapter for <a href="https://github.com/boastack/verino">verino</a>. Build reliable OTP inputs from a single core.
 </h3>
 
 <p align="center">
   <a href="https://verino.vercel.app"><img src="https://img.shields.io/badge/verino.vercel.app-live-20C55C" alt="Live demo" /></a>&nbsp;
   <a href="https://www.npmjs.com/package/@verino/react"><img src="https://img.shields.io/npm/v/@verino/react?color=20C55C&label=%40verino%2Freact" alt="npm version" /></a>&nbsp;
   <a href="https://bundlephobia.com/package/@verino/react"><img src="https://img.shields.io/bundlephobia/minzip/@verino/react?color=20C55C&label=gzip" alt="gzip size" /></a>&nbsp;
-  <img src="https://img.shields.io/badge/Dependencies-0-20C55C" alt="Zero dependencies" />&nbsp;
+  <img src="https://img.shields.io/badge/dependencies-0-20C55C" alt="Zero dependencies" />&nbsp;
   <a href="https://www.typescriptlang.org"><img src="https://img.shields.io/badge/TypeScript-strict-20C55C" alt="TypeScript" /></a>
 </p>
 
@@ -20,7 +20,7 @@
 
 ## Overview
 
-`@verino/react` wraps the `verino` core state machine in a `useOTP` hook. The hook manages React state, wires all event handlers, and returns everything needed to render a fully accessible OTP field with full control over markup and styling.
+`@verino/react` wraps [`@verino/core`](https://www.npmjs.com/package/@verino/core) in a `useOTP` hook. The hook manages React state, wires all event handlers, and returns everything needed to render a fully accessible OTP field with full control over markup and styling.
 
 `HiddenOTPInput` is a positioned `<input>` that captures all keyboard input, paste, and native SMS autofill. Visual slot divs are purely decorative mirrors, hold no event listeners and carry no state of their own.
 
@@ -28,15 +28,29 @@ The core instance is created once via `useMemo` and never recreated on re-render
 
 ---
 
+## Why Use This Adapter?
+
+- **Full markup control.** `useOTP` provides render props — you own the JSX, no opaque wrapper.  
+- **React 18 ready.** Fully compatible with concurrent features, Suspense, and strict mode.  
+- **`react-hook-form` friendly.** Pass `value` and `onChange` to integrate with any form library.  
+- **Stable instance.** The `@verino/core` state machine is created once and persists across re-renders.
+
+---
+
 ## Installation
 
 ```bash
+# npm
 npm install @verino/react
+
+# pnpm
 pnpm add @verino/react
+
+# yarn
 yarn add @verino/react
 ```
 
-**Peer dependency:** React ≥ 18. `verino` is installed automatically.
+**Peer dependency:** React ≥ 18. `@verino/core` installs automatically.
 
 ---
 
@@ -75,18 +89,18 @@ function OTPField() {
 
 ## Common Patterns
 
-| Pattern | Key options |
+| Use case | Key options |
 |---|---|
 | SMS / email OTP | `type: 'numeric'`, `timer: 60`, `onResend` |
-| 2FA / TOTP with grouping | `separatorAfter: 3` |
+| TOTP / 2FA with separator | `separatorAfter: 3` |
 | PIN entry | `masked: true`, `blurOnComplete: true` |
 | Alphanumeric code | `type: 'alphanumeric'`, `pasteTransformer` |
 | Invite / referral code | `separatorAfter: [3, 6]`, `pattern: /^[A-Z0-9]$/` |
 | Hex activation key | `pattern: /^[0-9A-F]$/` |
-| Async verification lock | `setDisabled(true/false)` around API call |
+| Async verification lock | `setDisabled(true / false)` around the API call |
 | Native form submission | `name: 'otp_code'` |
 | Pre-fill on mount | `defaultValue: '123456'` |
-| Display-only field | `readOnly: true` |
+| Display-only / read-only | `readOnly: true` |
 
 ---
 
@@ -137,18 +151,13 @@ function MyForm() {
 
 ### Async verification
 
-`useOTP` does not expose `setDisabled()` — control disabled state via a React state variable passed as the `disabled` option:
-
 ```tsx
-const [isVerifying, setIsVerifying] = useState(false)
-
 const otp = useOTP({
-  length:   6,
-  disabled: isVerifying,
+  length: 6,
   onComplete: async (code) => {
-    setIsVerifying(true)
-    const ok = await verify(code)
-    setIsVerifying(false)
+    otp.setDisabled(true)
+    const ok = await api.verify(code)
+    otp.setDisabled(false)
     ok ? otp.setSuccess(true) : otp.setError(true)
   },
 })
@@ -156,14 +165,35 @@ const otp = useOTP({
 
 ### Timer
 
-`timerSeconds` is a live reactive countdown — it updates every second:
+`timerSeconds` is a live reactive countdown, it updates every second:
 
 ```tsx
-const otp = useOTP({ length: 6, timer: 60, onExpire: () => showExpiredMessage() })
+const otp = useOTP({ length: 6, timer: 60, onExpire: () => showExpired() })
 
 {otp.timerSeconds > 0 && (
-  <p>Expires in {Math.floor(otp.timerSeconds / 60)}:{String(otp.timerSeconds % 60).padStart(2, '0')}</p>
+  <p>
+    Expires in {Math.floor(otp.timerSeconds / 60)}:
+    {String(otp.timerSeconds % 60).padStart(2, '0')}
+  </p>
 )}
+```
+
+### Separator
+
+```tsx
+import { Fragment } from 'react'
+
+const otp    = useOTP({ length: 6, separatorAfter: 3, separator: '—' })
+const sepSet = new Set(
+  Array.isArray(otp.separatorAfter) ? otp.separatorAfter : [otp.separatorAfter]
+)
+
+{otp.getSlots().map((slot) => (
+  <Fragment key={slot.index}>
+    {sepSet.has(slot.index) && <span aria-hidden="true">{otp.separator}</span>}
+    <div className="slot">{otp.getSlotProps(slot.index).char}</div>
+  </Fragment>
+))}
 ```
 
 ### Masked input
@@ -181,26 +211,9 @@ const otp = useOTP({ length: 6, masked: true, maskChar: '●' })
 })}
 ```
 
-### Separator
+### `data-*` state attributes
 
-```tsx
-import { Fragment } from 'react'
-
-const otp = useOTP({ length: 6, separatorAfter: 3, separator: '—' })
-
-const sepSet = new Set(Array.isArray(otp.separatorAfter) ? otp.separatorAfter : [otp.separatorAfter])
-
-{otp.getSlots().map((slot) => (
-  <Fragment key={slot.index}>
-    {sepSet.has(slot.index) && <span aria-hidden="true">{otp.separator}</span>}
-    <div className="slot">{otp.getSlotProps(slot.index).char}</div>
-  </Fragment>
-))}
-```
-
-### State attributes
-
-`getInputProps(index)` returns all `data-*` state attributes alongside event handlers. Spread only the data attributes onto visual divs:
+Spread `data-*` props onto slot divs for CSS driven state styling:
 
 ```tsx
 function dataAttrs(props: Record<string, unknown>) {
@@ -211,68 +224,78 @@ function dataAttrs(props: Record<string, unknown>) {
 
 {otp.getSlots().map((slot) => (
   <div key={slot.index} className="slot" {...dataAttrs(otp.getInputProps(slot.index))}>
-    {slot.value}
+    {otp.getSlotProps(slot.index).char}
   </div>
 ))}
-```
-
-```css
-.slot[data-active="true"][data-focus="true"] { border-color: #3D3D3D; }
-.slot[data-filled="true"]                   { background: #FFFFFF; }
-.slot[data-invalid="true"]                  { border-color: #FB2C36; }
-.slot[data-success="true"]                  { border-color: #00C950; }
-.slot[data-disabled="true"]                 { opacity: 0.45; }
-.slot[data-readonly="true"]                 { cursor: default; }
-```
-
-Spread `wrapperProps` on the outer container for wrapper-level state attributes:
-
-```tsx
-<div className="otp-row" {...otp.wrapperProps}>
-  {/* receives data-complete, data-invalid, data-success, data-disabled, data-readonly */}
-</div>
 ```
 
 #### Slot attributes
 
 Slot-level attributes use string values (`"true"` / `"false"`):
 
-- `data-active` — current cursor position
-- `data-focus` — input is focused
-- `data-filled` / `data-empty`
-- `data-invalid` / `data-success`
-- `data-disabled` / `data-readonly`
-- `data-index` — slot index (`"0"`, `"1"`, …)
-- `data-first` / `data-last` — useful for grouped/pill layouts
-- `data-masked` — masked mode active
-
-```css
-/* Connected pill layout */
-.slot[data-first="true"] { border-radius: 8px 0 0 8px; }
-.slot[data-last="true"]  { border-radius: 0 8px 8px 0; }
-.slot:not([data-first="true"]):not([data-last="true"]) {
-  border-radius: 0;
-}
-```
+| Attribute | Meaning |
+|---|---|
+| `data-active` | Logical cursor is at this slot (set even when the field is blurred) |
+| `data-focus` | Browser focus is on the hidden input |
+| `data-filled` | Slot contains a character |
+| `data-empty` | Slot is unfilled (complement of `data-filled`) |
+| `data-invalid` | Error state is active |
+| `data-success` | Success state is active (mutually exclusive with `data-invalid`) |
+| `data-disabled` | Field is disabled |
+| `data-readonly` | Field is in read-only mode |
+| `data-complete` | All slots are filled |
+| `data-first` | This is the first slot `0` |
+| `data-last` | This is the last slot |
+| `data-slot` | Zero-based position of the slot as a string ("0", "1", …) |
 
 #### Wrapper attributes
 
 Set on the wrapper element as boolean presence attributes (no value):
 
-- `data-complete`
-- `data-invalid`
-- `data-success`
-- `data-disabled`
-- `data-readonly`
+| Attribute | When present |
+|---|---|
+| `data-complete` | All slots are filled |
+| `data-invalid` | Error state is active |
+| `data-success` | Success state is active |
+| `data-disabled` | Field is disabled |
+| `data-readonly` | Field is read-only |
+
+```css
+/* Slot-level — scope to your field with an id or class prefix */
+.slot[data-active="true"][data-focus="true"] { border-color: #3D3D3D; }
+.slot[data-filled="true"]                    { background:   #FFFFFF; }
+.slot[data-empty="true"]                     { background:   #FAFAFA; }
+.slot[data-invalid="true"]                   { border-color: #FB2C36; }
+.slot[data-success="true"]                   { border-color: #00C950; }
+.slot[data-disabled="true"]                  { opacity: 0.45; pointer-events: none; }
+.slot[data-readonly="true"]                  { cursor: default; }
+.slot[data-complete="true"]                  { border-color: #00C950; }
+
+/* Connected pill layout */
+.slot[data-first="true"]                              { border-radius: 8px 0 0 8px; }
+.slot[data-last="true"]                               { border-radius: 0 8px 8px 0; }
+.slot[data-first="false"][data-last="false"]          { border-radius: 0; }
+
+/* Target a specific slot by index */
+.slot[data-slot="0"] { font-weight: 700; }
+```
+
+Spread `wrapperProps` on the container for wrapper-level attributes:
+
+```tsx
+<div className="otp-wrapper" {...otp.wrapperProps}>
+  {/* receives data-complete, data-invalid, data-success, data-disabled, data-readonly */}
+</div>
+```
 
 ---
 
-## CSS custom properties
+## CSS Custom Properties
 
-Style the field by setting `--verino-*` CSS custom properties on the wrapper element:
+Style the field using `--verino-*` CSS custom properties on the wrapper element:
 
 ```css
-.my-otp-wrapper {
+.verino-wrapper {
   /* Dimensions */
   --verino-size:          56px;
   --verino-gap:           12px;
@@ -308,7 +331,7 @@ Style the field by setting `--verino-*` CSS custom properties on the wrapper ele
 - **`autocomplete="one-time-code"`** — enables native SMS autofill on iOS and Android.
 - **Anti-interference** — `spellcheck="false"`, `autocorrect="off"`, and `autocapitalize="off"` prevent unwanted browser input behavior.
 - **`maxLength`** — constrains the hidden input to `length`, preventing overflow from IME and composition events.
-- **`type="password"` in masked mode** — enables secure input and triggers the OS password keyboard on mobile.
+- **`type="password"` in masked mode** — enables secure input and triggers the password keyboard on mobile.
 - **Native form integration** — the `name` option includes the hidden input in `<form>` submission and `FormData`.
 - **Keyboard navigation** — full support for `←`, `→`, `Backspace`, `Delete`, and `Tab`.
 
@@ -316,7 +339,7 @@ Style the field by setting `--verino-*` CSS custom properties on the wrapper ele
 
 ## API Reference
 
-### `useOTP`
+### `useOTP(options?)`
 
 ```ts
 function useOTP(options?: ReactOTPOptions): UseOTPResult
@@ -324,16 +347,16 @@ function useOTP(options?: ReactOTPOptions): UseOTPResult
 
 ### `ReactOTPOptions`
 
-Extends `OTPOptions` from `verino` with:
+Extends `OTPOptions` from `@verino/core` with:
 
 ```ts
 type ReactOTPOptions = OTPOptions & {
-  value?:          string                  // controlled value; does not trigger onComplete
-  onChange?:       (code: string) => void  // fires on INPUT, DELETE, CLEAR, PASTE
+  value?:          string                   // controlled value; does not trigger onComplete
+  onChange?:       (code: string) => void   // fires on INPUT, DELETE, CLEAR, PASTE
   separatorAfter?: number | number[]
-  separator?:      string                  // default: '—'
+  separator?:      string                   // default: '—'
   masked?:         boolean
-  maskChar?:       string                  // default: '●'
+  maskChar?:       string                   // default: '●'
 }
 ```
 
@@ -341,34 +364,36 @@ type ReactOTPOptions = OTPOptions & {
 
 ```ts
 type UseOTPResult = {
-  slotValues:       string[]
-  activeSlot:       number
-  isComplete:       boolean
-  hasError:         boolean
-  hasSuccess:       boolean
-  isDisabled:       boolean
-  isFocused:        boolean
-  timerSeconds:     number                 // live countdown; 0 when expired or no timer
-  separatorAfter:   number | number[]
-  separator:        string
+  // Reactive state (plain values — update triggers re-render)
+  slotValues:     string[]
+  activeSlot:     number
+  isComplete:     boolean
+  hasError:       boolean
+  hasSuccess:     boolean
+  isDisabled:     boolean
+  isFocused:      boolean
+  timerSeconds:   number           // live countdown; 0 when expired or no timer
+  separatorAfter: number | number[]
+  separator:      string
 
-  hiddenInputProps: HiddenInputProps       // spread onto <HiddenOTPInput />
+  // Bindings
+  hiddenInputProps: HiddenInputProps
   wrapperProps:     Record<string, string | undefined>
 
-  getCode():                              string
-  getSlots():                             SlotEntry[]
-  getSlotProps(index: number):            SlotRenderProps
-  getInputProps(index: number):           InputProps & { 'data-focus': 'true' | 'false' }
+  // Slot helpers
+  getCode():                         string
+  getSlots():                        SlotEntry[]
+  getSlotProps(index: number):       SlotRenderProps
+  getInputProps(index: number):      InputProps & { 'data-focus': 'true' | 'false' }
 
-  reset():                                void
-  setError(isError: boolean):             void
-  setSuccess(isSuccess: boolean):         void
-  setReadOnly(isReadOnly: boolean):       void
-  focus(slotIndex: number):               void
+  // Programmatic control
+  reset():                           void
+  setError(v: boolean):              void
+  setSuccess(v: boolean):            void
+  setDisabled(v: boolean):           void
+  setReadOnly(v: boolean):           void
+  focus(slotIndex?: number):         void
 }
-```
-
-> **`setDisabled` is not available** on `UseOTPResult`. Control disabled state by passing `disabled` as an option driven by a React state variable (e.g. `useOTP({ disabled: isVerifying })`).
 
 ### `SlotRenderProps`
 
@@ -383,7 +408,7 @@ type SlotRenderProps = {
   isComplete:   boolean
   isDisabled:   boolean
   isFocused:    boolean
-  hasFakeCaret: boolean   // true when active, empty, and focused — render caret here
+  hasFakeCaret: boolean   // render your caret here: active + empty + focused
   masked:       boolean
   maskChar:     string
   placeholder:  string
@@ -393,10 +418,47 @@ type SlotRenderProps = {
 ### `HiddenOTPInput`
 
 ```ts
-const HiddenOTPInput: React.ForwardRefExoticComponent<React.InputHTMLAttributes<HTMLInputElement>>
+const HiddenOTPInput: React.ForwardRefExoticComponent<
+  React.InputHTMLAttributes<HTMLInputElement>
+>
 ```
 
-Renders a `position: absolute; opacity: 0` input covering the slot row. Spread `otp.hiddenInputProps` directly — all event wiring is included.
+Renders a `position: absolute; opacity: 0` input that covers the slot row. Spread `otp.hiddenInputProps` directly — all event wiring is included.
+
+---
+
+## Compatibility
+
+| Environment | Requirement |
+|---|---|
+| React | ≥ 18 |
+| `@verino/core` | Same monorepo release |
+| TypeScript | ≥ 5.0 |
+| Node.js (SSR) | ≥ 18 |
+| Module format | ESM + CJS |
+
+---
+
+## Integration with Core
+
+`useOTP` calls `createOTP()` from `@verino/core` inside `useMemo`. All filtering, cursor logic, paste, timer management, and event routing live in core. The hook only syncs core state into React's `useState` and exposes the programmatic API.
+
+See the [`@verino/core` README](https://github.com/boastack/verino/blob/main/packages/core/README.md) for the full state machine and event reference.
+
+---
+
+## Contributing
+
+This package lives in the [verino monorepo](https://github.com/boastack/verino). See [CONTRIBUTING.md](https://github.com/boastack/verino/blob/main/.github/CONTRIBUTING.md) for guidelines.
+
+```bash
+# Clone and install
+git clone https://github.com/boastack/verino.git
+cd verino && pnpm install
+
+# Run before opening a PR
+pnpm --filter @verino/react build && pnpm test
+```
 
 ---
 
@@ -404,11 +466,12 @@ Renders a `position: absolute; opacity: 0` input covering the slot row. Spread `
 
 | Package | Purpose |
 |---|---|
-| [`verino`](https://www.npmjs.com/package/verino) | Core state machine + vanilla adapter |
-| [`@verino/vue`](https://www.npmjs.com/package/@verino/vue) | `useOTP` composable |
-| [`@verino/svelte`](https://www.npmjs.com/package/@verino/svelte) | `useOTP` store + action |
-| [`@verino/alpine`](https://www.npmjs.com/package/@verino/alpine) | `x-verino` directive |
-| [`@verino/web-component`](https://www.npmjs.com/package/@verino/web-component) | `<verino-input>` element |
+| [`@verino/core`](https://www.npmjs.com/package/@verino/core) | Pure OTP state machine — zero DOM, zero framework |
+| [`@verino/vanilla`](https://www.npmjs.com/package/@verino/vanilla) | Vanilla DOM adapter + `timerUIPlugin`, `webOTPPlugin`, `pmGuardPlugin` |
+| [`@verino/vue`](https://www.npmjs.com/package/@verino/vue) | `useOTP` composable with `Ref<T>` reactive state (Vue ≥ 3) |
+| [`@verino/svelte`](https://www.npmjs.com/package/@verino/svelte) | `useOTP` store + `use:action` directive (Svelte ≥ 4) |
+| [`@verino/alpine`](https://www.npmjs.com/package/@verino/alpine) | `VerinoAlpine` plugin — `x-verino` directive (Alpine.js ≥ 3) |
+| [`@verino/web-component`](https://www.npmjs.com/package/@verino/web-component) | `<verino-input>` Shadow DOM custom element |
 
 ---
 

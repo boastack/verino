@@ -249,9 +249,9 @@ export type InputProps = {
   onBlur:    () => void
   /**
    * Zero-based position of this slot.
-   * CSS: [data-index="0"] { border-radius: 8px 0 0 8px }
+   * CSS: [data-slot="0"] { border-radius: 8px 0 0 8px }
    */
-  'data-index':    number
+  'data-slot':     number
   /**
    * `"true"` when this slot is at the logical cursor position
    * (i.e. `state.activeSlot === index`). Always reflects the cursor, even when

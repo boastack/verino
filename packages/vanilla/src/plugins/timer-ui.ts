@@ -19,7 +19,7 @@
  * @license MIT
  */
 
-import { createTimer, formatCountdown } from '../../core/index.js'
+import { createTimer, formatCountdown } from '@verino/core'
 import type { VerinoPlugin, VerinoPluginContext } from './types.js'
 
 /**

@@ -8,6 +8,13 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&family=Geist+Mono:wght@500;600&display=swap" rel="stylesheet">
   <link rel="icon" type="image/png" href="../assets/favicon.png">
+  <script type="importmap">
+  {
+    "imports": {
+      "@verino/core": "../packages/core/dist/index.js"
+    }
+  }
+  </script>
   <!-- Stylesheet -->
   <style>
     *,
@@ -46,7 +53,7 @@
       align-items: center;
     }
 
-    h1 {
+    .card-title {
       font-size: 24px;
       font-weight: 600;
       letter-spacing: -0.4px;
@@ -170,7 +177,7 @@
         max-width: 100%;
       }
 
-      h1 {
+      .card-title {
         font-size: 20px;
       }
 
@@ -184,7 +191,7 @@
   <!-- Main Wrapper -->
   <main class="main-wrapper">
     <div class="card">
-      <h1>Confirm it's you</h1>
+      <h2 class="card-title">Confirm it's you</h2>
       <p class="subtitle">A <span id="digit-count">6</span>-digit verification code was sent to <strong>he****@example.com</strong> to protect your account.</p>
       <!-- Verino container -->
       <div class="verino-wrapper"></div>

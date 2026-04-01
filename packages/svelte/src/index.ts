@@ -20,12 +20,15 @@ import {
   type InputType,
   type SlotEntry,
   type InputProps,
-} from 'verino'
+} from '@verino/core'
 
 
 // ─────────────────────────────────────────────────────────────────────────────
 // TYPES
 // ─────────────────────────────────────────────────────────────────────────────
+
+/** Convert a boolean to the string literal `'true'` or `'false'` required by CSS attribute selectors. */
+const b = (v: boolean): 'true' | 'false' => v ? 'true' : 'false'
 
 /**
  * Extended options for the Svelte useOTP composable.
@@ -43,11 +46,11 @@ export type SvelteOTPOptions = OTPOptions & {
    */
   onChange?: (code: string) => void
   /**
-   * Insert a purely visual separator after this slot index (0-based).
+   * Insert a purely visual separator after the Nth slot (1-based).
    * Accepts a single position or an array for multiple separators.
    * aria-hidden, never part of the value, no effect on the state machine.
    * Default: 0 (no separator).
-   * @example separatorAfter: 3      ->  [*][*][*] — [*][*][*]
+   * @example separatorAfter: 3      ->  [*][*][*] — [*][*][*]   (splits after 3rd)
    * @example separatorAfter: [2, 4] ->  [*][*] — [*][*] — [*][*]
    */
   separatorAfter?: number | number[]
@@ -535,7 +538,6 @@ export function useOTP(options: SvelteOTPOptions = {}): UseOTPResult {
     const s        = otp.state
     const char     = s.slotValues[slotIndex] ?? ''
     const isFilled = char.length === 1
-    const b        = (v: boolean): 'true' | 'false' => v ? 'true' : 'false'
     return {
       value:     char,
       onInput:   (c) => { otp.insert(c, slotIndex); sync() },
@@ -547,7 +549,7 @@ export function useOTP(options: SvelteOTPOptions = {}): UseOTPResult {
       },
       onFocus: () => { isFocused = true; otp.move(slotIndex); sync(); onFocusProp?.() },
       onBlur:  () => { isFocused = false; onBlurProp?.() },
-      'data-index':    slotIndex,
+      'data-slot':     slotIndex,
       'data-active':   b(s.activeSlot === slotIndex),
       'data-focus':    b(isFocused),
       'data-filled':   b(isFilled),

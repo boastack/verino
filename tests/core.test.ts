@@ -3,7 +3,7 @@
  * ─────────────────────────────────────────────────────────────────────────────
  * Covers every public API surface of core.ts. Ship this file as part of the package.
  *
- * Run: npx jest core.test
+ * Run: pnpm test  |  node_modules/.bin/jest tests/core.test.ts
  */
 
 import {
@@ -15,7 +15,7 @@ import {
   triggerHapticFeedback,
   triggerSoundFeedback,
   type InputType,
-} from 'verino'
+} from '@verino/core'
 
 // ─────────────────────────────────────────────────────────────────────────────
 // 1. filterChar
@@ -665,7 +665,7 @@ describe('FIX #6 — separator config (adapter layer — core is agnostic)', () 
 
   it('vanilla adapter does not contain the dead newPos variable (Bug #3 regression)', () => {
     const fs  = require('fs')
-    const src = fs.readFileSync('./packages/verino/src/adapters/vanilla.ts', 'utf8')
+    const src = fs.readFileSync('./packages/vanilla/src/vanilla.ts', 'utf8')
     expect(src).not.toMatch(/const newPos = Math\.max/)
   })
 })
@@ -2717,7 +2717,7 @@ describe('getInputProps()', () => {
     const otp   = createOTP({ length: 4 })
     otp.move(1)  // activeSlot = 1
     const props = otp.getInputProps(0)
-    expect(props['data-index']).toBe(0)
+    expect(props['data-slot']).toBe(0)
     expect(props['data-active']).toBe('false')   // slot 0 is NOT active
     expect(props['data-filled']).toBe('false')
     expect(props['data-empty']).toBe('true')

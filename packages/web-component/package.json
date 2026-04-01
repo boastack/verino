@@ -3,14 +3,12 @@
   "version": "1.0.0",
   "description": "Web Component adapter for verino. Build reliable OTP inputs from a single core.",
   "type": "module",
-  "main": "./dist/index.cjs",
-  "module": "./dist/index.js",
+  "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
   "exports": {
     ".": {
       "types": "./dist/index.d.ts",
-      "import": "./dist/index.js",
-      "require": "./dist/index.cjs"
+      "import": "./dist/index.js"
     }
   },
   "files": [
@@ -22,7 +20,7 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "verino": "workspace:*"
+    "@verino/core": "workspace:*"
   },
   "devDependencies": {
     "tsup": "^8.0.0",

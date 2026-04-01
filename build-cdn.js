@@ -3,20 +3,20 @@
  *
  * Produces three browser-ready IIFE bundles from the TypeScript sources:
  *
- *   packages/verino/dist/verino.min.js        — vanilla initOTP + window.Verino global
- *   packages/verino/dist/verino-wc.min.js     — <verino-input> web component (auto-registers)
- *   packages/verino/dist/verino-alpine.min.js — Alpine.js adapter (sets window.VerinoAlpine)
+ *   packages/vanilla/dist/verino.min.js             — vanilla initOTP + window.Verino global
+ *   packages/web-component/dist/verino-wc.min.js    — <verino-input> web component (auto-registers)
+ *   packages/alpine/dist/verino-alpine.min.js       — Alpine.js adapter (sets window.VerinoAlpine)
  *
  * All are minified, target ES2017 (async/await transpiled), and include an
  * external source map for debugging. Import via CDN:
  *
- *   <script src="https://unpkg.com/verino/dist/verino.min.js"></script>
+ *   <script src="https://unpkg.com/@verino/vanilla/dist/verino.min.js"></script>
  *   <!-- const { initOTP, createOTP, filterChar, filterString } = window.Verino -->
  *
- *   <script src="https://unpkg.com/verino/dist/verino-wc.min.js"></script>
+ *   <script src="https://unpkg.com/@verino/web-component/dist/verino-wc.min.js"></script>
  *   <!-- <verino-input length="6"></verino-input> -->
  *
- *   <script src="https://unpkg.com/verino/dist/verino-alpine.min.js"></script>
+ *   <script src="https://unpkg.com/@verino/alpine/dist/verino-alpine.min.js"></script>
  *   <!-- document.addEventListener('alpine:init', () => Alpine.plugin(VerinoAlpine)) -->
  *
  * Usage:
@@ -43,22 +43,22 @@ await Promise.all([
   // Vanilla adapter + core utilities — window.Verino global
   esbuild.build({
     ...shared,
-    entryPoints: ['packages/verino/src/cdn.ts'],
+    entryPoints: ['packages/vanilla/src/cdn.ts'],
     globalName:  'Verino',
-    outfile:     'packages/verino/dist/verino.min.js',
+    outfile:     'packages/vanilla/dist/verino.min.js',
   }),
 
   // Web Component — auto-registers <verino-input>
   esbuild.build({
     ...shared,
     entryPoints: ['packages/web-component/src/index.ts'],
-    outfile:     'packages/verino/dist/verino-wc.min.js',
+    outfile:     'packages/web-component/dist/verino-wc.min.js',
   }),
 
   // Alpine.js adapter — window.VerinoAlpine plugin
   esbuild.build({
     ...shared,
     entryPoints: ['packages/alpine/src/cdn.ts'],
-    outfile:     'packages/verino/dist/verino-alpine.min.js',
+    outfile:     'packages/alpine/dist/verino-alpine.min.js',
   }),
 ])

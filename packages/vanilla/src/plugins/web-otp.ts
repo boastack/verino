@@ -18,7 +18,7 @@
  * @license MIT
  */
 
-import { filterString } from '../../core/index.js'
+import { filterString } from '@verino/core'
 import type { VerinoPlugin, VerinoPluginContext } from './types.js'
 
 /** Maximum wait for an SMS OTP — matches the typical validity window. */

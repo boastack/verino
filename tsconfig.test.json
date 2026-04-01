@@ -12,11 +12,13 @@
     "baseUrl":          ".",
     "jsx": "react-jsx",
     "paths": {
-      "verino":         ["packages/verino/src/index.ts"],
-      "verino/core":    ["packages/verino/src/core/index.ts"],
-      "@verino/react":  ["packages/react/src/index.tsx"],
-      "@verino/vue":    ["packages/vue/src/index.ts"],
-      "@verino/svelte": ["packages/svelte/src/index.ts"]
+      "@verino/core":          ["packages/core/src/index.ts"],
+      "@verino/vanilla":       ["packages/vanilla/src/index.ts"],
+      "@verino/react":         ["packages/react/src/index.tsx"],
+      "@verino/vue":           ["packages/vue/src/index.ts"],
+      "@verino/svelte":        ["packages/svelte/src/index.ts"],
+      "@verino/alpine":        ["packages/alpine/src/index.ts"],
+      "@verino/web-component": ["packages/web-component/src/index.ts"]
     }
   },
   "include": ["tests/**/*.ts", "tests/**/*.tsx"]

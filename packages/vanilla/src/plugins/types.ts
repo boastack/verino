@@ -12,8 +12,7 @@
  * @license MIT
  */
 
-import type { createOTP } from '../../core/machine.js'
-import type { InputType }  from '../../core/types.js'
+import type { createOTP, InputType } from '@verino/core'
 
 // ─────────────────────────────────────────────────────────────────────────────
 // WRAPPER AUGMENTATION

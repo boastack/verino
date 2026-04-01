@@ -35,7 +35,10 @@ import {
   type InputType,
   type SlotEntry,
   type InputProps,
-} from 'verino'
+} from '@verino/core'
+
+/** Convert a boolean to the string literal `'true'` or `'false'` required by CSS attribute selectors. */
+const b = (v: boolean): 'true' | 'false' => v ? 'true' : 'false'
 
 /** Shape of the data object Alpine passes to every directive handler. */
 type AlpineDirectiveData = {
@@ -73,9 +76,11 @@ type AlpinePlugin = {
  */
 type AlpineOTPOptions = OTPOptions & {
   /**
-   * Insert a purely visual separator after this slot index (0-based).
+   * Insert a purely visual separator after the Nth slot (1-based).
    * Accepts a single position or an array for multiple separators.
    * Default: 0 (no separator).
+   * @example separatorAfter: 3      ->  [*][*][*] — [*][*][*]   (splits after 3rd)
+   * @example separatorAfter: [2, 4] ->  [*][*] — [*][*] — [*][*]
    */
   separatorAfter?: number | number[]
   separator?:      string
@@ -402,7 +407,6 @@ export const VerinoAlpine = (Alpine: AlpinePlugin): void => {
     function syncSlotsToDOM(): void {
       const { slotValues, activeSlot, hasError, isComplete } = otp.state
       const focused = document.activeElement === hiddenInputEl
-      const b = (v: boolean): 'true' | 'false' => v ? 'true' : 'false'
 
       slotEls.forEach((slotEl, i) => {
         const char     = slotValues[i] ?? ''
@@ -680,7 +684,6 @@ export const VerinoAlpine = (Alpine: AlpinePlugin): void => {
         const s        = otp.state
         const char     = s.slotValues[slotIndex] ?? ''
         const isFilled = char.length === 1
-        const b        = (v: boolean): 'true' | 'false' => v ? 'true' : 'false'
         return {
           value:     char,
           onInput:   (c) => { otp.insert(c, slotIndex); syncSlotsToDOM() },
@@ -692,7 +695,7 @@ export const VerinoAlpine = (Alpine: AlpinePlugin): void => {
           },
           onFocus: () => onFocusProp?.(),
           onBlur:  () => onBlurProp?.(),
-          'data-index':    slotIndex,
+          'data-slot':     slotIndex,
           'data-active':   b(s.activeSlot === slotIndex),
           'data-focus':    b(document.activeElement === hiddenInputEl),
           'data-filled':   b(isFilled),
@@ -788,7 +791,6 @@ export const VerinoAlpine = (Alpine: AlpinePlugin): void => {
       /** Alpine calls this when the component is destroyed. Stops timers and removes footer elements. */
       cleanup() {
         teardown()
-        otp.reset()
       },
     }
   })

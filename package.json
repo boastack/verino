@@ -14,34 +14,80 @@
     "test:e2e": "playwright test",
     "dev": "turbo run build --watch",
     "release": "pnpm build && changeset publish",
-    "size": "size-limit",
-    "size:ci": "size-limit --json"
+    "size": "pnpm build:cdn && size-limit",
+    "size:ci": "pnpm build:cdn && size-limit --json"
   },
   "size-limit": [
     {
-      "name": "core (ESM)",
-      "path": "packages/verino/dist/core/index.js",
+      "name": "@verino/core (ESM)",
+      "path": "packages/core/dist/index.js",
       "limit": "4 kB"
     },
     {
-      "name": "vanilla adapter (ESM)",
-      "path": "packages/verino/dist/adapters/vanilla.js",
-      "limit": "10 kB"
+      "name": "@verino/vanilla (ESM)",
+      "path": "packages/vanilla/dist/index.js",
+      "limit": "8 kB",
+      "ignore": ["@verino/core"]
     },
     {
       "name": "plugin: timer-ui (ESM)",
-      "path": "packages/verino/dist/adapters/plugins/timer-ui.js",
+      "path": "packages/vanilla/dist/plugins/timer-ui.js",
       "limit": "2 kB"
     },
     {
       "name": "plugin: web-otp (ESM)",
-      "path": "packages/verino/dist/adapters/plugins/web-otp.js",
+      "path": "packages/vanilla/dist/plugins/web-otp.js",
       "limit": "2 kB"
     },
     {
       "name": "plugin: pm-guard (ESM)",
-      "path": "packages/verino/dist/adapters/plugins/pm-guard.js",
-      "limit": "1 kB"
+      "path": "packages/vanilla/dist/plugins/pm-guard.js",
+      "limit": "2 kB"
+    },
+    {
+      "name": "@verino/react (ESM)",
+      "path": "packages/react/dist/index.js",
+      "limit": "4 kB",
+      "ignore": ["react", "@verino/core"]
+    },
+    {
+      "name": "@verino/vue (ESM)",
+      "path": "packages/vue/dist/index.js",
+      "limit": "4 kB",
+      "ignore": ["vue", "@verino/core"]
+    },
+    {
+      "name": "@verino/svelte (ESM)",
+      "path": "packages/svelte/dist/index.js",
+      "limit": "4 kB",
+      "ignore": ["svelte", "@verino/core"]
+    },
+    {
+      "name": "@verino/alpine (ESM)",
+      "path": "packages/alpine/dist/index.js",
+      "limit": "6 kB",
+      "ignore": ["alpinejs", "@verino/core"]
+    },
+    {
+      "name": "@verino/web-component (ESM)",
+      "path": "packages/web-component/dist/index.js",
+      "limit": "8 kB",
+      "ignore": ["@verino/core"]
+    },
+    {
+      "name": "CDN: verino.min.js",
+      "path": "packages/vanilla/dist/verino.min.js",
+      "limit": "10 kB"
+    },
+    {
+      "name": "CDN: verino-alpine.min.js",
+      "path": "packages/alpine/dist/verino-alpine.min.js",
+      "limit": "8 kB"
+    },
+    {
+      "name": "CDN: verino-wc.min.js",
+      "path": "packages/web-component/dist/verino-wc.min.js",
+      "limit": "10 kB"
     }
   ],
   "devDependencies": {

@@ -5,5 +5,6 @@ export default defineConfig({
   format: ['esm', 'cjs'],
   dts:    true,
   clean:  true,
-  external: ['svelte', 'svelte/store', 'verino'],
+  sourcemap: false,
+  external: ['svelte', 'svelte/store', '@verino/core'],
 })

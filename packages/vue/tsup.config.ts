@@ -5,5 +5,6 @@ export default defineConfig({
   format: ['esm', 'cjs'],
   dts:    true,
   clean:  true,
-  external: ['vue', 'verino'],
+  sourcemap: false,
+  external: ['vue', '@verino/core'],
 })

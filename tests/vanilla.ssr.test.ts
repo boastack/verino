@@ -5,7 +5,7 @@
 
 // Pull in the vanilla module in a Node (non-DOM) environment.
 // The module-level code only runs when `initOTP` is called, so imports are safe.
-import { initOTP } from 'verino'
+import { initOTP } from '@verino/vanilla'
 
 // ─────────────────────────────────────────────────────────────────────────────
 // injectStylesOnce — SSR guard (line 109 of vanilla.ts)

@@ -45,9 +45,9 @@ const TONE_INITIAL_GAIN  = 0.08  // 0–1 amplitude; quiet by design so the tone
  */
 export function triggerSoundFeedback(): void {
   try {
-    const audioCtx    = new AudioContext()
-    const oscillator  = audioCtx.createOscillator()
-    const gainNode    = audioCtx.createGain()
+    const audioCtx:   AudioContext   = new AudioContext()
+    const oscillator: OscillatorNode = audioCtx.createOscillator()
+    const gainNode:   GainNode       = audioCtx.createGain()
     oscillator.connect(gainNode)
     gainNode.connect(audioCtx.destination)
     oscillator.frequency.value = TONE_FREQUENCY_HZ

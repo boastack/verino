@@ -35,7 +35,7 @@ import {
   triggerSoundFeedback,
   type OTPOptions,
   type InputType,
-} from '../core/index.js'
+} from '@verino/core'
 import { timerUIPlugin } from './plugins/timer-ui.js'
 import { webOTPPlugin }  from './plugins/web-otp.js'
 import { pmGuardPlugin } from './plugins/pm-guard.js'
@@ -103,9 +103,11 @@ const INJECTED_STYLE_ID = 'verino-styles'
  * | `--verino-success-color`  | `#00C950` | Success border + ring            |
  * | `--verino-timer-color`    | `#5C5C5C` | Timer label text colour          |
  * | `--verino-caret-color`    | `#3D3D3D` | Fake caret colour                |
- * | `--verino-separator-color`| `#A1A1A1` | Separator text colour            |
- * | `--verino-separator-size` | `18px`    | Separator font size              |
- * | `--verino-masked-size`    | `16px`    | Mask character font size         |
+ * | `--verino-separator-color`    | `#A1A1A1` | Separator text colour              |
+ * | `--verino-separator-size`     | `18px`    | Separator font size                |
+ * | `--verino-placeholder-size`   | `16px`    | Placeholder char font size         |
+ * | `--verino-placeholder-color`  | `#D3D3D3` | Placeholder char colour            |
+ * | `--verino-masked-size`        | `16px`    | Mask character font size           |
  */
 function injectStylesOnce(): void {
   if (typeof document === 'undefined') return
@@ -152,11 +154,11 @@ function injectStylesOnce(): void {
  */
 export type VanillaOnlyOptions = OTPOptions & {
   /**
-   * Insert a purely visual separator after this slot index (0-based).
+   * Insert a purely visual separator after the Nth slot (1-based).
    * The separator is aria-hidden, never enters the value, and has no effect on state.
    * Accepts a single position or an array for multiple separators.
    * Default: 0 (no separator).
-   * @example separatorAfter: 3      -> [ ][ ][ ] — [ ][ ][ ]       (6-slot field)
+   * @example separatorAfter: 3      -> [ ][ ][ ] — [ ][ ][ ]       (6-slot field, splits after 3rd)
    * @example separatorAfter: [2, 4] -> [ ][ ] — [ ][ ] — [ ][ ]
    */
   separatorAfter?: number | number[]

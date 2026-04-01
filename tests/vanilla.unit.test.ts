@@ -21,7 +21,7 @@
  *   - Double-init warning
  */
 
-import { initOTP } from 'verino'
+import { initOTP } from '@verino/vanilla'
 
 // ─────────────────────────────────────────────────────────────────────────────
 // RAF MOCK
@@ -2197,5 +2197,137 @@ describe('instance.setSuccess', () => {
       expect(slot.getAttribute('data-success')).toBe('false')
       expect(slot.getAttribute('data-invalid')).toBe('true')
     })
+  })
+})
+
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 60. timer-ui custom-tick mode — RESET event restarts countdown
+// ─────────────────────────────────────────────────────────────────────────────
+
+describe('timer-ui custom-tick mode — RESET restarts countdown', () => {
+  beforeEach(() => jest.useFakeTimers())
+  afterEach(() => jest.useRealTimers())
+
+  it('reset() in custom-tick mode fires RESET which restarts the countdown', () => {
+    const onTick = jest.fn()
+    const wrapper = makeWrapper()
+    const [inst] = initOTP(wrapper, { timer: 10, onTick, autoFocus: false })
+    flushRAF()
+
+    // Let 3 ticks elapse
+    jest.advanceTimersByTime(3000)
+    expect(onTick).toHaveBeenCalledTimes(3)
+
+    onTick.mockClear()
+
+    // reset() fires RESET event → customCountdown.restart() (covers timer-ui.ts line 61 TRUE branch)
+    inst.reset()
+    flushRAF()
+
+    jest.advanceTimersByTime(2000)
+    expect(onTick).toHaveBeenCalledTimes(2)
+  })
+
+  it('non-RESET event in custom-tick mode does not restart the countdown (line 61 FALSE branch)', () => {
+    const onTick = jest.fn()
+    const wrapper = makeWrapper()
+    initOTP(wrapper, { timer: 10, onTick, autoFocus: false })
+    flushRAF()
+
+    // Typing fires an INPUT event through the otp subscriber — event.type !== 'RESET'
+    // This covers the FALSE branch of: if (event.type === 'RESET') customCountdown.restart()
+    typeInto(getHiddenInput(wrapper), '1')
+    flushRAF()
+
+    jest.advanceTimersByTime(1000)
+    // Timer continues normally — restart() was not called
+    expect(onTick).toHaveBeenCalledWith(9)
+  })
+
+  it('destroy() in custom-tick mode stops the countdown', () => {
+    const onTick = jest.fn()
+    const wrapper = makeWrapper()
+    const [inst] = initOTP(wrapper, { timer: 10, onTick, autoFocus: false })
+    flushRAF()
+
+    inst.destroy()
+    onTick.mockClear()
+    jest.advanceTimersByTime(5000)
+
+    expect(onTick).not.toHaveBeenCalled()
+  })
+})
+
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 60b. timer-ui built-in UI mode — RESET event restarts main countdown
+// ─────────────────────────────────────────────────────────────────────────────
+
+describe('timer-ui built-in UI mode — RESET restarts main countdown', () => {
+  beforeEach(() => jest.useFakeTimers())
+  afterEach(() => jest.useRealTimers())
+
+  it('non-RESET event in built-in UI mode returns early from subscriber (line 152 TRUE branch)', () => {
+    const wrapper = makeWrapper()
+    initOTP(wrapper, { timer: 5, autoFocus: false })
+    flushRAF()
+
+    // Typing fires an INPUT event through the otp subscriber — event.type !== 'RESET'
+    // This covers the TRUE branch of: if (event.type !== 'RESET') return
+    typeInto(getHiddenInput(wrapper), '1')
+    flushRAF()
+
+    // Timer badge is still ticking normally — subscriber returned early without restarting
+    const badge = document.body.querySelector('.verino-timer-badge') as HTMLElement
+    expect(badge).not.toBeNull()
+  })
+
+  it('reset() in built-in UI mode fires RESET which restarts the main countdown (line 152 FALSE branch)', () => {
+    const wrapper = makeWrapper()
+    const [inst] = initOTP(wrapper, { timer: 5, autoFocus: false })
+    flushRAF()
+
+    // Advance to expiry
+    jest.advanceTimersByTime(5000)
+
+    // reset() → otpCore.reset() → RESET event → subscriber at line 151-157 runs
+    // event.type !== 'RESET' is FALSE → we do NOT return early → mainCountdown.restart()
+    inst.reset()
+    flushRAF()
+
+    // showTimer(timerSeconds) restores the badge text to the full duration
+    const badge = document.body.querySelector('.verino-timer-badge') as HTMLElement
+    expect(badge.textContent).toBe('0:05')
+  })
+})
+
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 61. web-otp — AbortError suppresses console.warn
+// ─────────────────────────────────────────────────────────────────────────────
+
+describe('Web OTP — AbortError does not trigger console.warn', () => {
+  it('credentials.get rejection with AbortError does not call console.warn', async () => {
+    const warnSpy = jest.spyOn(console, 'warn').mockImplementation(() => {})
+
+    const abortError = Object.assign(new Error('aborted'), { name: 'AbortError' })
+    Object.defineProperty(navigator, 'credentials', {
+      value: { get: jest.fn().mockRejectedValue(abortError) },
+      configurable: true,
+      writable: true,
+    })
+
+    const wrapper = makeWrapper()
+    initOTP(wrapper, { length: 6, autoFocus: false })
+
+    // Flush the microtask queue twice to let the rejected promise settle
+    await new Promise(resolve => setTimeout(resolve, 0))
+    await new Promise(resolve => setTimeout(resolve, 0))
+
+    expect(warnSpy).not.toHaveBeenCalled()
+
+    Reflect.deleteProperty(navigator, 'credentials')
+    warnSpy.mockRestore()
   })
 })

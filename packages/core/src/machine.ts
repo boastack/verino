@@ -70,6 +70,16 @@ let _instanceCounter = 0
 // ─────────────────────────────────────────────────────────────────────────────
 
 /**
+ * Converts a boolean to the string literal `'true'` or `'false'`.
+ *
+ * `data-*` attribute values must be the string literals `"true"` / `"false"`
+ * (not JS booleans) for CSS attribute selectors like `[data-active="true"]`
+ * to match correctly. Defined at module scope so `getInputProps` does not
+ * allocate a new function object on every call.
+ */
+const b = (v: boolean): 'true' | 'false' => v ? 'true' : 'false'
+
+/**
  * Clamp `n` to the inclusive range `[min, max]`.
  *
  * Used to prevent the active slot cursor from escaping the `[0, length − 1]` bounds
@@ -424,7 +434,10 @@ export function createOTP(options: OTPOptions = {}) {
    * Release all subscribers and cancel any pending state.
    *
    * Call this when the OTP instance is no longer needed (e.g. component unmount,
-   * SPA route tear-down). After destroy(), subscribe() is a no-op.
+   * SPA route tear-down). Clears all active subscriptions — subsequent events
+   * will not reach existing listeners. New `subscribe()` calls after destroy()
+   * will still register and receive future events; callers should not subscribe
+   * after destruction.
    */
   function destroy(): void {
     listeners.clear()
@@ -591,10 +604,6 @@ export function createOTP(options: OTPOptions = {}) {
   function getInputProps(slotIndex: number): InputProps {
     const char     = state.slotValues[slotIndex] ?? ''
     const isFilled = char.length === 1
-    // Inline boolean→string converter: data-* attribute values must be the
-    // string literals "true" / "false" (not JS booleans) for CSS attribute
-    // selectors like [data-active="true"] to match correctly.
-    const b        = (v: boolean): 'true' | 'false' => v ? 'true' : 'false'
 
     return {
       value:     char,
@@ -610,7 +619,7 @@ export function createOTP(options: OTPOptions = {}) {
       onFocus: () => focus(slotIndex),
       onBlur:  () => blur(),
 
-      'data-index':    slotIndex,
+      'data-slot':     slotIndex,
       'data-active':   b(state.activeSlot === slotIndex),
       'data-filled':   b(isFilled),
       'data-empty':    b(!isFilled),

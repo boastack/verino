@@ -1,7 +1,8 @@
 {
   "files": [],
   "references": [
-    { "path": "packages/verino" },
+    { "path": "packages/core" },
+    { "path": "packages/vanilla" },
     { "path": "packages/react" },
     { "path": "packages/vue" },
     { "path": "packages/svelte" },

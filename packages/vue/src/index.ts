@@ -27,12 +27,15 @@ import {
   type InputType,
   type SlotEntry,
   type InputProps,
-} from 'verino'
+} from '@verino/core'
 
 
 // ─────────────────────────────────────────────────────────────────────────────
 // TYPES
 // ─────────────────────────────────────────────────────────────────────────────
+
+/** Convert a boolean to the string literal `'true'` or `'false'` required by CSS attribute selectors. */
+const b = (v: boolean): 'true' | 'false' => v ? 'true' : 'false'
 
 /**
  * Extended options for the Vue useOTP composable.
@@ -63,11 +66,11 @@ export type VueOTPOptions = OTPOptions & {
    */
   onChange?: (code: string) => void
   /**
-   * Insert a purely visual separator after this slot index (0-based).
+   * Insert a purely visual separator after the Nth slot (1-based).
    * Accepts a single position or an array for multiple separators.
    * aria-hidden, never part of the value, no effect on the state machine.
    * Default: 0 (no separator).
-   * @example separatorAfter: 3      ->  [*][*][*] — [*][*][*]
+   * @example separatorAfter: 3      ->  [*][*][*] — [*][*][*]   (splits after 3rd)
    * @example separatorAfter: [2, 4] ->  [*][*] — [*][*] — [*][*]
    */
   separatorAfter?: number | number[]
@@ -160,6 +163,10 @@ export type UseOTPResult = {
   setError:         (isError: boolean) => void
   /** Apply or clear the success state. Clears error. */
   setSuccess:       (isSuccess: boolean) => void
+  /** Enable or disable the field at runtime. */
+  setDisabled:      (isDisabled: boolean) => void
+  /** Toggle read-only mode at runtime. */
+  setReadOnly:      (isReadOnly: boolean) => void
   /** Programmatically move focus to a slot index. */
   focus:            (slotIndex: number) => void
   /** Event handlers to bind on the hidden input. */
@@ -270,6 +277,7 @@ export function useOTP(options: VueOTPOptions = {}): UseOTPResult {
   const hasError     = ref(false)
   const hasSuccess   = ref(false)
   const isDisabled   = ref(initialDisabled)
+  const isReadOnly   = ref(readOnlyOpt)
   const timerSeconds = ref(timerSecs)
   const isFocused    = ref(false)
   const inputRef     = ref<HTMLInputElement | null>(null)
@@ -292,7 +300,7 @@ export function useOTP(options: VueOTPOptions = {}): UseOTPResult {
     spellcheck:     'false',
     autocorrect:    'off',
     autocapitalize: 'off',
-    ...(readOnlyOpt ? { 'aria-readonly': 'true' } : {}),
+    ...(isReadOnly.value ? { 'aria-readonly': 'true' } : {}),
   }))
 
   const wrapperAttrs = computed<Record<string, string | undefined>>(() => ({
@@ -300,7 +308,7 @@ export function useOTP(options: VueOTPOptions = {}): UseOTPResult {
     ...(hasError.value   ? { 'data-invalid':  '' } : {}),
     ...(hasSuccess.value ? { 'data-success':  '' } : {}),
     ...(isDisabled.value ? { 'data-disabled': '' } : {}),
-    ...(readOnlyOpt      ? { 'data-readonly': '' } : {}),
+    ...(isReadOnly.value ? { 'data-readonly': '' } : {}),
   }))
 
   // ── sync() ─────────────────────────────────────────────────────────────────
@@ -399,14 +407,14 @@ export function useOTP(options: VueOTPOptions = {}): UseOTPResult {
     const pos = inputRef.value?.selectionStart ?? 0
     if (e.key === 'Backspace') {
       e.preventDefault()
-      if (readOnlyOpt) return
+      if (isReadOnly.value) return
       otp.delete(pos)
       sync()
       const next = otp.state.activeSlot
       requestAnimationFrame(() => inputRef.value?.setSelectionRange(next, next))
     } else if (e.key === 'Delete') {
       e.preventDefault()
-      if (readOnlyOpt) return
+      if (isReadOnly.value) return
       otp.clear(pos)
       sync()
       requestAnimationFrame(() => inputRef.value?.setSelectionRange(pos, pos))
@@ -440,7 +448,7 @@ export function useOTP(options: VueOTPOptions = {}): UseOTPResult {
   }
 
   function onChange(e: Event): void {
-    if (isDisabled.value || readOnlyOpt) return
+    if (isDisabled.value || isReadOnly.value) return
     const raw = (e.target as HTMLInputElement).value
     if (!raw) {
       otp.reset()
@@ -461,7 +469,7 @@ export function useOTP(options: VueOTPOptions = {}): UseOTPResult {
   }
 
   function onPaste(e: ClipboardEvent): void {
-    if (isDisabled.value || readOnlyOpt) return
+    if (isDisabled.value || isReadOnly.value) return
     e.preventDefault()
     const text = e.clipboardData?.getData('text') ?? ''
     const pos  = inputRef.value?.selectionStart ?? 0
@@ -513,6 +521,18 @@ export function useOTP(options: VueOTPOptions = {}): UseOTPResult {
     sync(true)
   }
 
+  function setDisabled(disabled: boolean): void {
+    otp.setDisabled(disabled)
+    isDisabled.value = disabled
+    sync(true)
+  }
+
+  function setReadOnly(readOnly: boolean): void {
+    otp.setReadOnly(readOnly)
+    isReadOnly.value = readOnly
+    sync(true)
+  }
+
   function focus(slotIndex: number): void {
     otp.move(slotIndex)
     inputRef.value?.focus()
@@ -541,7 +561,6 @@ export function useOTP(options: VueOTPOptions = {}): UseOTPResult {
   function getInputProps(slotIndex: number): InputProps & { 'data-focus': 'true' | 'false' } {
     const char     = slotValues.value[slotIndex] ?? ''
     const isFilled = char.length === 1
-    const b        = (v: boolean): 'true' | 'false' => v ? 'true' : 'false'
     return {
       value:     char,
       onInput:   (c) => { otp.insert(c, slotIndex); sync() },
@@ -553,7 +572,7 @@ export function useOTP(options: VueOTPOptions = {}): UseOTPResult {
       },
       onFocus: () => { activeSlot.value = slotIndex; isFocused.value = true; onFocusProp?.() },
       onBlur:  () => { isFocused.value = false; onBlurProp?.() },
-      'data-index':    slotIndex,
+      'data-slot':     slotIndex,
       'data-active':   b(activeSlot.value === slotIndex),
       'data-focus':    b(isFocused.value),
       'data-filled':   b(isFilled),
@@ -562,7 +581,7 @@ export function useOTP(options: VueOTPOptions = {}): UseOTPResult {
       'data-invalid':  b(hasError.value),
       'data-success':  b(hasSuccess.value),
       'data-disabled': b(isDisabled.value),
-      'data-readonly': b(readOnlyOpt),
+      'data-readonly': b(isReadOnly.value),
       'data-first':    b(slotIndex === 0),
       'data-last':     b(slotIndex === length - 1),
     }
@@ -592,6 +611,8 @@ export function useOTP(options: VueOTPOptions = {}): UseOTPResult {
     reset,
     setError,
     setSuccess,
+    setDisabled,
+    setReadOnly,
     focus,
     onKeydown,
     onChange,

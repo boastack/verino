@@ -2,9 +2,9 @@ import { defineConfig } from 'tsup'
 
 export default defineConfig({
   entry:  ['src/index.ts'],
-  format: ['esm', 'cjs'],
+  format: ['esm'],
   dts:    true,
   clean:  true,
-  external: ['alpinejs'],
-  noExternal: ['verino'],
+  sourcemap: false,
+  external: ['alpinejs', '@verino/core'],
 })

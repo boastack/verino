@@ -2,16 +2,16 @@
   <img src="https://raw.githubusercontent.com/boastack/verino/refs/heads/main/assets/banner4.png" alt="verino" width="100%" />
 </a>
 
-<h1 align="center">@verino/alpine</h1>
+<h1 align="center">@verino/vanilla</h1>
 
 <h3 align="center">
-  Alpine.js adapter for <a href="https://github.com/boastack/verino">verino</a>. Build reliable OTP inputs from a single core.
+  Vanilla DOM adapter for <a href="https://github.com/boastack/verino">verino</a>. Build reliable OTP inputs with no framework.
 </h3>
 
 <p align="center">
   <a href="https://verino.vercel.app"><img src="https://img.shields.io/badge/verino.vercel.app-live-20C55C" alt="Live demo" /></a>&nbsp;
-  <a href="https://www.npmjs.com/package/@verino/alpine"><img src="https://img.shields.io/npm/v/@verino/alpine?color=20C55C&label=%40verino%2Falpine" alt="npm version" /></a>&nbsp;
-  <a href="https://bundlephobia.com/package/@verino/alpine"><img src="https://img.shields.io/bundlephobia/minzip/@verino/alpine?color=20C55C&label=gzip" alt="gzip size" /></a>&nbsp;
+  <a href="https://www.npmjs.com/package/@verino/vanilla"><img src="https://img.shields.io/npm/v/@verino/vanilla?color=20C55C&label=%40verino%2Fvanilla" alt="npm version" /></a>&nbsp;
+  <a href="https://bundlephobia.com/package/@verino/vanilla"><img src="https://img.shields.io/bundlephobia/minzip/@verino/vanilla?color=20C55C&label=gzip" alt="gzip size" /></a>&nbsp;
   <img src="https://img.shields.io/badge/dependencies-0-20C55C" alt="Zero dependencies" />&nbsp;
   <a href="https://www.typescriptlang.org"><img src="https://img.shields.io/badge/TypeScript-strict-20C55C" alt="TypeScript" /></a>
 </p>
@@ -20,73 +20,70 @@
 
 ## Overview
 
-`@verino/alpine` registers the `VerinoAlpine` plugin, which provides the `x-verino` directive. Attach it to any container element with a configuration expression, and Verino automatically builds the full OTP field (hidden input, visual slots, optional separators, countdown timer, and resend button) with no template authoring required.
+`@verino/vanilla` is the DOM adapter for [`@verino/core`](https://www.npmjs.com/package/@verino/core). It takes the pure state machine and provides everything needed to run it in the browser: slot rendering, hidden input wiring, `data-*` attribute management, CSS custom properties, and an optional plugin system.
 
-The expression is evaluated in the Alpine component scope, so reactive `$data` references work directly. Programmatic control is available on `el._verino` from any JavaScript context.
+`initOTP(target, options)` mounts a fully accessible OTP field into any container element (CSS selector or DOM node) and returns a `VerinoInstance[]` — one instance per matched element. Call `instance.destroy()` to remove all event listeners, stop active timers, and clean up any DOM elements added by plugins.
 
-When Alpine destroys the component (via `x-if` or `x-for`), `destroy()` is called automatically via Alpine's `cleanup()` hook.
+The adapter includes three tree-shakeable plugins as separate entry points. Import only what you need:
+
+- **`timerUIPlugin`** — renders a live countdown badge and a cooldown-aware resend button inside the field.
+- **`webOTPPlugin`** — intercepts incoming SMS OTPs via the Web OTP API (`navigator.credentials.get`) and fills the slots automatically.
+- **`pmGuardPlugin`** — detects credential badge overlays injected by password managers (LastPass, 1Password, Dashlane, Bitwarden, Keeper) and repositions them to avoid covering the slot group.
 
 ---
 
 ## Why Use This Adapter?
 
-- **Zero template work.** One `x-verino` directive renders the full OTP field, including visual slots, caret, separators, and timer.  
-- **Reactive Alpine data.** The `x-verino` expression evaluates in Alpine’s component scope — `$data` properties work seamlessly.  
-- **Automatic cleanup.** No manual teardown is needed when the element is removed via `x-if`.  
-- **CDN-ready.** A pre-built IIFE bundle works out of the box, with no bundler required.
+- **No framework required.** Works in plain HTML, server-rendered apps, and bundled projects.  
+- **Plugin system.** Tree-shakeable plugins for timer UI, Web OTP API, and password manager guards.  
+- **CDN-ready.** A pre-built IIFE bundle works without any build tooling.  
+- **Fully programmatic.** Control state with `setError`, `setSuccess`, `setDisabled`, `reset`, `focus`, and `getCode`.  
 
 ---
 
 ## Installation
 
-### npm
-
 ```bash
 # npm
-npm install @verino/alpine
+npm install @verino/vanilla
 
 # pnpm
-pnpm add @verino/alpine
+pnpm add @verino/vanilla
 
 # yarn
-yarn add @verino/alpine
+yarn add @verino/vanilla
 ```
 
-**Peer dependency:** Alpine.js ≥ 3. `@verino/core` installs automatically.
-
-Register the plugin before `Alpine.start()`:
-
-```js
-import Alpine from 'alpinejs'
-import { VerinoAlpine } from '@verino/alpine'
-
-Alpine.plugin(VerinoAlpine)
-Alpine.start()
-```
+**Peer dependency:** `@verino/core` installs automatically.
 
 ### CDN
 
 ```html
-<script defer src="https://unpkg.com/alpinejs"></script>
-<script src="https://unpkg.com/@verino/alpine/dist/verino-alpine.min.js"></script>
-<script>
-  document.addEventListener('alpine:init', () => Alpine.plugin(VerinoAlpine))
-</script>
+<script src="https://unpkg.com/@verino/vanilla/dist/verino.min.js"></script>
 ```
+
+The IIFE bundle exposes `window.Verino`. Call `Verino.init(...)` directly.
 
 ---
 
 ## Quick Start
 
 ```html
-<div
-  x-data
-  x-verino="{ length: 6, onComplete: (code) => verify(code) }"
-></div>
+<div class="verino-wrapper"></div>
+
+<script type="module">
+  import { initOTP } from '@verino/vanilla'
+
+  const [otp] = initOTP('.verino-wrapper', {
+    length:     6,
+    type:       'numeric',
+    onComplete: (code) => console.log('Done:', code),
+  })
+</script>
 ```
 > **Note:** `verify(code)` and similar functions used in examples are placeholders — replace them with your own API calls or application logic.
 
-Verino renders the complete OTP field inside the element, wires all event handlers, and manages all state internally.
+`initOTP` returns `VerinoInstance[]`. Call `instance.destroy()` to clean up event listeners and DOM elements.
 
 ---
 
@@ -109,71 +106,101 @@ Verino renders the complete OTP field inside the element, wires all event handle
 
 ## Usage
 
-### Reactive Alpine data
+### Async verification
 
-The `x-verino` expression is evaluated in the Alpine component scope — reactive `$data` properties work directly:
-
-```html
-<div
-  x-data="{ timer: 60 }"
-  x-verino="{ length: 6, timer: timer, onComplete: (code) => verify(code) }"
-></div>
+```js
+const [otp] = initOTP('.verino-wrapper', {
+  length: 6,
+  onComplete: async (code) => {
+    otp.setDisabled(true)
+    const ok = await api.verify(code)
+    otp.setDisabled(false)
+    ok ? otp.setSuccess(true) : otp.setError(true)
+  },
+})
 ```
 
 ### Timer and resend
 
-When `timer` is set and no `onTick` is provided, verino renders a "Code expires in 1:00" footer and a "Didn't receive the code? Resend" section automatically:
+Pass `timer` and `onResend` — the adapter renders the countdown badge and resend button automatically:
 
-```html
-<div x-verino="{ length: 6, timer: 60, onResend: () => sendCode() }"></div>
+```js
+const [otp] = initOTP('.verino-wrapper', {
+  length:   6,
+  timer:    60,
+  onResend: () => requestNewCode(),
+  onExpire: () => showExpiredMessage(),
+})
 ```
 
 Provide an `onTick` callback to drive a custom timer UI and disable the built-in footer:
 
-```html
-<div
-  x-data="{ remaining: 60 }"
-  x-verino="{ length: 6, timer: 60, onTick: (r) => (remaining = r) }"
-></div>
-<p x-text="`Expires in ${remaining}s`"></p>
-```
-
-### Programmatic control via `el._verino`
-
-```html
-<div id="otp-field" x-verino="{ length: 6, onComplete: handleComplete }"></div>
-
-<script>
-  const field = document.getElementById('otp-field')
-
-  async function handleComplete(code) {
-    field._verino.setDisabled(true)
-    const ok = await api.verify(code)
-    field._verino.setDisabled(false)
-    ok ? field._verino.setSuccess(true) : field._verino.setError(true)
-  }
-</script>
-```
-
-### Separator
-
-```html
-<!-- Single separator: [*][*][*] — [*][*][*] -->
-<div x-verino="{ length: 6, separatorAfter: 3 }"></div>
-
-<!-- Multiple separators: [*][*] — [*][*] — [*][*] — [*][*] -->
-<div x-verino="{ length: 8, separatorAfter: [2, 4, 6] }"></div>
+```js
+const [otp] = initOTP('.verino-wrapper', {
+  timer:    60,
+  onTick:   (remaining) => (timerEl.textContent = `0:${String(remaining).padStart(2, '0')}`),
+  onExpire: () => showResendButton(),
+  onResend: () => { otp.resend(); hideResendButton() },
+})
 ```
 
 ### Masked input
 
-```html
-<div x-verino="{ length: 6, masked: true, maskChar: '●' }"></div>
+```js
+initOTP('.verino-wrapper', {
+  masked:   true,
+  maskChar: '●',  // default;
+})
 ```
+
+Or via attribute: `<div class="verino-wrapper" data-masked>`.
+
+### Paste transformer
+
+Strip formatting from real-world OTP SMS messages before distributing to slots:
+
+```js
+initOTP('.verino-wrapper', {
+  pasteTransformer: (raw) => raw.replace(/[\s-]/g, ''),
+  // 'G-123456' → '123456', '123 456' → '123456'
+})
+```
+
+### Plugins
+
+Plugins are separate entry points — import only what you need:
+
+```js
+import { initOTP }        from '@verino/vanilla'
+import { timerUIPlugin }  from '@verino/vanilla/plugins/timer-ui'
+import { webOTPPlugin }   from '@verino/vanilla/plugins/web-otp'
+import { pmGuardPlugin }  from '@verino/vanilla/plugins/pm-guard'
+```
+
+| Plugin | Entry point | What it does |
+|---|---|---|
+| `timerUIPlugin` | `@verino/vanilla/plugins/timer-ui` | Renders countdown badge + cooldown-aware resend button |
+| `webOTPPlugin` | `@verino/vanilla/plugins/web-otp` | Intercepts SMS OTP via `navigator.credentials.get` and auto-fills |
+| `pmGuardPlugin` | `@verino/vanilla/plugins/pm-guard` | Repositions LastPass, 1Password, Dashlane, Bitwarden, Keeper badge overlays |
+
+### CDN usage
+
+```html
+<script src="https://unpkg.com/@verino/vanilla/dist/verino.min.js"></script>
+<div class="verino-wrapper"></div>
+<script>
+  Verino.init('.verino-wrapper', {
+    length:     6,
+    onComplete: (code) => console.log(code),
+  })
+</script>
+```
+
+---
 
 ### `data-*` state attributes
 
-Since verino renders the full DOM inside the directive’s container, all `data-*` attributes are applied automatically — no additional template work is required.
+Each slot element receives `data-*` attributes reflecting the current state of the machine. Style the field entirely with CSS, no JavaScript class management required
 
 #### Slot attributes
 
@@ -220,17 +247,17 @@ Set on the wrapper element as boolean presence attributes (no value):
 [data-complete="true"]                  { border-color: #00C950; }
 
 /* Wrapper-level (boolean presence selectors) */
-#verino-field[data-complete] { outline: 2px solid #00C950; }
-#verino-field[data-invalid]  { outline: 2px solid #FB2C36; }
-#verino-field[data-disabled] { opacity: 0.6; }
+.verino-wrapper[data-complete]  { outline: 2px solid #00C950; }
+.verino-wrapper[data-invalid]   { outline: 2px solid #FB2C36; }
+.verino-wrapper[data-disabled]  { opacity: 0.6; }
 
 /* Connected pill layout */
-.verino-slot[data-first="true"]                              { border-radius: 8px 0 0 8px; }
-.verino-slot[data-last="true"]                               { border-radius: 0 8px 8px 0; }
-.verino-slot[data-first="false"][data-last="false"]          { border-radius: 0; }
+[data-first="true"]                     { border-radius: 8px 0 0 8px; }
+[data-last="true"]                      { border-radius: 0 8px 8px 0; }
+[data-first="false"][data-last="false"] { border-radius: 0; }
 
 /* Target a specific slot by index */
-.verino-slot[data-slot="0"] { font-weight: 700; }
+[data-slot="0"] { font-weight: 700; }
 ```
 
 Verino automatically adds these CSS classes to the rendered DOM:
@@ -255,7 +282,7 @@ Footer (added by `timerUIPlugin`):
 Style the field using `--verino-*` CSS custom properties on the wrapper element:
 
 ```css
-#verino-field {
+.verino-wrapper  {
   /* Dimensions */
   --verino-size:          56px;
   --verino-gap:           12px;
@@ -271,7 +298,6 @@ Style the field using `--verino-*` CSS custom properties on the wrapper element:
   --verino-error-color:   #FB2C36;
   --verino-success-color: #00C950;
   --verino-caret-color:   #3D3D3D;
-  --verino-timer-color:   #5C5C5C;
 
   /* Placeholder, separator & mask */
   --verino-placeholder-color: #D3D3D3;
@@ -300,48 +326,43 @@ Style the field using `--verino-*` CSS custom properties on the wrapper element:
 
 ## API Reference
 
-### Plugin registration
+### `initOTP(target, options?)`
 
 ```ts
-import { VerinoAlpine } from '@verino/alpine'
-Alpine.plugin(VerinoAlpine)   // call before Alpine.start()
+function initOTP(
+  target: string | HTMLElement,
+  options?: VanillaOTPOptions
+): VerinoInstance[]
 ```
 
-### `x-verino` expression options
+`target` can be a CSS selector string or a DOM element.
+
+### `VanillaOTPOptions`
 
 All `OTPOptions` from `@verino/core`, plus:
 
 | Option | Type | Default | Description |
 |---|---|---|---|
-| `separatorAfter` | `number \| number[]` | — | Separator position(s) |
+| `separatorAfter` | `number \| number[]` | — | Insert a visual separator after these slot indices |
 | `separator` | `string` | `'—'` | Separator character |
-| `onChange` | `(code: string) => void` | — | Fires on INPUT, DELETE, CLEAR, PASTE |
-| `onTick` | `(remaining: number) => void` | — | Custom tick callback; suppresses built-in timer UI |
-| `resendAfter` | `number` | `30` | Resend button cooldown in seconds |
 | `masked` | `boolean` | `false` | Show mask glyph in filled slots |
-| `maskChar` | `string` | `'●'` | Mask glyph |
+| `maskChar` | `string` | `'●'` | Glyph used in masked mode |
+| `onChange` | `(code: string) => void` | — | Fires on every input change |
+| `resendAfter` | `number` | `30` | Resend button cooldown in seconds |
 
-### `el._verino`
+### `VerinoInstance` methods
 
-Exposed on the wrapper element after mount:
-
-```ts
-el._verino = {
-  getCode():                          string
-  getSlots():                         SlotEntry[]
-  getInputProps(slotIndex: number):   InputProps
-  reset():                            void   // clear slots + restart timer + re-focus
-  resend():                           void   // reset + fire onResend
-  setError(v: boolean):               void
-  setSuccess(v: boolean):             void   // stops timer on success
-  setDisabled(v: boolean):            void
-  setReadOnly(v: boolean):            void
-  focus(slotIndex: number):           void
-  destroy():                          void   // stop timers + remove footer elements
-}
-```
-
-> Call `el._verino.destroy()` before manually removing the element from the DOM. When Alpine destroys the component via `x-if` or `x-for`, `destroy()` is called automatically via Alpine's `cleanup()` hook.
+| Method | Description |
+|---|---|
+| `getCode()` | Return the current assembled value |
+| `reset()` | Clear all slots, restart timer, re-focus |
+| `resend()` | Reset + fire `onResend` callback |
+| `setError(v)` | Toggle error state |
+| `setSuccess(v)` | Toggle success state; stops timer |
+| `setDisabled(v)` | Lock or unlock the field |
+| `setReadOnly(v)` | Toggle read-only mode |
+| `focus(i?)` | Focus slot `i` (defaults to first empty slot) |
+| `destroy()` | Remove all event listeners and clean up DOM |
 
 ---
 
@@ -349,17 +370,17 @@ el._verino = {
 
 | Environment | Requirement |
 |---|---|
-| Alpine.js | ≥ 3 |
 | `@verino/core` | Same monorepo release |
+| Browsers | All evergreen; IE not supported |
+| Node.js (SSR) | ≥ 18 (DOM-free core only) |
 | TypeScript | ≥ 5.0 |
-| Browsers | All evergreen |
-| Module format | ESM + IIFE (CDN) |
+| Module format | ESM (no CJS build for vanilla) |
 
 ---
 
 ## Integration with Core
 
-`VerinoAlpine` calls `createOTP()` from `@verino/core` internally when the `x-verino` directive mounts. All character filtering, cursor logic, paste normalisation, timer management, and event routing live in core.
+`@verino/vanilla` calls `createOTP()` from `@verino/core` internally. All character filtering, cursor logic, paste normalisation, timer management, and event routing live in core. The vanilla adapter only handles DOM construction, attribute management, and plugin lifecycle.
 
 See the [`@verino/core` README](https://github.com/boastack/verino/blob/main/packages/core/README.md) for the full state machine and event reference.
 
@@ -375,7 +396,7 @@ git clone https://github.com/boastack/verino.git
 cd verino && pnpm install
 
 # Run before opening a PR
-pnpm --filter @verino/alpine build && pnpm test
+pnpm --filter @verino/vanilla build && pnpm test
 ```
 
 ---
@@ -385,10 +406,10 @@ pnpm --filter @verino/alpine build && pnpm test
 | Package | Purpose |
 |---|---|
 | [`@verino/core`](https://www.npmjs.com/package/@verino/core) | Pure OTP state machine — zero DOM, zero framework |
-| [`@verino/vanilla`](https://www.npmjs.com/package/@verino/vanilla) | Vanilla DOM adapter + `timerUIPlugin`, `webOTPPlugin`, `pmGuardPlugin` |
 | [`@verino/react`](https://www.npmjs.com/package/@verino/react) | `useOTP` hook + `HiddenOTPInput` component (React ≥ 18) |
 | [`@verino/vue`](https://www.npmjs.com/package/@verino/vue) | `useOTP` composable with `Ref<T>` reactive state (Vue ≥ 3) |
 | [`@verino/svelte`](https://www.npmjs.com/package/@verino/svelte) | `useOTP` store + `use:action` directive (Svelte ≥ 4) |
+| [`@verino/alpine`](https://www.npmjs.com/package/@verino/alpine) | `VerinoAlpine` plugin — `x-verino` directive (Alpine.js ≥ 3) |
 | [`@verino/web-component`](https://www.npmjs.com/package/@verino/web-component) | `<verino-input>` Shadow DOM custom element |
 
 ---

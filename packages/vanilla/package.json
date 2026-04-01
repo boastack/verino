@@ -1,0 +1,74 @@
+{
+  "name": "@verino/vanilla",
+  "version": "1.0.0",
+  "description": "Vanilla adapter for verino. Build reliable OTP inputs from a single core.",
+  "type": "module",
+  "main": "./dist/index.js",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    },
+    "./plugins": {
+      "types": "./dist/plugins/index.d.ts",
+      "import": "./dist/plugins/index.js"
+    },
+    "./plugins/timer-ui": {
+      "types": "./dist/plugins/timer-ui.d.ts",
+      "import": "./dist/plugins/timer-ui.js"
+    },
+    "./plugins/web-otp": {
+      "types": "./dist/plugins/web-otp.d.ts",
+      "import": "./dist/plugins/web-otp.js"
+    },
+    "./plugins/pm-guard": {
+      "types": "./dist/plugins/pm-guard.d.ts",
+      "import": "./dist/plugins/pm-guard.js"
+    }
+  },
+  "sideEffects": [
+    "./dist/index.js"
+  ],
+  "files": [
+    "dist",
+    "src",
+    "README.md",
+    "LICENSE",
+    "CHANGELOG.md"
+  ],
+  "scripts": {
+    "build": "tsup",
+    "typecheck": "tsc --noEmit"
+  },
+  "keywords": [
+    "otp",
+    "otp-input",
+    "one-time-password",
+    "one-time-code",
+    "pin-input",
+    "vanilla-otp",
+    "sms-autofill",
+    "web-otp",
+    "typescript",
+    "zero-dependencies"
+  ],
+  "author": "Olawale Balo",
+  "license": "MIT",
+  "homepage": "https://verino.vercel.app",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/boastack/verino",
+    "directory": "packages/vanilla"
+  },
+  "bugs": {
+    "url": "https://github.com/boastack/verino/issues"
+  },
+  "dependencies": {
+    "@verino/core": "workspace:*"
+  },
+  "publishConfig": {
+    "access": "public"
+  }
+}

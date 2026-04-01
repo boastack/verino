@@ -30,6 +30,53 @@ jobs:
             The PR title must start with a lowercase letter
             and must not end with a period.
 
+  typecheck:
+    name: Type Check
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v3
+        with:
+          version: 10
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build core first (adapters resolve @verino/core from dist/)
+        run: pnpm --filter @verino/core build
+
+      - name: Type check all packages
+        run: pnpm typecheck
+
+  test:
+    name: Unit Tests
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v3
+        with:
+          version: 10
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Run unit tests
+        run: pnpm test
+
   size-check:
     name: Bundle Size Check
     runs-on: ubuntu-latest
@@ -52,17 +99,8 @@ jobs:
       - name: Build all packages
         run: pnpm build
 
-      - name: Check CDN bundle size limit
-        run: |
-          pnpm build:cdn
-          SIZE_BYTES=$(wc -c < dist/verino.min.js)
-          SIZE_KB=$(( SIZE_BYTES / 1024 ))
-          echo "CDN bundle size: ${SIZE_KB}KB (${SIZE_BYTES} bytes)"
-          if [ "$SIZE_BYTES" -gt 12288 ]; then
-            echo "ERROR: CDN bundle exceeds 12KB limit (${SIZE_BYTES} bytes)"
-            exit 1
-          fi
-          echo "OK: Bundle size is within the 12KB limit"
+      - name: Check bundle sizes
+        run: pnpm size:ci
 
   changeset-check:
     name: Changeset Required

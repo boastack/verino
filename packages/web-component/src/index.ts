@@ -10,33 +10,41 @@
  *   timer            Countdown seconds (default: 0 = no timer)
  *   resend-after     Cooldown seconds before the built-in Resend re-enables (default: 30)
  *   disabled         Boolean attribute — disables all input when present
+ *   readonly         Boolean attribute — blocks mutations, preserves focus and navigation
  *   separator-after  Slot index (1-based) or comma-separated list, e.g. "3" or "2,4" (default: none)
  *   separator        Separator character to render (default: —)
+ *   masked           Boolean attribute — shows mask glyph in filled slots; switches hidden input to type="password"
+ *   mask-char        Glyph shown in filled slots when masked (default: ●)
  *   name             Sets the hidden input's name attr for native form submission
  *   placeholder      Character shown in empty slots (e.g. "○" or "_")
+ *   default-value    Uncontrolled initial value applied once on mount; does not trigger complete event
  *   auto-focus       Boolean attribute — focus input on mount (default: true when absent)
  *   select-on-focus  Boolean attribute — selects the current slot char on focus
  *   blur-on-complete Boolean attribute — blurs the input when all slots are filled
+ *   haptic           Boolean attribute — triggers navigator.vibrate on completion and error (default: true)
+ *   sound            Boolean attribute — plays a short tone via Web Audio API on completion (default: false)
  *
  * Events:
  *   complete         CustomEvent<{ code: string }> — fired when all slots filled
  *   expire           CustomEvent — fired when timer reaches zero
  *   change           CustomEvent<{ code: string }> — fired on every input change
+ *   success          CustomEvent — fired when setSuccess(true) is called
  *
  * DOM API:
  *   el.reset()
  *   el.setError(boolean)
  *   el.setSuccess(boolean)
  *   el.setDisabled(boolean)
+ *   el.setReadOnly(boolean)
  *   el.getCode() -> string
  *   el.getSlots() -> SlotEntry[]
  *   el.getInputProps(index) -> InputProps
- *   el.pattern = /^[0-9A-F]$/     (JS property, not attribute)
- *   el.pasteTransformer = fn       (JS property)
- *   el.onComplete = code => {}     (JS property)
- *   el.onResend   = () => {}       (JS property)
- *   el.onFocus    = () => {}       (JS property)
- *   el.onBlur     = () => {}       (JS property)
+ *   el.pattern = /^[0-9A-F]$/         (JS property, not attribute)
+ *   el.pasteTransformer = fn           (JS property)
+ *   el.onComplete = code => {}         (JS property)
+ *   el.onResend   = () => {}           (JS property)
+ *   el.onFocus    = () => {}           (JS property)
+ *   el.onBlur     = () => {}           (JS property)
  *   el.onInvalidChar = (char, i) => {} (JS property)
  *
  * @author  Olawale Balo — Product Designer + Design Engineer
@@ -53,7 +61,10 @@ import {
   type InputType,
   type SlotEntry,
   type InputProps,
-} from 'verino'
+} from '@verino/core'
+
+/** Convert a boolean to the string literal `'true'` or `'false'` required by CSS attribute selectors. */
+const b = (v: boolean): 'true' | 'false' => v ? 'true' : 'false'
 
 // ─────────────────────────────────────────────────────────────────────────────
 // SHADOW DOM STYLES
@@ -238,10 +249,10 @@ interface OTPCredential extends Credential { code: string }
 // PASSWORD MANAGER BADGE GUARD
 // ─────────────────────────────────────────────────────────────────────────────
 //
-// This logic mirrors the equivalent guard in packages/verino/src/adapters/vanilla.ts.
-// It is intentionally duplicated here because the web component bundles verino
-// internally (noExternal: ['verino'] in tsup config) — there is no shared module
-// boundary at which to place it. Keep both copies in sync when modifying.
+// This logic mirrors the equivalent guard in packages/vanilla/src/plugins/pm-guard.ts.
+// It is intentionally duplicated here because the web component is a standalone
+// bundle that cannot import from @verino/vanilla at runtime. Keep both copies
+// in sync when modifying.
 //
 // Password managers (LastPass, 1Password, Dashlane, Bitwarden, Keeper) inject
 // a small icon badge into or beside <input> elements they detect as credential
@@ -848,7 +859,6 @@ class VerinoInput extends HTMLElement {
     const { slotValues, activeSlot, hasError, isComplete } = this.otp.state
     // Use shadow.activeElement — document.activeElement is the host element in shadow DOM
     const focused = this.shadow.activeElement === this.hiddenInput
-    const b = (v: boolean): 'true' | 'false' => v ? 'true' : 'false'
 
     this.slotEls.forEach((slotEl, i) => {
       const char     = slotValues[i] ?? ''
@@ -1148,7 +1158,6 @@ class VerinoInput extends HTMLElement {
     const s   = otp?.state
     const char     = s?.slotValues[slotIndex] ?? ''
     const isFilled = char.length === 1
-    const b        = (v: boolean): 'true' | 'false' => v ? 'true' : 'false'
     return {
       value:     char,
       onInput:   (c) => { otp?.insert(c, slotIndex); this.syncSlotsToDOM() },
@@ -1160,7 +1169,7 @@ class VerinoInput extends HTMLElement {
       },
       onFocus: () => this._onFocus?.(),
       onBlur:  () => this._onBlur?.(),
-      'data-index':    slotIndex,
+      'data-slot':     slotIndex,
       'data-active':   b(s?.activeSlot === slotIndex),
       'data-filled':   b(isFilled),
       'data-empty':    b(!isFilled),

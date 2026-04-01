@@ -14,9 +14,9 @@
  * fireEvent (no userEvent — keep it synchronous and deterministic).
  */
 
-import React, { useState } from 'react'
+import React, { useRef, useState } from 'react'
 import { render, screen, fireEvent, act } from '@testing-library/react'
-import { useOTP } from '@verino/react'
+import { useOTP, HiddenOTPInput } from '@verino/react'
 import type { ReactOTPOptions } from '@verino/react'
 
 
@@ -635,5 +635,237 @@ describe('useOTP — timer', () => {
     render(<OTPFixture length={4} timer={2} onExpire={onExpire} autoFocus={false} />)
     act(() => { jest.advanceTimersByTime(3000) })
     expect(onExpire).toHaveBeenCalled()
+  })
+})
+
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Tab key navigation (lines 452-464)
+// ─────────────────────────────────────────────────────────────────────────────
+
+describe('useOTP — Tab key navigation', () => {
+  it('Tab moves forward when slot is filled', () => {
+    render(<OTPFixture length={4} autoFocus={false} />)
+    const input = getInput()
+    typeValue(input, '12')
+    input.setSelectionRange(0, 0)
+    keyDown(input, 'Tab')
+    flushRAF()
+    expect(input.selectionStart).toBe(1)
+  })
+
+  it('Tab does nothing when slot is empty (no preventDefault)', () => {
+    render(<OTPFixture length={4} autoFocus={false} />)
+    const input = getInput()
+    input.setSelectionRange(0, 0)
+    let prevented = false
+    act(() => {
+      const event = new KeyboardEvent('keydown', { key: 'Tab', bubbles: true, cancelable: true })
+      Object.defineProperty(event, 'preventDefault', { value: () => { prevented = true } })
+      input.dispatchEvent(event)
+    })
+    expect(prevented).toBe(false)
+  })
+
+  it('Tab does nothing when at last slot', () => {
+    render(<OTPFixture length={4} autoFocus={false} />)
+    const input = getInput()
+    typeValue(input, '1234')
+    input.setSelectionRange(3, 3)
+    let prevented = false
+    act(() => {
+      const event = new KeyboardEvent('keydown', { key: 'Tab', bubbles: true, cancelable: true })
+      Object.defineProperty(event, 'preventDefault', { value: () => { prevented = true } })
+      input.dispatchEvent(event)
+    })
+    expect(prevented).toBe(false)
+  })
+
+  it('Shift+Tab moves backward from slot > 0', () => {
+    render(<OTPFixture length={4} autoFocus={false} />)
+    const input = getInput()
+    typeValue(input, '12')
+    input.setSelectionRange(1, 1)
+    keyDown(input, 'Tab', { shiftKey: true })
+    flushRAF()
+    expect(input.selectionStart).toBe(0)
+  })
+
+  it('Shift+Tab at slot 0 does nothing', () => {
+    render(<OTPFixture length={4} autoFocus={false} />)
+    const input = getInput()
+    input.setSelectionRange(0, 0)
+    let prevented = false
+    act(() => {
+      const event = new KeyboardEvent('keydown', { key: 'Tab', shiftKey: true, bubbles: true, cancelable: true })
+      Object.defineProperty(event, 'preventDefault', { value: () => { prevented = true } })
+      input.dispatchEvent(event)
+    })
+    expect(prevented).toBe(false)
+  })
+})
+
+
+// ─────────────────────────────────────────────────────────────────────────────
+// onFocus and onBlur (lines 516-527)
+// ─────────────────────────────────────────────────────────────────────────────
+
+describe('useOTP — onFocus / onBlur', () => {
+  it('onFocus sets isFocused to true and fires onFocus callback', () => {
+    const onFocus = jest.fn()
+    render(<OTPFixture length={4} onFocus={onFocus} autoFocus={false} />)
+    act(() => { fireEvent.focus(getInput()) })
+    expect(screen.getByTestId('focused').textContent).toBe('true')
+    expect(onFocus).toHaveBeenCalled()
+  })
+
+  it('onBlur sets isFocused to false and fires onBlur callback', () => {
+    const onBlur = jest.fn()
+    render(<OTPFixture length={4} onBlur={onBlur} autoFocus={false} />)
+    act(() => { fireEvent.focus(getInput()) })
+    act(() => { fireEvent.blur(getInput()) })
+    expect(screen.getByTestId('focused').textContent).toBe('false')
+    expect(onBlur).toHaveBeenCalled()
+  })
+
+  it('selectOnFocus selects filled char in RAF callback', () => {
+    render(<OTPFixture length={4} selectOnFocus autoFocus={false} />)
+    const input = getInput()
+    typeValue(input, '12')
+    // activeSlot = 2 after typing. Move cursor to pos 1 then ArrowLeft to set activeSlot = 0
+    input.setSelectionRange(1, 1)
+    keyDown(input, 'ArrowLeft')   // otp.move(0) — now activeSlot = 0, which has '1'
+    flushRAF()                     // flush ArrowLeft RAF
+    act(() => { fireEvent.focus(input) })
+    flushRAF()
+    // Slot 0 has '1' → selection should be [0, 1]
+    expect(input.selectionEnd).toBe(1)
+  })
+
+  it('onFocus without selectOnFocus sets cursor to activeSlot', () => {
+    render(<OTPFixture length={4} autoFocus={false} />)
+    const input = getInput()
+    typeValue(input, '12')
+    act(() => { fireEvent.focus(input) })
+    flushRAF()
+    // cursor set to activeSlot, not a range selection
+    expect(input.selectionStart).toBe(input.selectionEnd)
+  })
+})
+
+
+// ─────────────────────────────────────────────────────────────────────────────
+// focus(), getInputProps(), setSuccess, setReadOnly, setDisabled (lines 550-562)
+// ─────────────────────────────────────────────────────────────────────────────
+
+function OTPWithFullAPI(props: ReactOTPOptions) {
+  const otp = useOTP(props)
+  const ref = useRef<{ otp: ReturnType<typeof useOTP> }>({ otp })
+  ref.current.otp = otp
+  return (
+    <div>
+      <input data-testid="input" {...otp.hiddenInputProps} autoFocus={false} />
+      <span data-testid="code">{otp.getCode()}</span>
+      <span data-testid="active">{otp.activeSlot}</span>
+      <span data-testid="success">{String(otp.hasSuccess)}</span>
+      <button data-testid="focus2" onClick={() => otp.focus(2)}>Focus 2</button>
+      <button data-testid="setSuccess" onClick={() => otp.setSuccess(true)}>Success</button>
+      <button data-testid="clearSuccess" onClick={() => otp.setSuccess(false)}>ClearSuccess</button>
+      <button data-testid="setDisabled" onClick={() => otp.setDisabled(true)}>Disable</button>
+      <button data-testid="setReadOnly" onClick={() => otp.setReadOnly(true)}>ReadOnly</button>
+      {otp.slotValues.map((_, i) => {
+        const p = otp.getInputProps(i)
+        return <div key={i} data-testid={`ip-${i}`} data-focus={p['data-focus']} />
+      })}
+    </div>
+  )
+}
+
+describe('useOTP — focus()', () => {
+  it('focus(2) moves activeSlot to 2', () => {
+    render(<OTPWithFullAPI length={4} autoFocus={false} />)
+    act(() => { fireEvent.click(screen.getByTestId('focus2')) })
+    expect(screen.getByTestId('active').textContent).toBe('2')
+  })
+})
+
+describe('useOTP — getInputProps()', () => {
+  it('data-focus reflects isFocused state', () => {
+    render(<OTPWithFullAPI length={4} autoFocus={false} />)
+    // Initially not focused
+    expect(screen.getByTestId('ip-0').dataset.focus).toBe('false')
+    // Focus the input
+    act(() => { fireEvent.focus(screen.getByTestId('input')) })
+    expect(screen.getByTestId('ip-0').dataset.focus).toBe('true')
+  })
+})
+
+describe('useOTP — setSuccess()', () => {
+  it('setSuccess(true) sets hasSuccess', () => {
+    render(<OTPWithFullAPI length={4} autoFocus={false} />)
+    act(() => { fireEvent.click(screen.getByTestId('setSuccess')) })
+    expect(screen.getByTestId('success').textContent).toBe('true')
+  })
+
+  it('setSuccess(false) clears hasSuccess', () => {
+    render(<OTPWithFullAPI length={4} autoFocus={false} />)
+    act(() => { fireEvent.click(screen.getByTestId('setSuccess')) })
+    act(() => { fireEvent.click(screen.getByTestId('clearSuccess')) })
+    expect(screen.getByTestId('success').textContent).toBe('false')
+  })
+})
+
+describe('useOTP — setDisabled()', () => {
+  it('setDisabled(true) blocks subsequent typing', () => {
+    render(<OTPWithFullAPI length={4} autoFocus={false} />)
+    act(() => { fireEvent.click(screen.getByTestId('setDisabled')) })
+    typeValue(screen.getByTestId('input') as HTMLInputElement, '1234')
+    expect(screen.getByTestId('code').textContent).toBe('')
+  })
+})
+
+describe('useOTP — setReadOnly()', () => {
+  it('setReadOnly(true) blocks subsequent typing', () => {
+    render(<OTPWithFullAPI length={4} autoFocus={false} />)
+    act(() => { fireEvent.click(screen.getByTestId('setReadOnly')) })
+    typeValue(screen.getByTestId('input') as HTMLInputElement, '1234')
+    expect(screen.getByTestId('code').textContent).toBe('')
+  })
+})
+
+
+// ─────────────────────────────────────────────────────────────────────────────
+// HiddenOTPInput component (line 682)
+// ─────────────────────────────────────────────────────────────────────────────
+
+function HiddenInputFixture() {
+  const otp = useOTP({ length: 4, autoFocus: false })
+  const { ref: _ref, ...restProps } = otp.hiddenInputProps
+  return (
+    <div>
+      <HiddenOTPInput ref={otp.hiddenInputProps.ref} data-testid="hidden" {...restProps} />
+      <span data-testid="ok">ok</span>
+    </div>
+  )
+}
+
+describe('HiddenOTPInput', () => {
+  it('renders an <input> element via hiddenInputProps', () => {
+    render(<HiddenInputFixture />)
+    expect(screen.getByTestId('hidden').tagName).toBe('INPUT')
+  })
+
+  it('forwards ref to the underlying input element', () => {
+    let inputEl: HTMLInputElement | null = null
+    function Wrapper() {
+      const otp = useOTP({ length: 4, autoFocus: false })
+      const fwdRef = useRef<HTMLInputElement>(null)
+      React.useEffect(() => { inputEl = fwdRef.current }, [])
+      const { ref: _ref, ...restProps } = otp.hiddenInputProps
+      return <HiddenOTPInput ref={fwdRef} data-testid="hidden" {...restProps} />
+    }
+    render(<Wrapper />)
+    expect(inputEl).not.toBeNull()
+    expect(inputEl!.tagName).toBe('INPUT')
   })
 })

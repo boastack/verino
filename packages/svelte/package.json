@@ -22,7 +22,7 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "verino": "workspace:*"
+    "@verino/core": "workspace:*"
   },
   "peerDependencies": {
     "svelte": ">=4"
