@@ -1,7 +1,7 @@
 {
   "name": "@verino/vue",
-  "version": "2.0.0",
-  "description": "Vue adapter for Verino. Reliable OTP inputs from a single core.",
+  "version": "1.0.0",
+  "description": "Vue adapter for verino. Build reliable OTP inputs from a single core.",
   "type": "module",
   "main": "./dist/index.cjs",
   "module": "./dist/index.js",
@@ -14,17 +14,12 @@
     }
   },
   "files": [
-    "dist/**/*.js",
-    "dist/**/*.d.ts",
-    "dist/**/*.d.cts",
-    "dist/**/*.cjs",
-    "README.md",
-    "LICENSE"
+    "dist"
   ],
   "sideEffects": false,
   "scripts": {
     "build": "tsup",
-    "typecheck": "tsc -b"
+    "typecheck": "tsc --noEmit"
   },
   "dependencies": {
     "@verino/core": "workspace:*"
@@ -32,27 +27,6 @@
   "peerDependencies": {
     "vue": ">=3"
   },
-  "peerDependenciesMeta": {
-    "vue": {
-      "optional": true
-    }
-  },
-  "keywords": [
-    "otp",
-    "otp-input",
-    "one-time-password",
-    "one-time-code",
-    "verification-code",
-    "pin-input",
-    "passcode",
-    "2fa",
-    "mfa",
-    "authentication",
-    "otp-field",
-    "vue-otp",
-    "accessible-otp",
-    "typescript"
-  ],
   "devDependencies": {
     "tsup": "^8.0.0",
     "typescript": "^5.0.0",

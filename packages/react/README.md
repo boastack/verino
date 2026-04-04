@@ -5,13 +5,13 @@
 <h1 align="center">@verino/react</h1>
 
 <h3 align="center">
-  React adapter for <a href="https://github.com/boastack/verino">Verino</a>. Reliable OTP inputs from a single core.
+  React adapter for <a href="https://github.com/boastack/verino">verino</a>. Build reliable OTP inputs from a single core.
 </h3>
 
 <p align="center">
   <a href="https://verino.vercel.app"><img src="https://img.shields.io/badge/verino.vercel.app-live-20C55C" alt="Live demo" /></a>&nbsp;
   <a href="https://www.npmjs.com/package/@verino/react"><img src="https://img.shields.io/npm/v/@verino/react?color=20C55C&label=%40verino%2Freact" alt="npm version" /></a>&nbsp;
-  <a href="https://bundlephobia.com/package/@verino/react"><img src="https://img.shields.io/bundlephobia/minzip/@verino/react?color=20C55C&label=gzip+size" alt="gzip size" /></a>&nbsp;
+  <a href="https://bundlephobia.com/package/@verino/react"><img src="https://img.shields.io/bundlephobia/minzip/@verino/react?color=20C55C&label=gzip" alt="gzip size" /></a>&nbsp;
   <img src="https://img.shields.io/badge/dependencies-0-20C55C" alt="Zero dependencies" />&nbsp;
   <a href="https://www.typescriptlang.org"><img src="https://img.shields.io/badge/TypeScript-strict-20C55C" alt="TypeScript" /></a>
 </p>
@@ -24,7 +24,7 @@
 
 `HiddenOTPInput` is a positioned `<input>` that captures all keyboard input, paste, and native SMS autofill. Visual slot divs are purely decorative mirrors, hold no event listeners and carry no state of their own.
 
-The core instance stays stable across ordinary re-renders. Callback options (`onComplete`, `onExpire`, etc.) are stored in refs so they can be updated without restarting the effect, and the machine is only recreated when structural configuration such as `length` changes.
+The core instance is created once via `useMemo` and never recreated on re-renders. All callback options (`onComplete`, `onExpire`, etc.) are stored in refs so they can be updated without restarting the effect.
 
 ---
 
@@ -33,7 +33,7 @@ The core instance stays stable across ordinary re-renders. Callback options (`on
 - **Full markup control.** `useOTP` provides render props — you own the JSX, no opaque wrapper.  
 - **React 18 ready.** Fully compatible with concurrent features, Suspense, and strict mode.  
 - **`react-hook-form` friendly.** Pass `value` and `onChange` to integrate with any form library.  
-- **Stable instance.** The `@verino/core` state machine persists across ordinary re-renders and only rebuilds for structural configuration changes.
+- **Stable instance.** The `@verino/core` state machine is created once and persists across re-renders.
 
 ---
 
@@ -41,7 +41,7 @@ The core instance stays stable across ordinary re-renders. Callback options (`on
 
 ```bash
 # npm
-npm i @verino/react
+npm install @verino/react
 
 # pnpm
 pnpm add @verino/react
@@ -106,9 +106,9 @@ function OTPField() {
 
 ## Usage
 
-### Live external control / react-hook-form
+### Controlled value / react-hook-form
 
-Use `value` for live external control and `defaultValue` for one-time mount prefill. In React, live external control means passing the current string from parent state and writing changes back through `onChange`. Programmatic updates do not trigger `onComplete`:
+Pass `value` and `onChange` to sync the field with external state. Programmatic updates do not trigger `onComplete`:
 
 ```tsx
 const [code, setCode] = useState('')
@@ -260,7 +260,6 @@ Set on the wrapper element as boolean presence attributes (no value):
 | `data-disabled` | Field is disabled |
 | `data-readonly` | Field is read-only |
 
-
 ```css
 /* Slot-level — scope to your field with an id or class prefix */
 .slot[data-active="true"][data-focus="true"] { border-color: #3D3D3D; }
@@ -348,11 +347,11 @@ function useOTP(options?: ReactOTPOptions): UseOTPResult
 
 ### `ReactOTPOptions`
 
-Builds on `CoreOTPOptions` from `@verino/core` with React-specific state and rendering options:
+Extends `OTPOptions` from `@verino/core` with:
 
 ```ts
-type ReactOTPOptions = CoreOTPOptions & {
-  value?:          string                   // live external control; does not trigger onComplete
+type ReactOTPOptions = OTPOptions & {
+  value?:          string                   // controlled value; does not trigger onComplete
   onChange?:       (code: string) => void   // fires on INPUT, DELETE, CLEAR, PASTE
   separatorAfter?: number | number[]
   separator?:      string                   // default: '—'
@@ -389,12 +388,11 @@ type UseOTPResult = {
 
   // Programmatic control
   reset():                           void
-  resend():                          void
   setError(v: boolean):              void
   setSuccess(v: boolean):            void
   setDisabled(v: boolean):           void
   setReadOnly(v: boolean):           void
-  focus(slotIndex: number):          void
+  focus(slotIndex?: number):         void
 }
 
 ### `SlotRenderProps`
@@ -443,7 +441,7 @@ Renders a `position: absolute; opacity: 0` input that covers the slot row. Sprea
 
 ## Integration with Core
 
-`useOTP` creates a stable `createOTP()` machine from `@verino/core` for the current field shape, then routes dynamic adapter behavior through refs and toolkit helpers. Filtering, cursor logic, paste normalization, and event routing live in core; countdown, feedback, and input-scheduling come from `@verino/core/toolkit`.
+`useOTP` calls `createOTP()` from `@verino/core` inside `useMemo`. All filtering, cursor logic, paste, timer management, and event routing live in core. The hook only syncs core state into React's `useState` and exposes the programmatic API.
 
 See the [`@verino/core` README](https://github.com/boastack/verino/blob/main/packages/core/README.md) for the full state machine and event reference.
 
@@ -456,7 +454,7 @@ This package lives in the [verino monorepo](https://github.com/boastack/verino).
 ```bash
 # Clone and install
 git clone https://github.com/boastack/verino.git
-cd verino && pnpm i
+cd verino && pnpm install
 
 # Run before opening a PR
 pnpm --filter @verino/react build && pnpm test
@@ -468,9 +466,9 @@ pnpm --filter @verino/react build && pnpm test
 
 | Package | Purpose |
 |---|---|
-| [`@verino/core`](https://www.npmjs.com/package/@verino/core) | OTP state machine + toolkit |
+| [`@verino/core`](https://www.npmjs.com/package/@verino/core) | Pure OTP state machine — zero DOM, zero framework |
 | [`@verino/vanilla`](https://www.npmjs.com/package/@verino/vanilla) | Vanilla DOM adapter + `timerUIPlugin`, `webOTPPlugin`, `pmGuardPlugin` |
-| [`@verino/vue`](https://www.npmjs.com/package/@verino/vue) | `useOTP` composable with reactive Vue refs (Vue ≥ 3) |
+| [`@verino/vue`](https://www.npmjs.com/package/@verino/vue) | `useOTP` composable with `Ref<T>` reactive state (Vue ≥ 3) |
 | [`@verino/svelte`](https://www.npmjs.com/package/@verino/svelte) | `useOTP` store + `use:action` directive (Svelte ≥ 4) |
 | [`@verino/alpine`](https://www.npmjs.com/package/@verino/alpine) | `VerinoAlpine` plugin — `x-verino` directive (Alpine.js ≥ 3) |
 | [`@verino/web-component`](https://www.npmjs.com/package/@verino/web-component) | `<verino-input>` Shadow DOM custom element |

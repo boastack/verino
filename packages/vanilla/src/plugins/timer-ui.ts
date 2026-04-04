@@ -14,10 +14,12 @@
  * Active only when:
  *   - `timerSeconds > 0`
  *   - `onTickCallback` is NOT provided (custom-tick mode suppresses built-in UI)
+ *
+ * @author  Olawale Balo — Product Designer + Design Engineer
+ * @license MIT
  */
 
-import { createTimer, formatCountdown } from '@verino/core/timer'
-import { createResendTimer } from '@verino/core/toolkit/timer-policy'
+import { createTimer, formatCountdown } from '@verino/core'
 import type { VerinoPlugin, VerinoPluginContext } from './types.js'
 
 /**
@@ -39,7 +41,7 @@ export const timerUIPlugin: VerinoPlugin = {
   install(ctx: VerinoPluginContext): () => void {
     const {
       otp, wrapperEl, timerSeconds, resendCooldown,
-      onResend, onTickCallback, onExpire, clearField,
+      onResend, onTickCallback, onExpire,
     } = ctx
 
     // No timer configured — nothing to do.
@@ -50,8 +52,6 @@ export const timerUIPlugin: VerinoPlugin = {
     if (onTickCallback) {
       const customCountdown = createTimer({
         totalSeconds: timerSeconds,
-        emitInitialTickOnStart: true,
-        emitInitialTickOnRestart: true,
         onTick:   onTickCallback,
         onExpire: onExpire,
       })
@@ -108,6 +108,8 @@ export const timerUIPlugin: VerinoPlugin = {
 
     // ── Helpers ────────────────────────────────────────────────────────────
 
+    let resendCountdown: ReturnType<typeof createTimer> | null = null
+
     function showResend(): void {
       footerEl.style.display = 'none'
       resendRowEl.classList.add('is-visible')
@@ -119,21 +121,27 @@ export const timerUIPlugin: VerinoPlugin = {
       badgeEl.textContent = formatCountdown(remaining)
     }
 
-    const resendTimer = createResendTimer({
-      timerSeconds,
-      resendCooldown,
-      clearField,
-      showTimer,
-      showResend,
-      onExpire,
-      onResend,
+    // ── Main countdown ─────────────────────────────────────────────────────
+
+    const mainCountdown = createTimer({
+      totalSeconds: timerSeconds,
+      onTick:   (r) => { badgeEl.textContent = formatCountdown(r) },
+      onExpire: () => { showResend(); onExpire?.() },
     })
-    resendTimer.start()
+    mainCountdown.start()
 
     // ── Resend button ──────────────────────────────────────────────────────
 
     function onResendClick(): void {
-      resendTimer.resend()
+      showTimer(resendCooldown)
+      resendCountdown?.stop()
+      resendCountdown = createTimer({
+        totalSeconds: resendCooldown,
+        onTick:   (r) => { badgeEl.textContent = formatCountdown(r) },
+        onExpire: () => { showResend() },
+      })
+      resendCountdown.start()
+      onResend?.()
     }
 
     resendBtn.addEventListener('click', onResendClick)
@@ -142,13 +150,17 @@ export const timerUIPlugin: VerinoPlugin = {
 
     const unsubReset = otp.subscribe((_state, event) => {
       if (event.type !== 'RESET') return
-      resendTimer.handleExternalReset()
+      resendCountdown?.stop()
+      resendCountdown = null
+      showTimer(timerSeconds)
+      mainCountdown.restart()
     })
 
     // ── Cleanup ────────────────────────────────────────────────────────────
 
     return () => {
-      resendTimer.stop()
+      mainCountdown.stop()
+      resendCountdown?.stop()
       resendBtn.removeEventListener('click', onResendClick)
       unsubReset()
       footerEl.remove()

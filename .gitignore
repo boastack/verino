@@ -5,12 +5,8 @@ dist/
 .DS_Store
 
 # Turbo
-.turbo/
 .turbo/cache/
 packages/*/.turbo/
-
-# pnpm
-.pnpm-store/
 
 # Jest
 coverage/
@@ -20,17 +16,8 @@ test-results/
 playwright-report/
 .playwright/
 
-# Local media captures
-assets/*.mov
-
 # npm
 *.tgz
-npm-debug.log*
-pnpm-debug.log*
-yarn-*.log*
-
-# Local temp files
-.tmp-*
 
 # Editor
 .vscode/

@@ -1,21 +1,14 @@
 import { defineConfig, devices } from '@playwright/test'
 
-const host = '127.0.0.1'
-const port = Number(process.env.PLAYWRIGHT_TEST_PORT ?? 3000)
-const origin = `http://${host}:${port}`
-
 export default defineConfig({
   testDir: './tests/e2e',
-  fullyParallel: false,
+  fullyParallel: true,
   forbidOnly: !!process.env.CI,
   retries: process.env.CI ? 2 : 0,
-  reporter: [
-    ['list'],
-    ['html', { open: 'never' }],
-  ],
+  reporter: 'html',
 
   use: {
-    baseURL: origin,
+    baseURL: 'http://localhost:3000',
     trace: 'on-first-retry',
   },
 
@@ -43,8 +36,8 @@ export default defineConfig({
   ],
 
   webServer: {
-    command: 'node scripts/serve-static.mjs',
-    url: `${origin}/_health`,
-    reuseExistingServer: false,
+    command: 'npx --yes http-server . -p 3000 -c-1',
+    url: 'http://localhost:3000',
+    reuseExistingServer: !process.env.CI,
   },
 })

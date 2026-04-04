@@ -7,9 +7,12 @@
  *
  * Plugin contract:
  *   install(ctx) → cleanup
+ *
+ * @author  Olawale Balo — Product Designer + Design Engineer
+ * @license MIT
  */
 
-import type { InputType, OTPInstance } from '@verino/core'
+import type { createOTP, InputType } from '@verino/core'
 
 // ─────────────────────────────────────────────────────────────────────────────
 // WRAPPER AUGMENTATION
@@ -24,7 +27,6 @@ import type { InputType, OTPInstance } from '@verino/core'
 export type VerinoWrapper = HTMLElement & {
   __verinoFooterEl?:    HTMLDivElement | null
   __verinoResendRowEl?: HTMLDivElement | null
-  __verinoInstance?:    { destroy(): void } | null
 }
 
 
@@ -39,7 +41,7 @@ export type VerinoWrapper = HTMLElement & {
  */
 export type VerinoPluginContext = {
   /** The core OTP state machine instance. */
-  otp:            OTPInstance
+  otp:            ReturnType<typeof createOTP>
   /** The user-supplied wrapper element, augmented with footer references. */
   wrapperEl:      VerinoWrapper
   /** The hidden real `<input>` element. */
@@ -62,8 +64,6 @@ export type VerinoPluginContext = {
   onTickCallback?: (remaining: number) => void
   /** Called when the countdown reaches zero. */
   onExpire?:      () => void
-  /** Clear the current code and visual field state without managing plugin timers. */
-  clearField:     () => void
   /** Force a full DOM sync from OTP core state → slot divs. */
   syncSlots:      () => void
 }

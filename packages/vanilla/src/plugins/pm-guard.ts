@@ -13,10 +13,40 @@
  * Detection uses a MutationObserver on documentElement to catch late-injecting
  * extensions; if the badge is already present at mount time the fix is applied
  * immediately and the observer is never started.
+ *
+ * @author  Olawale Balo — Product Designer + Design Engineer
+ * @license MIT
  */
 
-import { watchForPasswordManagerBadge } from '@verino/core/toolkit/password-manager'
 import type { VerinoPlugin, VerinoPluginContext } from './types.js'
+
+const PASSWORD_MANAGER_SELECTORS = [
+  '[data-lastpass-icon-root]',
+  '[data-lastpass-root]',
+  '[data-op-autofill]',
+  '[data-1p-ignore]',
+  '[data-dashlane-rid]',
+  '[data-dashlane-label]',
+  '[data-kwimpalastatus]',
+  '[data-bwautofill]',
+  'com-bitwarden-browser-arctic-modal',
+]
+
+const BADGE_OFFSET_PX = 40
+
+/**
+ * Returns `true` if any known password manager badge element is present in the DOM.
+ *
+ * Each selector query is wrapped in a try/catch because some selectors (e.g.
+ * attribute selectors with invalid syntax injected by extensions) can throw
+ * `SyntaxError` in strict parsers.
+ */
+function isPasswordManagerActive(): boolean {
+  return PASSWORD_MANAGER_SELECTORS.some(sel => {
+    try { return document.querySelector(sel) !== null }
+    catch { return false }
+  })
+}
 
 /**
  * Password manager badge guard plugin.
@@ -37,22 +67,54 @@ export const pmGuardPlugin: VerinoPlugin = {
   install(ctx: VerinoPluginContext): () => void {
     const { hiddenInputEl, slotRowEl } = ctx
 
-    let disconnect = () => {}
-    let destroyed = false
-    let rafId: number | null = null
+    if (typeof MutationObserver === 'undefined') return () => {}
 
-    rafId = requestAnimationFrame(() => {
-      if (destroyed) return
+    // Measure slot row width inside a RAF so layout is complete.
+    let observer: MutationObserver | null = null
+
+    requestAnimationFrame(() => {
       const baseWidthPx = slotRowEl.getBoundingClientRect().width || 0
-      disconnect = watchForPasswordManagerBadge(hiddenInputEl, baseWidthPx)
+
+      function applyOffset(): void {
+        hiddenInputEl.style.width = `${baseWidthPx + BADGE_OFFSET_PX}px`
+      }
+
+      if (isPasswordManagerActive()) {
+        applyOffset()
+        return
+      }
+
+      observer = new MutationObserver(() => {
+        if (isPasswordManagerActive()) {
+          applyOffset()
+          observer?.disconnect()
+          observer = null
+        }
+      })
+
+      // attributeFilter narrows mutations to the data-* attributes used by
+      // known password managers — prevents the observer from firing on every
+      // DOM mutation across the page.
+      // Note: Bitwarden's `com-bitwarden-browser-arctic-modal` is a custom
+      // *element* (not an attribute), so it is detected via `childList: true`
+      // (in the observe() call below) rather than attributeFilter.
+      observer.observe(document.documentElement, {
+        childList:       true,
+        subtree:         true,
+        attributes:      true,
+        attributeFilter: [
+          'data-lastpass-icon-root',
+          'data-lastpass-root',
+          'data-op-autofill',
+          'data-1p-ignore',
+          'data-dashlane-rid',
+          'data-dashlane-label',
+          'data-kwimpalastatus',
+          'data-bwautofill',
+        ],
+      })
     })
 
-    return () => {
-      destroyed = true
-      if (rafId !== null) cancelAnimationFrame(rafId)
-      disconnect()
-      disconnect = () => {}
-      rafId = null
-    }
+    return () => { observer?.disconnect(); observer = null }
   },
 }

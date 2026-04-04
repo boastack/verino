@@ -5,13 +5,13 @@
 <h1 align="center">@verino/web-component</h1>
 
 <h3 align="center">
-  Web Component adapter for <a href="https://github.com/boastack/verino">Verino</a>. Reliable OTP inputs from a single core.
+  Web Component adapter for <a href="https://github.com/boastack/verino">verino</a>. Build reliable OTP inputs from a single core.
 </h3>
 
 <p align="center">
   <a href="https://verino.vercel.app"><img src="https://img.shields.io/badge/verino.vercel.app-live-20C55C" alt="Live demo" /></a>&nbsp;
   <a href="https://www.npmjs.com/package/@verino/web-component"><img src="https://img.shields.io/npm/v/@verino/web-component?color=20C55C&label=%40verino%2Fweb-component" alt="npm version" /></a>&nbsp;
-  <a href="https://bundlephobia.com/package/@verino/web-component"><img src="https://img.shields.io/bundlephobia/minzip/@verino/web-component?color=20C55C&label=gzip+size" alt="gzip size" /></a>&nbsp;
+  <a href="https://bundlephobia.com/package/@verino/web-component"><img src="https://img.shields.io/bundlephobia/minzip/@verino/web-component?color=20C55C&label=gzip" alt="gzip size" /></a>&nbsp;
   <img src="https://img.shields.io/badge/dependencies-0-20C55C" alt="Zero dependencies" />&nbsp;
   <a href="https://www.typescriptlang.org"><img src="https://img.shields.io/badge/TypeScript-strict-20C55C" alt="TypeScript" /></a>
 </p>
@@ -22,7 +22,7 @@
 
 `@verino/web-component` registers `<verino-input>`, a self-contained custom element that renders a complete OTP input field inside a Shadow DOM. Drop it in HTML and it works with no framework, no build step, and no template authoring required. Import the package once and `<verino-input>` is available everywhere.
 
-Structural attribute changes rebuild the shadow DOM, while runtime attributes like `disabled`, `readonly`, `name`, and `placeholder` patch in place. Existing code is preserved across rebuilds. CSS custom properties cascade through the shadow root, theming works from outside with no special configuration. All custom events are `composed: true` and cross the shadow boundary automatically.
+Changing any observed attribute triggers a full shadow DOM rebuild, so the element always reflects its attribute state. CSS custom properties cascade through the shadow root, theming works from outside with no special configuration. All custom events are `composed: true` and cross the shadow boundary automatically.
 
 ---
 
@@ -41,7 +41,7 @@ Structural attribute changes rebuild the shadow DOM, while runtime attributes li
 
 ```bash
 # npm
-npm i @verino/web-component
+npm install @verino/web-component
 
 # pnpm
 pnpm add @verino/web-component
@@ -135,7 +135,6 @@ Boolean attributes (`disabled`, `readonly`, `masked`, `blur-on-complete`, `selec
 | `select-on-focus` | boolean | `false` | Select current slot character on focus |
 | `blur-on-complete` | boolean | `false` | Blur input when all slots are filled |
 | `default-value` | string | — | Pre-fill slots on mount; does not fire `complete` |
-| `id-base` | string | — | Stable prefix for request-scoped ids |
 | `sound` | boolean | `false` | Play audio tone on completion |
 | `haptic` | `"false"` | `true` | Set to `"false"` to suppress vibration feedback |
 
@@ -252,7 +251,6 @@ Inside the shadow root, slot elements receive string-value attributes (`"true"` 
 | `data-last` | This is the last slot |
 | `data-slot` | Zero-based position of the slot as a string ("0", "1", …) |
 
-
 ```css
 /* Applied inside the shadow root via the built-in shadow stylesheet */
 .verino-wc-slot[data-active="true"][data-focus="true"] { border-color: #3D3D3D; }
@@ -346,7 +344,7 @@ verino-input {
 
 ```ts
 class VerinoInput extends HTMLElement {
-  // Observed attributes — structural changes rebuild, runtime attrs patch in place:
+  // Observed attributes — any change triggers a shadow DOM rebuild:
   // length, type, timer, resend-after, disabled, readonly,
   // separator-after, separator, masked, mask-char, name, placeholder,
   // auto-focus, select-on-focus, blur-on-complete, default-value, sound, haptic
@@ -362,7 +360,6 @@ class VerinoInput extends HTMLElement {
 
   // DOM methods
   reset():                        void   // clear slots + restart timer + re-focus
-  resend():                       void   // reset + fire onResend + restart with resend cooldown
   setError(v: boolean):           void   // toggle error; clears success
   setSuccess(v: boolean):         void   // toggle success; stops timer; clears error
   setDisabled(v: boolean):        void
@@ -391,7 +388,7 @@ class VerinoInput extends HTMLElement {
 
 ## Integration with Core
 
-`VerinoInput` calls `createOTP()` from `@verino/core` when the element connects to the DOM. Character filtering, cursor logic, paste normalization, and event routing live in core; countdown, feedback, scheduling, and toolkit helpers come from `@verino/core/toolkit`. The custom element handles shadow DOM construction, attribute reflection, and custom event dispatch.
+`VerinoInput` calls `createOTP()` from `@verino/core` when the element connects to the DOM. All character filtering, cursor logic, paste normalisation, timer management, and event routing live in core. The custom element only handles shadow DOM construction, attribute reflection, and custom event dispatch.
 
 See the [`@verino/core` README](https://github.com/boastack/verino/blob/main/packages/core/README.md) for the full state machine and event reference.
 
@@ -404,7 +401,7 @@ This package lives in the [verino monorepo](https://github.com/boastack/verino).
 ```bash
 # Clone and install
 git clone https://github.com/boastack/verino.git
-cd verino && pnpm i
+cd verino && pnpm install
 
 # Run before opening a PR
 pnpm --filter @verino/web-component build && pnpm test
@@ -416,10 +413,10 @@ pnpm --filter @verino/web-component build && pnpm test
 
 | Package | Purpose |
 |---|---|
-| [`@verino/core`](https://www.npmjs.com/package/@verino/core) | OTP state machine + toolkit |
+| [`@verino/core`](https://www.npmjs.com/package/@verino/core) | Pure OTP state machine — zero DOM, zero framework |
 | [`@verino/vanilla`](https://www.npmjs.com/package/@verino/vanilla) | Vanilla DOM adapter + `timerUIPlugin`, `webOTPPlugin`, `pmGuardPlugin` |
 | [`@verino/react`](https://www.npmjs.com/package/@verino/react) | `useOTP` hook + `HiddenOTPInput` component (React ≥ 18) |
-| [`@verino/vue`](https://www.npmjs.com/package/@verino/vue) | `useOTP` composable with reactive Vue refs (Vue ≥ 3) |
+| [`@verino/vue`](https://www.npmjs.com/package/@verino/vue) | `useOTP` composable with `Ref<T>` reactive state (Vue ≥ 3) |
 | [`@verino/svelte`](https://www.npmjs.com/package/@verino/svelte) | `useOTP` store + `use:action` directive (Svelte ≥ 4) |
 | [`@verino/alpine`](https://www.npmjs.com/package/@verino/alpine) | `VerinoAlpine` plugin — `x-verino` directive (Alpine.js ≥ 3) |
 

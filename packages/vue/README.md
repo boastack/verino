@@ -5,13 +5,13 @@
 <h1 align="center">@verino/vue</h1>
 
 <h3 align="center">
-  Vue adapter for <a href="https://github.com/boastack/verino">Verino</a>. Reliable OTP inputs from a single core.
+  Vue adapter for <a href="https://github.com/boastack/verino">verino</a>. Build reliable OTP inputs from a single core.
 </h3>
 
 <p align="center">
   <a href="https://verino.vercel.app"><img src="https://img.shields.io/badge/verino.vercel.app-live-20C55C" alt="Live demo" /></a>&nbsp;
   <a href="https://www.npmjs.com/package/@verino/vue"><img src="https://img.shields.io/npm/v/@verino/vue?color=20C55C&label=%40verino%2Fvue" alt="npm version" /></a>&nbsp;
-  <a href="https://bundlephobia.com/package/@verino/vue"><img src="https://img.shields.io/bundlephobia/minzip/@verino/vue?color=20C55C&label=gzip+size" alt="gzip size" /></a>&nbsp;
+  <a href="https://bundlephobia.com/package/@verino/vue"><img src="https://img.shields.io/bundlephobia/minzip/@verino/vue?color=20C55C&label=gzip" alt="gzip size" /></a>&nbsp;
   <img src="https://img.shields.io/badge/dependencies-0-20C55C" alt="Zero dependencies" />&nbsp;
   <a href="https://www.typescriptlang.org"><img src="https://img.shields.io/badge/TypeScript-strict-20C55C" alt="TypeScript" /></a>
 </p>
@@ -24,14 +24,14 @@
 
 Event handlers are returned as named functions you bind to the hidden `<input>` with `@keydown`, `@input`, `@paste`, `@focus`, and `@blur`. Visual slot divs are purely decorative mirrors and hold no event listeners.
 
-Use `value` for live external control with a Vue `ref`, `computed`, or getter. Use `defaultValue` for one-time prefill on mount.
+The `value` option accepts either a plain `string` (static pre-fill, applied once on creation) or a `Ref<string>` (reactive two-way binding, watched via Vue's reactivity system).
 
 ---
 
 ## Why Use This Adapter?
 
 - **First-class Vue 3 reactivity.** All state is exposed as `Ref<T>` — no manual syncing required.  
-- **Live external control.** Pass a Vue watch source for seamless two-way binding.  
+- **Flexible value binding.** Pass a `Ref<string>` for seamless two-way binding (`v-model` style).  
 - **Full template control.** No opaque component — you own the template and choose the markup.  
 - **Composition API native.** Works seamlessly with `<script setup>` and the Options API.  
 
@@ -41,7 +41,7 @@ Use `value` for live external control with a Vue `ref`, `computed`, or getter. U
 
 ```bash
 # npm
-npm i @verino/vue
+npm install @verino/vue
 
 # pnpm
 pnpm add @verino/vue
@@ -120,9 +120,9 @@ const otp = useOTP({ length: 6, onComplete: (code) => verify(code) })
 
 ## Usage
 
-### Live external control
+### Reactive controlled value
 
-Use `value` for live external control and `defaultValue` for one-time mount prefill. In Vue, live external control means passing a watch source that the composable can observe through Vue's reactivity system. Changes propagate automatically without triggering `onComplete`:
+Pass a `Ref<string>` to `value` to drive the field reactively. The composable watches it via Vue's reactivity system — changes propagate automatically without triggering `onComplete`:
 
 ```ts
 const code = ref('')
@@ -137,6 +137,8 @@ To propagate user keystrokes back to the ref, add `onChange`:
 ```ts
 const otp = useOTP({ length: 6, value: code, onChange: (v) => (code.value = v) })
 ```
+
+A plain `string` pre-fills slots once on creation and is not reactive to subsequent changes.
 
 ### Async verification
 
@@ -266,7 +268,6 @@ Set on the wrapper element as boolean presence attributes (no value):
 | `data-disabled` | Field is disabled |
 | `data-readonly` | Field is read-only |
 
-
 ```css
 /* Slot-level — scope to your field with an id or class prefix */
 .slot[data-active="true"][data-focus="true"] { border-color: #3D3D3D; }
@@ -354,11 +355,11 @@ function useOTP(options?: VueOTPOptions): UseOTPResult
 
 ### `VueOTPOptions`
 
-Builds on `CoreOTPOptions` from `@verino/core` with Vue-specific state and rendering options:
+Extends `OTPOptions` from `@verino/core` with:
 
 ```ts
-type VueOTPOptions = CoreOTPOptions & {
-  value?:          WatchSource<string>          // live external control via Vue watch source
+type VueOTPOptions = OTPOptions & {
+  value?:          string | Ref<string>   // Ref<string> = reactive; string = static pre-fill
   onChange?:       (code: string) => void // fires on INPUT, DELETE, CLEAR, PASTE
   separatorAfter?: number | number[]
   separator?:      string                 // default: '—'
@@ -404,12 +405,10 @@ type UseOTPResult = {
   getSlots():                        SlotEntry[]
   getInputProps(index: number):      InputProps & { 'data-focus': 'true' | 'false' }
   reset():                           void
-  resend():                          void
   setError(v: boolean):              void
   setSuccess(v: boolean):            void
-  setDisabled(v: boolean):           void
   setReadOnly(v: boolean):           void
-  focus(slotIndex: number):          void
+  focus(slotIndex?: number):         void
 }
 ```
 
@@ -440,7 +439,7 @@ type SlotEntry = {
 
 ## Integration with Core
 
-`useOTP` calls `createOTP()` from `@verino/core` internally. Filtering, cursor logic, paste normalization, and event routing live in core; countdown, feedback, and toolkit helpers come from `@verino/core/toolkit`. The composable maps that toolkit behavior into Vue refs and event handlers.
+`useOTP` calls `createOTP()` from `@verino/core` internally. All filtering, cursor logic, paste normalisation, timer management, and event routing live in core. The composable only syncs core state into Vue refs and exposes the programmatic API.
 
 See the [`@verino/core` README](https://github.com/boastack/verino/blob/main/packages/core/README.md) for the full state machine and event reference.
 
@@ -453,7 +452,7 @@ This package lives in the [verino monorepo](https://github.com/boastack/verino).
 ```bash
 # Clone and install
 git clone https://github.com/boastack/verino.git
-cd verino && pnpm i
+cd verino && pnpm install
 
 # Run before opening a PR
 pnpm --filter @verino/vue build && pnpm test
@@ -465,7 +464,7 @@ pnpm --filter @verino/vue build && pnpm test
 
 | Package | Purpose |
 |---|---|
-| [`@verino/core`](https://www.npmjs.com/package/@verino/core) | OTP state machine + toolkit |
+| [`@verino/core`](https://www.npmjs.com/package/@verino/core) | Pure OTP state machine — zero DOM, zero framework |
 | [`@verino/vanilla`](https://www.npmjs.com/package/@verino/vanilla) | Vanilla DOM adapter + `timerUIPlugin`, `webOTPPlugin`, `pmGuardPlugin` |
 | [`@verino/react`](https://www.npmjs.com/package/@verino/react) | `useOTP` hook + `HiddenOTPInput` component (React ≥ 18) |
 | [`@verino/svelte`](https://www.npmjs.com/package/@verino/svelte) | `useOTP` store + `use:action` directive (Svelte ≥ 4) |

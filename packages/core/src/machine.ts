@@ -22,8 +22,6 @@
  * ────────────
  * Every mutation emits a typed event as the second argument to subscribers:
  *
- *   import { triggerHapticFeedback } from '@verino/core/toolkit'
- *
  *   otp.subscribe((state, event) => {
  *     if (event.type === 'COMPLETE')     triggerHapticFeedback()
  *     if (event.type === 'INVALID_CHAR') shake(event.index)
@@ -33,27 +31,22 @@
  * IDENTITY SYSTEM
  * ───────────────
  * Each createOTP call gets a stable instance id. Use these helpers for
- * deterministic DOM ids:
+ * deterministic, collision-free DOM ids:
  *
  *   otp.getSlotId(2)  → 'verino-1-slot-2'
  *   otp.getGroupId()  → 'verino-1-group'
  *   otp.getErrorId()  → 'verino-1-error'
  *
- * The default counter is only process-local. In SSR or multi-request
- * environments, pass `idBase` to seed ids per request.
+ * @author  Olawale Balo — Product Designer + Design Engineer
+ * @license MIT
  */
 
-// Build-time constant injected by tsup/esbuild via `define`.
-// Declared here for TypeScript only — the real string literal is substituted
-// before the code is ever executed, so `process` is never accessed at runtime.
-declare const process: { env: { NODE_ENV?: string } }
-
 import type {
-  CoreOTPOptions,
-  OTPInstance,
-  OTPStateSnapshot,
+  OTPOptions,
+  OTPState,
   OTPEvent,
   StateListener,
+  InputType,
   InputProps,
   SlotProps,
   SlotEntry,
@@ -66,19 +59,10 @@ import { filterChar, filterString } from './filter.js'
 // ─────────────────────────────────────────────────────────────────────────────
 
 // Generates unique instance IDs within a single JavaScript execution context
-// (browser tab, Node.js process, or Web Worker). IDs are NOT globally unique
-// across concurrent SSR requests that share a module cache. Pass `idBase`
-// when you need request-scoped deterministic ids.
+// (browser tab, Node.js process, or Web Worker). IDs are NOT collision-free
+// across concurrent SSR requests that share a module cache — use a unique
+// wrapper key (e.g. React key, route id) to isolate instances in those cases.
 let _instanceCounter = 0
-
-// Dev-only: tracks live instance IDs to surface collisions early.
-// Never populated in production — the guarded blocks are dead-code eliminated by bundlers.
-const _activeInstanceIds = new Set<string>()
-
-// Safe dev flag — avoids `process is not defined` in browser ESM environments.
-// Bundlers (vite, webpack, esbuild) replace `process.env.NODE_ENV` at build time;
-// raw browser ESM has no `process` global, so we guard with typeof first.
-const __DEV__ = typeof process === 'undefined' || process.env.NODE_ENV !== 'production'
 
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -105,25 +89,6 @@ function clamp(n: number, min: number, max: number): number {
   return Math.max(min, Math.min(max, n))
 }
 
-function resolveInstanceId(idBase: string | undefined): string {
-  const trimmed = idBase?.trim()
-  const id = trimmed ? trimmed : `verino-${++_instanceCounter}`
-
-  /* istanbul ignore else */
-  if (__DEV__) {
-    if (_activeInstanceIds.has(id)) {
-      console.warn(
-        `[verino] Duplicate instance ID "${id}". Two active OTP instances share the same ` +
-        `ID prefix — DOM IDs and ARIA attributes will collide. ` +
-        `Pass a unique \`idBase\` to each instance.`,
-      )
-    }
-    _activeInstanceIds.add(id)
-  }
-
-  return id
-}
-
 /**
  * Derive `isComplete` and `isEmpty` from `slotValues` in a single linear pass.
  *
@@ -146,18 +111,6 @@ function computeDerivedState(
   }
 }
 
-type MutableOTPState = {
-  slotValues:   string[]
-  activeSlot:   number
-  hasError:     boolean
-  hasSuccess:   boolean
-  isComplete:   boolean
-  isEmpty:      boolean
-  timerSeconds: number
-  isDisabled:   boolean
-  isReadOnly:   boolean
-}
-
 
 // ─────────────────────────────────────────────────────────────────────────────
 // FACTORY
@@ -166,16 +119,16 @@ type MutableOTPState = {
 /**
  * Creates a pure OTP state machine.
  *
- * All public state snapshots share the same OTPStateSnapshot shape. Every mutation goes through
+ * All state lives in a single OTPState object. Every mutation goes through
  * `applyState`, which updates state then fires `emit`. Subscribers always
  * receive a cloned snapshot — internal state is never directly exposed.
  *
  * Safe to instantiate in Node.js, SSR, Web Workers, and browsers alike.
  */
-export function createOTP(options: CoreOTPOptions = {}): OTPInstance {
+export function createOTP(options: OTPOptions = {}) {
 
   // ── Instance identity ───────────────────────────────────────────────────────
-  const instanceId = resolveInstanceId(options.idBase)
+  const instanceId = `verino-${++_instanceCounter}`
 
   // ── Length guard — parseInt('', 10) from a missing data-attr yields NaN ────
   const rawLength = options.length ?? 6
@@ -183,7 +136,7 @@ export function createOTP(options: CoreOTPOptions = {}): OTPInstance {
 
   // ── Options extracted once — closures hold stable references ───────────────
   const {
-    type             = 'numeric',
+    type             = 'numeric' as InputType,
     pattern,
     onComplete,
     onInvalidChar,
@@ -196,8 +149,8 @@ export function createOTP(options: CoreOTPOptions = {}): OTPInstance {
   // `readOnly` closure vars. Action guards read state.isDisabled and
   // state.isReadOnly directly — one source of truth, no split-brain window.
   //
-  let state: MutableOTPState = {
-    slotValues:   Array(length).fill(''),
+  let state: OTPState = {
+    slotValues:   Array(length).fill('') as string[],
     activeSlot:   0,
     hasError:     false,
     hasSuccess:   false,
@@ -221,7 +174,7 @@ export function createOTP(options: CoreOTPOptions = {}): OTPInstance {
   // so the array reference never changes across insert/delete/clear operations.
   let _mutVersion   = 0
   let _slotsVersion = -1
-  let _slotsCache: readonly SlotEntry[] = []
+  let _slotsCache:  SlotEntry[] = []
 
   /**
    * Notify all subscribers with a snapshot of the current state and the event
@@ -233,7 +186,7 @@ export function createOTP(options: CoreOTPOptions = {}): OTPInstance {
    */
   function emit(event: OTPEvent): void {
     if (listeners.size === 0) return
-    const snapshot = getSnapshot()
+    const snapshot: OTPState = { ...state, slotValues: [...state.slotValues] }
     listeners.forEach(fn => fn(snapshot, event))
   }
 
@@ -245,11 +198,11 @@ export function createOTP(options: CoreOTPOptions = {}): OTPInstance {
    * `insert()` — but the state object reference is always replaced here.)
    * Every action calls applyState; nothing assigns to `state` directly.
    */
-  function applyState(patch: Partial<MutableOTPState>, event: OTPEvent): OTPStateSnapshot {
+  function applyState(patch: Partial<OTPState>, event: OTPEvent): OTPState {
     state = { ...state, ...patch }
     _mutVersion++
     emit(event)
-    return getSnapshot()
+    return state
   }
 
 
@@ -262,9 +215,9 @@ export function createOTP(options: CoreOTPOptions = {}): OTPInstance {
    * - When the last slot fills, COMPLETE fires synchronously after INPUT.
    * - Out-of-bounds indices are ignored to prevent sparse-array corruption.
    */
-  function insert(char: string, slotIndex: number): OTPStateSnapshot {
-    if (state.isDisabled || state.isReadOnly) return getSnapshot()
-    if (slotIndex < 0 || slotIndex >= length) return getSnapshot()
+  function insert(char: string, slotIndex: number): OTPState {
+    if (state.isDisabled || state.isReadOnly) return state
+    if (slotIndex < 0 || slotIndex >= length) return state
 
     const validChar = filterChar(char, type, pattern)
 
@@ -281,7 +234,7 @@ export function createOTP(options: CoreOTPOptions = {}): OTPInstance {
         )
       }
       emit({ type: 'INVALID_CHAR', char: char || '', index: slotIndex })
-      return getSnapshot()
+      return state
     }
 
     // Capture completion state BEFORE mutation so the COMPLETE guard below
@@ -323,9 +276,9 @@ export function createOTP(options: CoreOTPOptions = {}): OTPInstance {
    * If the current slot is filled, clears it and leaves the cursor there.
    * If the current slot is empty, clears the previous slot and moves back.
    */
-  function deleteSlot(slotIndex: number): OTPStateSnapshot {
-    if (state.isDisabled || state.isReadOnly) return getSnapshot()
-    if (slotIndex < 0 || slotIndex >= length) return getSnapshot()
+  function deleteSlot(slotIndex: number): OTPState {
+    if (state.isDisabled || state.isReadOnly) return state
+    if (slotIndex < 0 || slotIndex >= length) return state
 
     if (state.slotValues[slotIndex]) {
       state.slotValues[slotIndex] = ''
@@ -350,10 +303,10 @@ export function createOTP(options: CoreOTPOptions = {}): OTPInstance {
    *
    * Distinct from backspace: no backward step, no previous-slot fallback.
    */
-  function clearSlot(slotIndex: number): OTPStateSnapshot {
-    if (state.isDisabled || state.isReadOnly) return getSnapshot()
-    if (slotIndex < 0 || slotIndex >= length) return getSnapshot()
-    if (!state.slotValues[slotIndex]) return getSnapshot()
+  function clearSlot(slotIndex: number): OTPState {
+    if (state.isDisabled || state.isReadOnly) return state
+    if (slotIndex < 0 || slotIndex >= length) return state
+    if (!state.slotValues[slotIndex]) return state
 
     state.slotValues[slotIndex] = ''
     const { isEmpty } = computeDerivedState(state.slotValues, length)
@@ -366,7 +319,7 @@ export function createOTP(options: CoreOTPOptions = {}): OTPInstance {
   /**
    * Move the cursor to `slotIndex`, clamped to [0, length − 1].
    */
-  function move(slotIndex: number): OTPStateSnapshot {
+  function move(slotIndex: number): OTPState {
     const index = clamp(slotIndex, 0, length - 1)
     return applyState({ activeSlot: index }, { type: 'MOVE', index })
   }
@@ -386,8 +339,8 @@ export function createOTP(options: CoreOTPOptions = {}): OTPInstance {
    *   paste('123',    4) → fills slots 4–5 with '1','2'; '3' dropped; cursor on 5
    *   paste('84AB91', 0) → filtered='8491', fills slots 0–3, cursor on 3
    */
-  function pasteString(cursorSlot: number, rawText: string): OTPStateSnapshot {
-    if (state.isDisabled || state.isReadOnly) return getSnapshot()
+  function pasteString(cursorSlot: number, rawText: string): OTPState {
+    if (state.isDisabled || state.isReadOnly) return state
 
     const startSlot = clamp(cursorSlot, 0, length - 1)
 
@@ -414,7 +367,7 @@ export function createOTP(options: CoreOTPOptions = {}): OTPInstance {
     }
 
     const validChars = filterString(transformed, type, pattern)
-    if (!validChars) return getSnapshot()
+    if (!validChars) return state
 
     const wasComplete = state.isComplete
     const writeCount  = Math.min(validChars.length, length - startSlot)
@@ -441,7 +394,7 @@ export function createOTP(options: CoreOTPOptions = {}): OTPInstance {
   }
 
   /** Toggle error state. Clears hasSuccess when setting error. Emits ERROR. */
-  function setError(isError: boolean): OTPStateSnapshot {
+  function setError(isError: boolean): OTPState {
     return applyState(
       { hasError: isError, ...(isError ? { hasSuccess: false } : {}) },
       { type: 'ERROR', hasError: isError },
@@ -449,7 +402,7 @@ export function createOTP(options: CoreOTPOptions = {}): OTPInstance {
   }
 
   /** Toggle success state. Clears hasError when setting success. Emits SUCCESS. */
-  function setSuccess(isSuccess: boolean): OTPStateSnapshot {
+  function setSuccess(isSuccess: boolean): OTPState {
     return applyState(
       { hasSuccess: isSuccess, ...(isSuccess ? { hasError: false } : {}) },
       { type: 'SUCCESS', hasSuccess: isSuccess },
@@ -462,10 +415,10 @@ export function createOTP(options: CoreOTPOptions = {}): OTPInstance {
    * Preserves isDisabled and isReadOnly — reset is a content operation,
    * not an access-control operation.
    */
-  function reset(): OTPStateSnapshot {
+  function reset(): OTPState {
     return applyState(
       {
-        slotValues:   Array(length).fill(''),
+        slotValues:   Array(length).fill('') as string[],
         activeSlot:   0,
         hasError:     false,
         hasSuccess:   false,
@@ -488,10 +441,6 @@ export function createOTP(options: CoreOTPOptions = {}): OTPInstance {
    */
   function destroy(): void {
     listeners.clear()
-    /* istanbul ignore else */
-    if (__DEV__) {
-      _activeInstanceIds.delete(instanceId)
-    }
   }
 
   /**
@@ -538,9 +487,10 @@ export function createOTP(options: CoreOTPOptions = {}): OTPInstance {
    * Returns a safe snapshot: shallow copy of state with a cloned slotValues array.
    * Mutations to the returned object do not affect live state.
    *
+   * Exposed on the public surface as both `getSnapshot()` and `getState()`.
    * Prefer `otp.state` for a live (non-cloned) read of the current state.
    */
-  function getSnapshot(): OTPStateSnapshot {
+  function getSnapshot(): OTPState {
     return { ...state, slotValues: [...state.slotValues] }
   }
 
@@ -555,8 +505,6 @@ export function createOTP(options: CoreOTPOptions = {}): OTPInstance {
    *
    * @example
    * ```ts
-   * import { triggerHapticFeedback } from '@verino/core/toolkit'
-   *
    * const unsub = otp.subscribe((state, event) => {
    *   render(state)
    *   if (event.type === 'COMPLETE')     triggerHapticFeedback()
@@ -619,7 +567,7 @@ export function createOTP(options: CoreOTPOptions = {}): OTPInstance {
    * ))
    * ```
    */
-  function getSlots(): readonly SlotEntry[] {
+  function getSlots(): SlotEntry[] {
     if (_slotsVersion !== _mutVersion) {
       _slotsCache   = state.slotValues.map((value, index) => ({
         index,
@@ -701,8 +649,8 @@ export function createOTP(options: CoreOTPOptions = {}): OTPInstance {
   // ─────────────────────────────────────────────────────────────────────────────
 
   return {
-    /** Current state snapshot. Returns a cloned array so external mutation cannot corrupt live state. */
-    get state(): OTPStateSnapshot { return getSnapshot() },
+    /** Live state reference — always reflects the latest mutation. Read-only at the type level; use actions to mutate. */
+    get state(): Readonly<OTPState> { return state },
 
     // ── Actions ───────────────────────────────────────────────────────────────
     /** Insert `char` into slot `slotIndex`. Emits INPUT (+ COMPLETE if all slots filled). */
@@ -747,6 +695,8 @@ export function createOTP(options: CoreOTPOptions = {}): OTPInstance {
     getCode:     () => state.slotValues.join(''),
     /** Returns a safe snapshot with cloned slotValues. */
     getSnapshot,
+    /** Alias for `getSnapshot()`. Returns a safe snapshot with cloned slotValues. */
+    getState:    getSnapshot,
 
     // ── DX helpers ────────────────────────────────────────────────────────────
     /** Minimal array snapshot of every slot — index, value, isActive, isFilled. */

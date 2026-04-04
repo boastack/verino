@@ -6,10 +6,13 @@
  *
  * Usage:
  *   <script defer src="https://unpkg.com/alpinejs"></script>
- *   <script src="https://unpkg.com/@verino/alpine/dist/verino-alpine.min.js"></script>
+ *   <script src="https://unpkg.com/verino/dist/verino-alpine.min.js"></script>
  *   <script>
  *     document.addEventListener('alpine:init', () => Alpine.plugin(VerinoAlpine))
  *   </script>
+ *
+ * @author  Olawale Balo — Product Designer + Design Engineer
+ * @license MIT
  */
 
 import { VerinoAlpine } from './index.js'

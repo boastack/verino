@@ -13,9 +13,12 @@
  *     navigation in long-lived SPAs.
  *
  * No-op in all environments that do not support `navigator.credentials`.
+ *
+ * @author  Olawale Balo — Product Designer + Design Engineer
+ * @license MIT
  */
 
-import { filterString } from '@verino/core/filter'
+import { filterString } from '@verino/core'
 import type { VerinoPlugin, VerinoPluginContext } from './types.js'
 
 /** Maximum wait for an SMS OTP — matches the typical validity window. */
@@ -24,20 +27,6 @@ const WEB_OTP_TIMEOUT_MS = 5 * 60 * 1000
 // The Web OTP spec adds OTPCredential to the Credential type but it is not
 // yet in TypeScript's standard DOM lib. Declare it locally.
 interface OTPCredential extends Credential { code: string }
-
-function isExpectedWebOTPError(err: unknown): boolean {
-  const name = (err as { name?: string })?.name
-  const message = (err as { message?: string })?.message?.toLowerCase() ?? ''
-
-  if (name === 'AbortError') return true
-  if (message === 'aborted') return true
-  // InvalidStateError from navigator.credentials.get (OTP transport) has exactly
-  // two spec-defined causes: backend unavailable and retrieval timed out. Both are
-  // expected — suppress all InvalidStateError from this API.
-  if (name === 'InvalidStateError') return true
-
-  return false
-}
 
 /**
  * Web OTP API (SMS autofill) plugin.
@@ -88,9 +77,8 @@ export const webOTPPlugin: VerinoPlugin = {
       syncSlots()
     }).catch((err: unknown) => {
       clearTimeout(timeoutId)
-      // AbortError is expected on destroy() or timeout. Some browsers also
-      // reject with InvalidStateError when the OTP backend is unavailable.
-      if (!isExpectedWebOTPError(err)) {
+      // AbortError is expected on destroy() or timeout — anything else is unexpected
+      if ((err as { name?: string })?.name !== 'AbortError') {
         console.warn('[verino] web-otp: unexpected error', err)
       }
     })

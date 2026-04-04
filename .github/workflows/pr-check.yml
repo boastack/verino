@@ -47,7 +47,10 @@ jobs:
           cache: pnpm
 
       - name: Install dependencies
-        run: pnpm i --frozen-lockfile
+        run: pnpm install --frozen-lockfile
+
+      - name: Build core first (adapters resolve @verino/core from dist/)
+        run: pnpm --filter @verino/core build
 
       - name: Type check all packages
         run: pnpm typecheck
@@ -69,7 +72,7 @@ jobs:
           cache: pnpm
 
       - name: Install dependencies
-        run: pnpm i --frozen-lockfile
+        run: pnpm install --frozen-lockfile
 
       - name: Run unit tests
         run: pnpm test
@@ -91,7 +94,7 @@ jobs:
           cache: pnpm
 
       - name: Install dependencies
-        run: pnpm i --frozen-lockfile
+        run: pnpm install --frozen-lockfile
 
       - name: Build all packages
         run: pnpm build
@@ -118,7 +121,7 @@ jobs:
           cache: pnpm
 
       - name: Install dependencies
-        run: pnpm i --frozen-lockfile
+        run: pnpm install --frozen-lockfile
 
       - name: Check for changeset
         run: pnpm changeset status --since=origin/main

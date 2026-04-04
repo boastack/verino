@@ -20,9 +20,9 @@
 
 ## Overview
 
-Verino is a headless OTP and verification code input library built around a single principle: **one state machine and shared controller primitives power every framework adapter without reimplementing the core OTP behavior.**
+Verino is a headless OTP and verification code input library built around a single principle: **one state machine powers every framework adapter without reimplementing any logic.**
 
-`@verino/core` is a zero-dependency, zero-DOM TypeScript state machine that handles character filtering, cursor movement, paste normalization, state snapshots, and a typed event system. Countdown policies, feedback helpers, frame scheduling, and other shared adapter utilities live in the explicit `@verino/core/toolkit` layer. Every adapter (React, Vue, Svelte, Alpine.js, Vanilla JS, and Web Components) wraps that shared foundation using the idiomatic primitives of its framework, such as hooks, composables, stores with actions, directives, or custom elements.
+`@verino/core` is a zero-dependency, zero-DOM TypeScript state machine that handles character filtering, cursor movement, paste normalization, timer management, and a typed event system. Every adapter (React, Vue, Svelte, Alpine.js, Vanilla JS, and Web Components) wraps this core using the idiomatic primitives of its framework, such as hooks, composables, stores with actions, directives, or custom elements, without adding extra logic.
 
 The key architectural decision is the **single hidden input.** A single `<input>` sits over purely decorative visual slots and captures keyboard events, paste, SMS autofill via `autocomplete="one-time-code"`, and the Web OTP API natively. Fixes ship once and apply to every framework simultaneously.
 
@@ -33,10 +33,10 @@ The key architectural decision is the **single hidden input.** A single `<input>
 ```
 verino/
 ├── packages/
-│   ├── core/            @verino/core          — pure state machine + toolkit
+│   ├── core/            @verino/core          — pure state machine, zero DOM
 │   ├── vanilla/         @verino/vanilla        — DOM adapter + plugins
 │   ├── react/           @verino/react          — useOTP hook + HiddenOTPInput
-│   ├── vue/             @verino/vue            — useOTP composable with reactive Vue refs
+│   ├── vue/             @verino/vue            — useOTP composable (Ref<T>)
 │   ├── svelte/          @verino/svelte         — useOTP store + use:action
 │   ├── alpine/          @verino/alpine         — x-verino directive
 │   └── web-component/   @verino/web-component  — <verino-input> custom element
@@ -66,10 +66,10 @@ verino/
 
 | Package | Install | Description |
 |---|---|---|
-| [`@verino/core`](./packages/core/README.md) | `npm i @verino/core` | OTP state machine + toolkit |
+| [`@verino/core`](./packages/core/README.md) | `npm i @verino/core` | Pure OTP state machine — zero DOM, zero framework |
 | [`@verino/vanilla`](./packages/vanilla/README.md) | `npm i @verino/vanilla` | Vanilla DOM adapter + `timerUIPlugin`, `webOTPPlugin`, `pmGuardPlugin` |
 | [`@verino/react`](./packages/react/README.md) | `npm i @verino/react` | `useOTP` hook + `HiddenOTPInput` component (React ≥ 18) |
-| [`@verino/vue`](./packages/vue/README.md) | `npm i @verino/vue` | `useOTP` composable with reactive Vue refs (Vue ≥ 3) |
+| [`@verino/vue`](./packages/vue/README.md) | `npm i @verino/vue` | `useOTP` composable with `Ref<T>` reactive state (Vue ≥ 3) |
 | [`@verino/svelte`](./packages/svelte/README.md) | `npm i @verino/svelte` | `useOTP` store + `use:action` directive (Svelte ≥ 4) |
 | [`@verino/alpine`](./packages/alpine/README.md) | `npm i @verino/alpine` | `VerinoAlpine` plugin — `x-verino` directive (Alpine.js ≥ 3) |
 | [`@verino/web-component`](./packages/web-component/README.md) | `npm i @verino/web-component` | `<verino-input>` Shadow DOM custom element |
@@ -82,12 +82,12 @@ verino/
 
 ### Monorepo development setup
 
-**Prerequisites:** Node.js ≥ 18, pnpm ≥ 10.
+**Prerequisites:** Node.js ≥ 18, pnpm ≥ 8.
 
 ```bash
 git clone https://github.com/boastack/verino.git
 cd verino
-pnpm i
+pnpm install
 ```
 
 ### Available scripts
@@ -310,7 +310,7 @@ Verino is the only OTP library built on a single core that supports all major we
 | Haptic + sound feedback | ✅ | ✗ | ✗ |
 | CSS variable theming | ✅ | ✗ | ✗ |
 | `data-*` state attributes | ✅ | ✗ | ✗ |
-| Reactive Vue refs | ✅ | ✗ | ✗ |
+| Reactive `Ref<T>` state | ✅ | ✗ | ✗ |
 | Single hidden input | ✅ | ✗ | ✅ |
 | Password manager guard | ✅ | ✗ | ✅ |
 | Zero dependencies | ✅ | ✗ | ✅ |
@@ -356,7 +356,7 @@ See [CONTRIBUTING.md](./.github/CONTRIBUTING.md) for guidelines.
 ```bash
 # Clone and install
 git clone https://github.com/boastack/verino.git
-cd verino && pnpm i
+cd verino && pnpm install
 
 # Run before opening a PR
 pnpm test && pnpm typecheck

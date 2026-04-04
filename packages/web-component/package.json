@@ -1,10 +1,9 @@
 {
   "name": "@verino/web-component",
-  "version": "2.0.0",
-  "description": "Web Component adapter for Verino. Reliable OTP inputs from a single core.",
+  "version": "1.0.0",
+  "description": "Web Component adapter for verino. Build reliable OTP inputs from a single core.",
   "type": "module",
   "main": "./dist/index.js",
-  "module": "./dist/index.js",
   "types": "./dist/index.d.ts",
   "exports": {
     ".": {
@@ -13,38 +12,16 @@
     }
   },
   "files": [
-    "dist/**/*.js",
-    "dist/**/*.d.ts",
-    "dist/**/*.d.cts",
-    "dist/**/*.cjs",
-    "README.md",
-    "LICENSE"
+    "dist"
   ],
   "sideEffects": true,
   "scripts": {
     "build": "tsup",
-    "typecheck": "tsc -b"
+    "typecheck": "tsc --noEmit"
   },
   "dependencies": {
     "@verino/core": "workspace:*"
   },
-  "keywords": [
-    "otp",
-    "otp-input",
-    "one-time-password",
-    "one-time-code",
-    "verification-code",
-    "pin-input",
-    "passcode",
-    "2fa",
-    "mfa",
-    "authentication",
-    "otp-field",
-    "web-component",
-    "custom-element",
-    "accessible-otp",
-    "typescript"
-  ],
   "devDependencies": {
     "tsup": "^8.0.0",
     "typescript": "^5.0.0"

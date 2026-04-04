@@ -2,38 +2,38 @@
  * verino/core/types
  * ─────────────────────────────────────────────────────────────────────────────
  * Shared TypeScript interfaces and type aliases used across the core modules.
+ *
+ * @author  Olawale Balo — Product Designer + Design Engineer
+ * @license MIT
  */
 
 /** The set of characters each slot will accept. */
 export type InputType = 'numeric' | 'alphabet' | 'alphanumeric' | 'any'
 
-/** String literal booleans used by CSS-targetable `data-*` attributes. */
-export type BooleanDataAttr = 'true' | 'false'
-
-/** Public snapshot of the OTP field state at any point in time. */
-export type OTPStateSnapshot = {
+/** Snapshot of the OTP field state at any point in time. */
+export type OTPState = {
   /** Current value of each slot. Empty string means unfilled. */
-  readonly slotValues:   readonly string[]
+  slotValues:   string[]
   /** Index of the currently focused slot. */
-  readonly activeSlot:   number
+  activeSlot:   number
   /** Whether an error state is active. */
-  readonly hasError:     boolean
+  hasError:     boolean
   /** Whether a success state is active. Mutually exclusive with hasError — setting one clears the other. */
-  readonly hasSuccess:   boolean
+  hasSuccess:   boolean
   /** True when every slot contains a valid character. */
-  readonly isComplete:   boolean
+  isComplete:   boolean
   /** True when no slot contains a character. Note: NOT the complement of `isComplete` — a partially filled field has both `isEmpty === false` and `isComplete === false`. */
-  readonly isEmpty:      boolean
+  isEmpty:      boolean
   /**
    * Mirrors the initial timer value — NOT a live countdown.
    * The live countdown is managed by each adapter layer.
    * Do not use this field to read remaining time; use the `onTick` option to receive live countdown updates.
    */
-  readonly timerSeconds: number
+  timerSeconds: number
   /** Whether the input is currently disabled. Reflects the latest `setDisabled()` call. */
-  readonly isDisabled:   boolean
+  isDisabled:   boolean
   /** Whether the input is currently read-only. Reflects the latest `setReadOnly()` call. */
-  readonly isReadOnly:   boolean
+  isReadOnly:   boolean
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -45,8 +45,6 @@ export type OTPStateSnapshot = {
  *
  * Use as a discriminant in `subscribe` listeners:
  * ```ts
- * import { triggerHapticFeedback } from '@verino/core/toolkit'
- *
  * otp.subscribe((state, event) => {
  *   if (event.type === 'COMPLETE') doSomething(event.value)
  * })
@@ -146,13 +144,13 @@ export type OTPEvent =
  */
 export type SlotEntry = {
   /** Zero-based position of this slot. */
-  readonly index:    number
+  index:    number
   /** Current character. Empty string when unfilled. */
-  readonly value:    string
+  value:    string
   /** True when this slot is the active (focused) slot. */
-  readonly isActive: boolean
+  isActive: boolean
   /** True when this slot contains a character. */
-  readonly isFilled: boolean
+  isFilled: boolean
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -169,27 +167,27 @@ export type SlotEntry = {
  */
 export type SlotProps = {
   /** Stable DOM-safe id for this slot. Useful for aria-activedescendant. */
-  readonly id:         string
+  id:         string
   /** Zero-based slot index. */
-  readonly index:      number
+  index:      number
   /** Current character in this slot. `''` means unfilled. */
-  readonly char:       string
+  char:       string
   /** True when this slot contains a character. */
-  readonly isFilled:   boolean
+  isFilled:   boolean
   /** True when the cursor is positioned at this slot. */
-  readonly isActive:   boolean
+  isActive:   boolean
   /** True when an error is active on the whole field. */
-  readonly isError:    boolean
+  isError:    boolean
   /** True when a success state is active on the whole field. */
-  readonly isSuccess:  boolean
+  isSuccess:  boolean
   /** True when every slot is filled. */
-  readonly isComplete: boolean
+  isComplete: boolean
   /** True when this slot is empty (`char === ''`). */
-  readonly isEmpty:    boolean
+  isEmpty:    boolean
   /** True when the field is disabled. */
-  readonly isDisabled: boolean
+  isDisabled: boolean
   /** True when the field is read-only. */
-  readonly isReadOnly: boolean
+  isReadOnly: boolean
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -225,35 +223,35 @@ export type SlotProps = {
  */
 export type InputProps = {
   /** Current character in this slot. Empty string when unfilled. */
-  readonly value:     string
+  value:     string
   /**
    * Call with a single typed character from an input or keypress event.
    * The core validates, filters, inserts, and advances the cursor automatically.
    * Invalid characters (per `type` / `pattern`) are silently ignored.
    */
-  readonly onInput:   (char: string) => void
+  onInput:   (char: string) => void
   /**
    * Call with `e.key` from a keydown event.
    * Handles: `'Backspace'` (clear + step back), `'Delete'` (clear in-place),
    * `'ArrowLeft'` (move cursor left), `'ArrowRight'` (move cursor right).
    * All other keys are silently ignored — no need to filter in the adapter.
    */
-  readonly onKeyDown: (key: string) => void
+  onKeyDown: (key: string) => void
   /**
    * Call when this slot receives focus.
    * Emits a `FOCUS` event to all subscribers without changing state.
    */
-  readonly onFocus:   () => void
+  onFocus:   () => void
   /**
    * Call when this slot loses focus.
    * Emits a `BLUR` event to all subscribers without changing state.
    */
-  readonly onBlur:    () => void
+  onBlur:    () => void
   /**
    * Zero-based position of this slot.
    * CSS: [data-slot="0"] { border-radius: 8px 0 0 8px }
    */
-  readonly 'data-slot':     number
+  'data-slot':     number
   /**
    * `"true"` when this slot is at the logical cursor position
    * (i.e. `state.activeSlot === index`). Always reflects the cursor, even when
@@ -263,103 +261,56 @@ export type InputProps = {
    * focus state — e.g. `[data-active="true"][data-focus="true"]` — and inject
    * `data-focus` themselves since the pure core has no DOM access.
    */
-  readonly 'data-active':   BooleanDataAttr
+  'data-active':   'true' | 'false'
   /**
    * `"true"` when this slot contains a character.
    * Always the inverse of `data-empty` — the two are mutually exclusive and
    * exhaustive: exactly one is `"true"` for any slot at any time.
    * CSS: [data-filled="true"] { background: white }
    */
-  readonly 'data-filled':   BooleanDataAttr
+  'data-filled':   'true' | 'false'
   /**
    * `"true"` when this slot is empty (no character).
    * Always the inverse of `data-filled` — the two are mutually exclusive and
    * exhaustive: exactly one is `"true"` for any slot at any time.
    * CSS: [data-empty="true"] { opacity: 0.4 }
    */
-  readonly 'data-empty':    BooleanDataAttr
+  'data-empty':    'true' | 'false'
   /**
    * `"true"` when every slot in the field is filled.
    * CSS: [data-complete="true"] { border-color: green }
    */
-  readonly 'data-complete': BooleanDataAttr
+  'data-complete': 'true' | 'false'
   /**
    * `"true"` when the entire field is in an error state.
    * CSS: [data-invalid="true"] { border-color: red }
    */
-  readonly 'data-invalid':  BooleanDataAttr
+  'data-invalid':  'true' | 'false'
   /**
    * `"true"` when the entire field is in a success state.
    * CSS: [data-success="true"] { border-color: green }
    */
-  readonly 'data-success':  BooleanDataAttr
+  'data-success':  'true' | 'false'
   /**
    * `"true"` when the field is disabled — all mutations are blocked.
    * CSS: [data-disabled="true"] { opacity: 0.5; cursor: not-allowed }
    */
-  readonly 'data-disabled': BooleanDataAttr
+  'data-disabled': 'true' | 'false'
   /**
    * `"true"` when the field is read-only — value visible but not editable.
    * CSS: [data-readonly="true"] { background: #f5f5f5 }
    */
-  readonly 'data-readonly': BooleanDataAttr
+  'data-readonly': 'true' | 'false'
   /**
    * `"true"` for slot 0 — the first slot in the field.
    * CSS: [data-first="true"] { border-radius: 8px 0 0 8px }
    */
-  readonly 'data-first':    BooleanDataAttr
+  'data-first':    'true' | 'false'
   /**
    * `"true"` for the last slot in the field.
    * CSS: [data-last="true"] { border-radius: 0 8px 8px 0 }
    */
-  readonly 'data-last':     BooleanDataAttr
-}
-
-/** Extra `data-*` state injected by adapters that track browser focus. */
-export type FocusDataAttrs = {
-  readonly 'data-focus': BooleanDataAttr
-}
-
-/** Reusable slot-level `data-*` attributes returned by `getInputProps()`. */
-export type OTPDataAttrs = Pick<
-  InputProps,
-  | 'data-slot'
-  | 'data-active'
-  | 'data-filled'
-  | 'data-empty'
-  | 'data-complete'
-  | 'data-invalid'
-  | 'data-success'
-  | 'data-disabled'
-  | 'data-readonly'
-  | 'data-first'
-  | 'data-last'
->
-
-export type WrapperDataAttrName =
-  | 'data-complete'
-  | 'data-invalid'
-  | 'data-success'
-  | 'data-disabled'
-  | 'data-readonly'
-
-/** Wrapper-level state attributes used by adapters for CSS/Tailwind targeting. */
-export type WrapperDataAttrs = Partial<Record<WrapperDataAttrName, ''>>
-
-/** Shared hidden-input attribute bag used by JS-property based adapters. */
-export type HiddenInputAttrs = {
-  readonly type:             'text' | 'password'
-  readonly inputMode:        'numeric' | 'text'
-  readonly autoComplete:     'one-time-code'
-  readonly maxLength:        number
-  readonly disabled:         boolean
-  readonly name?:            string
-  readonly autoFocus?:       true
-  readonly 'aria-label':     string
-  readonly 'aria-readonly'?: 'true'
-  readonly spellCheck:       false
-  readonly autoCorrect:      'off'
-  readonly autoCapitalize:   'off'
+  'data-last':     'true' | 'false'
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -389,7 +340,7 @@ export type HiddenInputAttrs = {
  * })
  * ```
  */
-export type StateListener = (state: OTPStateSnapshot, event: OTPEvent) => void
+export type StateListener = (state: OTPState, event: OTPEvent) => void
 
 // ─────────────────────────────────────────────────────────────────────────────
 // TIMER
@@ -403,17 +354,6 @@ export type TimerOptions = {
   onTick?:        (remainingSeconds: number) => void
   /** Called when the countdown reaches zero. */
   onExpire?:      () => void
-  /**
-   * When `true`, `onTick` fires immediately with `totalSeconds` on `start()` —
-   * before the first interval tick — so callers can display the initial value
-   * without polling state separately.
-   */
-  emitInitialTickOnStart?:   boolean
-  /**
-   * When `true`, `onTick` fires immediately with `totalSeconds` on `restart()`.
-   * Defaults to the value of `emitInitialTickOnStart` when omitted.
-   */
-  emitInitialTickOnRestart?: boolean
 }
 
 /** Controls returned by `createTimer`. */
@@ -428,32 +368,89 @@ export type TimerControls = {
   restart: () => void
 }
 
-/** Adapter-side feedback controls powered by the toolkit layer. */
-export type FeedbackOptions = {
-  /** Trigger haptic feedback (via `navigator.vibrate`) on completion and error. */
-  haptic?: boolean
-  /** Play a short tone (via Web Audio API) on completion. */
-  sound?:  boolean
-}
+// ─────────────────────────────────────────────────────────────────────────────
+// OPTIONS
+// ─────────────────────────────────────────────────────────────────────────────
 
-/** Adapter-side countdown callbacks. The pure core does not run timers. */
-export type TimerUIOptions = {
-  /** Called every second with the remaining seconds. */
-  onTick?:   (remainingSeconds: number) => void
-  /** Called when the countdown reaches zero. */
-  onExpire?: () => void
-}
-
-/** Adapter-side resend UI options. The pure core does not render resend controls. */
-export type ResendUIOptions = {
+/** Configuration options passed to `createOTP` or `initOTP`. */
+export type OTPOptions = {
+  /** Number of input slots. Default: `6`. */
+  length?:       number
+  /** Character set accepted by each slot. Default: `'numeric'`. */
+  type?:         InputType
+  /** Countdown duration in seconds. `0` disables the timer. Default: `0`. */
+  timer?:        number
   /** Resend cooldown in seconds after the user clicks Resend. Default: `30`. */
-  resendAfter?: number
-  /** Called when the resend action is triggered. */
-  onResend?:   () => void
-}
-
-/** Shared adapter-only field behavior that sits above the pure machine. */
-export type FieldBehaviorOptions = {
+  resendAfter?:  number
+  /** Called with the joined code string when all slots are filled. */
+  onComplete?:   (code: string) => void
+  /**
+   * Called every second with the remaining seconds. Use to drive a custom timer UI.
+   *
+   * **Adapter note:** Only fires in adapters that include a built-in countdown timer
+   * (vanilla, alpine, web component). In React, Vue, and Svelte the timer is managed
+   * separately inside each adapter — pass `onTick` as part of those adapters' options.
+   * Has no effect when passed directly to `createOTP`.
+   */
+  onTick?:       (remainingSeconds: number) => void
+  /** Called when the countdown reaches zero. */
+  onExpire?:     () => void
+  /**
+   * Called when the resend action is triggered.
+   *
+   * **Adapter note:** Only fires automatically in adapters with a built-in Resend button
+   * (vanilla, alpine, web component). In React, Vue, and Svelte there is no built-in
+   * Resend button — call `onResend` manually in your own UI handler.
+   * Has no effect when passed directly to `createOTP`.
+   */
+  onResend?:     () => void
+  /**
+   * Trigger haptic feedback (via `navigator.vibrate`) on completion and error.
+   * Handled by each adapter via the event system — the core emits events and
+   * adapters call `triggerHapticFeedback()` in response.
+   * Default: `true`.
+   */
+  haptic?:       boolean
+  /**
+   * Play a short tone (via Web Audio API) on completion.
+   * Handled by each adapter via the event system — the core emits events and
+   * adapters call `triggerSoundFeedback()` in response.
+   * Default: `false`.
+   */
+  sound?:        boolean
+  /**
+   * When `true`, all input actions (typing, backspace, paste) are silently ignored.
+   * Use this during async verification to prevent the user modifying the code.
+   * Default: `false`.
+   */
+  disabled?:     boolean
+  /**
+   * Arbitrary per-character regex. When provided, each typed/pasted character must
+   * match this pattern to be accepted into a slot.
+   *
+   * Takes precedence over the named `type` for character validation only —
+   * `type` still controls `inputMode` and ARIA labels on the hidden input.
+   *
+   * The regex should match a **single character**:
+   * @example pattern: /^[0-9A-F]$/   — uppercase hex only
+   * @example pattern: /^[2-9A-HJ-NP-Z]$/  — ambiguity-free alphanumeric (no 0/O, 1/I/L)
+   */
+  pattern?:      RegExp
+  /**
+   * Optional transform applied to the raw clipboard text before it is filtered
+   * and distributed into slots. Runs before `filterString` inside `pasteString()`.
+   *
+   * Use to strip formatting from pasted codes that real users copy from emails or
+   * SMS messages (e.g. `"G-123456"` → `"123456"`, `"123 456"` → `"123456"`).
+   *
+   * The return value is then passed through the normal `filterString` + `pattern`
+   * validation, so you only need to handle the structural formatting — character
+   * validity is still enforced automatically.
+   *
+   * @example pasteTransformer: (raw) => raw.replace(/\s+|-/g, '')
+   * @example pasteTransformer: (raw) => raw.toUpperCase()
+   */
+  pasteTransformer?: (raw: string) => string
   /**
    * Auto-focus the hidden input when the component mounts.
    * Set to `false` to prevent the field from stealing focus on load.
@@ -505,76 +502,13 @@ export type FieldBehaviorOptions = {
    * Default: `undefined` (no pre-fill).
    */
   defaultValue?: string
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// OPTIONS
-// ─────────────────────────────────────────────────────────────────────────────
-
-/** Runtime behavior accepted by the pure `createOTP()` state machine. */
-export type CoreBehaviorOptions = {
-  /** Number of input slots. Default: `6`. */
-  length?:       number
-  /**
-   * Optional stable prefix used by `getSlotId()`, `getGroupId()`, and
-   * `getErrorId()`.
-   *
-   * Provide this in SSR or multi-request environments when you need IDs to be
-   * deterministic beyond the process-local fallback counter.
-   *
-   * @example idBase: 'checkout-otp'
-   */
-  idBase?:       string
-  /** Character set accepted by each slot. Default: `'numeric'`. */
-  type?:         InputType
-  /** Countdown duration in seconds. `0` disables the timer. Default: `0`. */
-  timer?:        number
-  /**
-   * When `true`, all input actions (typing, backspace, paste) are silently ignored.
-   * Use this during async verification to prevent the user modifying the code.
-   * Default: `false`.
-   */
-  disabled?:     boolean
   /**
    * When `true`, all slot mutations (typing, backspace, delete, paste) are
    * blocked while focus, selection, arrow navigation, and copy remain allowed.
    * Semantically distinct from `disabled` — the field is readable and focusable.
    * Default: `false`.
    */
-  readOnly?:     boolean
-  /**
-   * Arbitrary per-character regex. When provided, each typed/pasted character must
-   * match this pattern to be accepted into a slot.
-   *
-   * Takes precedence over the named `type` for character validation only —
-   * `type` still controls `inputMode` and ARIA labels on the hidden input.
-   *
-   * The regex should match a **single character**:
-   * @example pattern: /^[0-9A-F]$/   — uppercase hex only
-   * @example pattern: /^[2-9A-HJ-NP-Z]$/  — ambiguity-free alphanumeric (no 0/O, 1/I/L)
-   */
-  pattern?:      RegExp
-  /**
-   * Optional transform applied to the raw clipboard text before it is filtered
-   * and distributed into slots. Runs before `filterString` inside `pasteString()`.
-   *
-   * Use to strip formatting from pasted codes that real users copy from emails or
-   * SMS messages (e.g. `"G-123456"` → `"123456"`, `"123 456"` → `"123456"`).
-   *
-   * The return value is then passed through the normal `filterString` + `pattern`
-   * validation, so you only need to handle the structural formatting — character
-   * validity is still enforced automatically.
-   *
-   * @example pasteTransformer: (raw) => raw.replace(/\s+|-/g, '')
-   * @example pasteTransformer: (raw) => raw.toUpperCase()
-   */
-  pasteTransformer?: (raw: string) => string
-}
-
-/** Pure machine callbacks accepted by `createOTP()`. */
-export type CoreCallbackOptions = {
-  /** Called with the joined code string when all slots are filled. */
-  onComplete?:   (code: string) => void
+  readOnly?: boolean
   /**
    * Called when the user types or pastes a character that is rejected by the
    * current `type` or `pattern` filter.
@@ -587,42 +521,4 @@ export type CoreCallbackOptions = {
    * onInvalidChar: (char, index) => console.warn(`Rejected "${char}" at slot ${index}`)
    */
   onInvalidChar?: (char: string, index: number) => void
-}
-
-/** Configuration options accepted by the pure `createOTP()` state machine. */
-export type CoreOTPOptions = CoreBehaviorOptions & CoreCallbackOptions
-
-/** Adapter-facing configuration options passed to `initOTP()` and framework wrappers. */
-export type OTPOptions =
-  & CoreOTPOptions
-  & TimerUIOptions
-  & ResendUIOptions
-  & FeedbackOptions
-  & FieldBehaviorOptions
-
-/** Public control surface returned by `createOTP()`. */
-export type OTPInstance = {
-  readonly state: OTPStateSnapshot
-  insert:      (char: string, slotIndex: number) => OTPStateSnapshot
-  delete:      (slotIndex: number) => OTPStateSnapshot
-  clear:       (slotIndex: number) => OTPStateSnapshot
-  paste:       (text: string, cursorSlot?: number) => OTPStateSnapshot
-  move:        (slotIndex: number) => OTPStateSnapshot
-  focus:       (slotIndex: number) => void
-  blur:        () => void
-  setError:    (isError: boolean) => OTPStateSnapshot
-  setSuccess:  (isSuccess: boolean) => OTPStateSnapshot
-  reset:       () => OTPStateSnapshot
-  setDisabled: (value: boolean) => void
-  setReadOnly: (value: boolean) => void
-  destroy:     () => void
-  getCode:     () => string
-  getSnapshot: () => OTPStateSnapshot
-  getSlots:    () => readonly SlotEntry[]
-  getSlotProps:(index: number) => SlotProps
-  getInputProps:(slotIndex: number) => InputProps
-  getSlotId:   (index: number) => string
-  getGroupId:  () => string
-  getErrorId:  () => string
-  subscribe:   (listener: StateListener) => () => void
 }

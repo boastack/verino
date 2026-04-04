@@ -5,13 +5,13 @@
 <h1 align="center">@verino/svelte</h1>
 
 <h3 align="center">
-  Svelte adapter for <a href="https://github.com/boastack/verino">Verino</a>. Reliable OTP inputs from a single core.
+  Svelte adapter for <a href="https://github.com/boastack/verino">verino</a>. Build reliable OTP inputs from a single core.
 </h3>
 
 <p align="center">
   <a href="https://verino.vercel.app"><img src="https://img.shields.io/badge/verino.vercel.app-live-20C55C" alt="Live demo" /></a>&nbsp;
   <a href="https://www.npmjs.com/package/@verino/svelte"><img src="https://img.shields.io/npm/v/@verino/svelte?color=20C55C&label=%40verino%2Fsvelte" alt="npm version" /></a>&nbsp;
-  <a href="https://bundlephobia.com/package/@verino/svelte"><img src="https://img.shields.io/bundlephobia/minzip/@verino/svelte?color=20C55C&label=gzip+size" alt="gzip size" /></a>&nbsp;
+  <a href="https://bundlephobia.com/package/@verino/svelte"><img src="https://img.shields.io/bundlephobia/minzip/@verino/svelte?color=20C55C&label=gzip" alt="gzip size" /></a>&nbsp;
   <img src="https://img.shields.io/badge/dependencies-0-20C55C" alt="Zero dependencies" />&nbsp;
   <a href="https://www.typescriptlang.org"><img src="https://img.shields.io/badge/TypeScript-strict-20C55C" alt="TypeScript" /></a>
 </p>
@@ -24,9 +24,7 @@
 
 The centerpiece is `use:otp.action`, a Svelte action placed on the hidden `<input>`. It wires all keyboard, paste, focus, and blur events to the core machine, starts the timer on mount, and calls `destroy()` automatically when the element is removed. Visual slot divs are purely decorative mirrors, hold no event listeners and carry no state of their own.
 
-The store structure follows one key rule: **`otp` is a store** (`$otp` gives the full `OTPStateSnapshot`). All other stores (`slots`, `wrapperAttrs`, `timerSeconds`, `masked`, `separatorAfter`, etc.) must be **destructured from the return value before subscribing with `$`**.
-
-Use `value` for live external control with a Svelte readable store. Use `defaultValue` for one-time prefill on mount.
+The store structure follows one key rule: **`otp` is a store** (`$otp` gives the full `OTPState`). All other stores (`slots`, `wrapperAttrs`, `timerSeconds`, `masked`, `separatorAfter`, etc.) must be **destructured from the return value before subscribing with `$`**.
 
 ---
 
@@ -43,7 +41,7 @@ Use `value` for live external control with a Svelte readable store. Use `default
 
 ```bash
 # npm
-npm i @verino/svelte
+npm install @verino/svelte
 
 # pnpm
 pnpm add @verino/svelte
@@ -114,20 +112,9 @@ yarn add @verino/svelte
 
 ## Usage
 
-### Live external control
+### Controlled value
 
-Use `value` for live external control and `defaultValue` for one-time mount prefill. In Svelte, live external control means passing a readable store:
-
-```svelte
-<script>
-  import { writable } from 'svelte/store'
-
-  const code = writable('')
-  const otp = useOTP({ length: 6, value: code, onChange: (v) => code.set(v) })
-</script>
-```
-
-Use `setValue()` when you want a one-off programmatic fill without turning the field into a controlled store:
+Use `setValue()` to fill the field programmatically without triggering `onComplete`:
 
 ```svelte
 <script>
@@ -278,7 +265,6 @@ Set on the wrapper element as boolean presence attributes (no value):
 | `data-disabled` | Field is disabled |
 | `data-readonly` | Field is read-only |
 
-
 ```css
 /* Slot-level — scope to your field with an id or class prefix */
 .slot[data-active="true"][data-focus="true"] { border-color: #3D3D3D; }
@@ -366,11 +352,11 @@ function useOTP(options?: SvelteOTPOptions): UseOTPResult
 
 ### `SvelteOTPOptions`
 
-Builds on `CoreOTPOptions` from `@verino/core` with Svelte-specific state and rendering options:
+Extends `OTPOptions` from `@verino/core` with:
 
 ```ts
-type SvelteOTPOptions = CoreOTPOptions & {
-  value?:          Readable<string>          // live external control via readable store
+type SvelteOTPOptions = OTPOptions & {
+  value?:          string                    // static pre-fill; fires onChange
   onChange?:       (code: string) => void    // fires on INPUT, DELETE, CLEAR, PASTE
   separatorAfter?: number | number[]
   separator?:      string                    // default: '—'
@@ -381,12 +367,12 @@ type SvelteOTPOptions = CoreOTPOptions & {
 
 ### `UseOTPResult`
 
-`otp` is a Svelte store — `$otp` gives the full `OTPStateSnapshot`. All other stores must be **destructured** before subscribing with `$`:
+`otp` is a Svelte store — `$otp` gives the full `OTPState`. All other stores must be **destructured** before subscribing with `$`:
 
 ```ts
 type UseOTPResult = {
-  // Main store — $otp gives OTPStateSnapshot
-  subscribe: Writable<OTPStateSnapshot>['subscribe']
+  // Main store — $otp gives OTPState
+  subscribe: Writable<OTPState>['subscribe']
 
   // Derived (read-only) stores — destructure, then use $storeName
   value:        Readable<string>
@@ -416,13 +402,12 @@ type UseOTPResult = {
   getSlots():                        SlotEntry[]    // non-reactive snapshot
   getInputProps(index: number):      InputProps & { 'data-focus': 'true' | 'false' }
   reset():                           void
-  resend():                          void
   setError(v: boolean):              void
   setSuccess(v: boolean):            void
   setDisabled(v: boolean):           void
   setReadOnly(v: boolean):           void
   setValue(v: string | undefined):   void   // programmatic fill; no onComplete
-  focus(slotIndex: number):          void
+  focus(slotIndex?: number):         void
 }
 ```
 
@@ -454,7 +439,7 @@ type SlotEntry = {
 
 ## Integration with Core
 
-`useOTP` calls `createOTP()` from `@verino/core` internally. Filtering, cursor logic, paste normalization, and event routing live in core; countdown, feedback, and toolkit helpers come from `@verino/core/toolkit`. The adapter maps that toolkit behavior into Svelte stores and actions.
+`useOTP` calls `createOTP()` from `@verino/core` internally. All filtering, cursor logic, paste normalisation, timer management, and event routing live in core. The composable only syncs core state into Svelte stores and exposes the programmatic API.
 
 See the [`@verino/core` README](https://github.com/boastack/verino/blob/main/packages/core/README.md) for the full state machine and event reference.
 
@@ -467,7 +452,7 @@ This package lives in the [verino monorepo](https://github.com/boastack/verino).
 ```bash
 # Clone and install
 git clone https://github.com/boastack/verino.git
-cd verino && pnpm i
+cd verino && pnpm install
 
 # Run before opening a PR
 pnpm --filter @verino/svelte build && pnpm test
@@ -479,10 +464,10 @@ pnpm --filter @verino/svelte build && pnpm test
 
 | Package | Purpose |
 |---|---|
-| [`@verino/core`](https://www.npmjs.com/package/@verino/core) | OTP state machine + toolkit |
+| [`@verino/core`](https://www.npmjs.com/package/@verino/core) | Pure OTP state machine — zero DOM, zero framework |
 | [`@verino/vanilla`](https://www.npmjs.com/package/@verino/vanilla) | Vanilla DOM adapter + `timerUIPlugin`, `webOTPPlugin`, `pmGuardPlugin` |
 | [`@verino/react`](https://www.npmjs.com/package/@verino/react) | `useOTP` hook + `HiddenOTPInput` component (React ≥ 18) |
-| [`@verino/vue`](https://www.npmjs.com/package/@verino/vue) | `useOTP` composable with reactive Vue refs (Vue ≥ 3) |
+| [`@verino/vue`](https://www.npmjs.com/package/@verino/vue) | `useOTP` composable with `Ref<T>` reactive state (Vue ≥ 3) |
 | [`@verino/alpine`](https://www.npmjs.com/package/@verino/alpine) | `VerinoAlpine` plugin — `x-verino` directive (Alpine.js ≥ 3) |
 | [`@verino/web-component`](https://www.npmjs.com/package/@verino/web-component) | `<verino-input>` Shadow DOM custom element |
 

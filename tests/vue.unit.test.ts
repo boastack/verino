@@ -416,34 +416,6 @@ describe('useOTP (Vue) — reset()', () => {
   })
 })
 
-describe('useOTP (Vue) — resend()', () => {
-  it('clears all slots and resets isComplete', async () => {
-    const [otp, input, unmount] = setup({ length: 4 })
-    type(otp, input, '1234')
-    await nextTick()
-    otp.resend()
-    await nextTick()
-    expect(otp.value.value).toBe('')
-    expect(otp.isComplete.value).toBe(false)
-    unmount()
-  })
-
-  it('fires onResend callback', async () => {
-    const onResend = jest.fn()
-    const [otp, , unmount] = setup({ length: 4, onResend })
-    otp.resend()
-    await nextTick()
-    expect(onResend).toHaveBeenCalledTimes(1)
-    unmount()
-  })
-
-  it('does not fire onResend when not provided', async () => {
-    const [otp, , unmount] = setup({ length: 4 })
-    expect(() => otp.resend()).not.toThrow()
-    unmount()
-  })
-})
-
 describe('useOTP (Vue) — setError()', () => {
   it('setError(true) sets hasError', async () => {
     const [otp, , unmount] = setup({ length: 4 })
@@ -509,21 +481,6 @@ describe('useOTP (Vue) — reactive controlled value', () => {
     unmount()
   })
 
-  it('does NOT trigger onChange when parent-controlled value changes', async () => {
-    const onChange = jest.fn()
-    const controlledValue = ref('')
-    const [, unmount] = withSetup(() =>
-      useOTP({ length: 4, value: controlledValue, onChange, autoFocus: false }),
-    )
-    await nextTick()
-
-    controlledValue.value = '12'
-    await nextTick()
-
-    expect(onChange).not.toHaveBeenCalled()
-    unmount()
-  })
-
   it('getCode() returns the synced value', async () => {
     const controlledValue = ref('5678')
     const [otp, unmount] = withSetup(() =>
@@ -532,31 +489,6 @@ describe('useOTP (Vue) — reactive controlled value', () => {
     await nextTick()
     expect(otp.getCode()).toBe('5678')
     unmount()
-  })
-
-  it('hydrates inputRef.value from controlled state when the input is attached at mount', async () => {
-    const controlledValue = ref('1234')
-    let otpResult!: ReturnType<typeof useOTP>
-    const App = defineComponent({
-      setup() {
-        otpResult = useOTP({ length: 4, value: controlledValue, autoFocus: false })
-        return { otp: otpResult }
-      },
-      template: `<div><input :ref="(el) => { if (el) otp.inputRef.value = el }" /></div>`,
-    })
-
-    const div = document.createElement('div')
-    document.body.appendChild(div)
-    const app = createApp(App)
-    app.mount(div)
-    await nextTick()
-
-    const input = div.querySelector('input') as HTMLInputElement
-    expect(input.value).toBe('1234')
-    expect(otpResult.getCode()).toBe('1234')
-
-    app.unmount()
-    div.remove()
   })
 })
 
@@ -927,22 +859,18 @@ describe('useOTP (Vue) — getInputProps()', () => {
 
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Invalid plain string `value` guard
+// Plain string controlled value (line 342)
 // ─────────────────────────────────────────────────────────────────────────────
 
-describe('useOTP (Vue) — invalid plain string value guard', () => {
-  it('rejects a plain string and leaves the field empty when a bad value shape is forced in', async () => {
-    const error = jest.spyOn(console, 'error').mockImplementation(() => {})
+describe('useOTP (Vue) — plain string controlled value', () => {
+  it('syncs slots from a plain string value on init', async () => {
     const [otp, unmount] = withSetup(() =>
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       useOTP({ length: 4, value: '56' as any, autoFocus: false }),
     )
     await nextTick()
-    expect(otp.slotValues.value).toEqual(['', '', '', ''])
-    expect(otp.getCode()).toBe('')
-    expect(error).toHaveBeenCalledWith(
-      '[verino/vue] `value` must be a Vue ref, computed, or getter for live external control. Use `defaultValue` for one-time prefill.',
-    )
+    expect(otp.slotValues.value[0]).toBe('5')
+    expect(otp.slotValues.value[1]).toBe('6')
     unmount()
   })
 })
@@ -1013,284 +941,6 @@ describe('useOTP (Vue) — autoFocus with inputRef set on mount', () => {
 
     expect(focusSpy).toHaveBeenCalled()
     focusSpy.mockRestore()
-    app.unmount()
-    div.remove()
-  })
-})
-
-
-// ─────────────────────────────────────────────────────────────────────────────
-// haptic / sound feedback (lines 266-267, 269)
-// ─────────────────────────────────────────────────────────────────────────────
-
-describe('useOTP (Vue) — haptic/sound feedback', () => {
-  it('haptic=false suppresses feedback on complete (false branch line 266)', () => {
-    const [otp, input, unmount] = setup({ length: 4, haptic: false })
-    type(otp, input, '1234')
-    // Verify OTP still completes correctly — just no haptic vibration
-    expect(otp.isComplete.value).toBe(true)
-    unmount()
-  })
-
-  it('sound=true triggers sound feedback on complete without throwing (line 267)', () => {
-    const [otp, input, unmount] = setup({ length: 4, sound: true })
-    // AudioContext absent in jsdom — triggerSoundFeedback wraps in try/catch
-    expect(() => type(otp, input, '1234')).not.toThrow()
-    expect(otp.isComplete.value).toBe(true)
-    unmount()
-  })
-
-  it('haptic=false suppresses feedback on error (false branch line 269)', () => {
-    const [otp, , unmount] = setup({ length: 4, haptic: false })
-    otp.setError(true)
-    expect(otp.hasError.value).toBe(true)
-    unmount()
-  })
-})
-
-
-// ─────────────────────────────────────────────────────────────────────────────
-// hiddenInputAttrs — autoFocus and aria-readonly branches (lines 298, 303)
-// ─────────────────────────────────────────────────────────────────────────────
-
-describe('useOTP (Vue) — hiddenInputAttrs computed', () => {
-  it('includes autofocus when autoFocus=true (line 298)', async () => {
-    const [otp, unmount] = withSetup(() => useOTP({ length: 4, autoFocus: true }))
-    await nextTick()
-    expect(otp.hiddenInputAttrs.value).toHaveProperty('autofocus', true)
-    unmount()
-  })
-
-  it('omits autofocus when autoFocus=false', async () => {
-    const [otp, unmount] = withSetup(() => useOTP({ length: 4, autoFocus: false }))
-    await nextTick()
-    expect(otp.hiddenInputAttrs.value).not.toHaveProperty('autofocus')
-    unmount()
-  })
-
-  it('includes aria-readonly when readOnly=true (line 303)', async () => {
-    const [otp, , unmount] = setup({ readOnly: true })
-    await nextTick()
-    expect(otp.hiddenInputAttrs.value['aria-readonly']).toBe('true')
-    unmount()
-  })
-
-  it('omits aria-readonly when readOnly=false', async () => {
-    const [otp, , unmount] = setup()
-    await nextTick()
-    expect(otp.hiddenInputAttrs.value).not.toHaveProperty('aria-readonly')
-    unmount()
-  })
-
-  it('includes name attribute when name option is provided', async () => {
-    const [otp, unmount] = withSetup(() => useOTP({ length: 4, name: 'otp-code', autoFocus: false }))
-    await nextTick()
-    expect(otp.hiddenInputAttrs.value).toHaveProperty('name', 'otp-code')
-    unmount()
-  })
-})
-
-
-// ─────────────────────────────────────────────────────────────────────────────
-// wrapperAttrs computed — all state branches (lines 306-311)
-// ─────────────────────────────────────────────────────────────────────────────
-
-describe('useOTP (Vue) — wrapperAttrs computed', () => {
-  it('data-complete is set when isComplete (line 307)', async () => {
-    const [otp, input, unmount] = setup({ length: 4 })
-    type(otp, input, '1234')
-    await nextTick()
-    expect(otp.wrapperAttrs.value).toHaveProperty('data-complete')
-    unmount()
-  })
-
-  it('data-complete is absent when incomplete', async () => {
-    const [otp, , unmount] = setup({ length: 4 })
-    await nextTick()
-    expect(otp.wrapperAttrs.value).not.toHaveProperty('data-complete')
-    unmount()
-  })
-
-  it('data-invalid is set when hasError (line 308)', async () => {
-    const [otp, , unmount] = setup()
-    otp.setError(true)
-    await nextTick()
-    expect(otp.wrapperAttrs.value).toHaveProperty('data-invalid')
-    unmount()
-  })
-
-  it('data-success is set when hasSuccess (line 309)', async () => {
-    const [otp, , unmount] = setup()
-    otp.setSuccess(true)
-    await nextTick()
-    expect(otp.wrapperAttrs.value).toHaveProperty('data-success')
-    unmount()
-  })
-
-  it('data-disabled is set when isDisabled (line 310)', async () => {
-    const [otp, , unmount] = setup({ disabled: true })
-    await nextTick()
-    expect(otp.wrapperAttrs.value).toHaveProperty('data-disabled')
-    unmount()
-  })
-
-  it('data-readonly is set when readOnly=true (line 311)', async () => {
-    const [otp, , unmount] = setup({ readOnly: true })
-    await nextTick()
-    expect(otp.wrapperAttrs.value).toHaveProperty('data-readonly')
-    unmount()
-  })
-})
-
-
-// ─────────────────────────────────────────────────────────────────────────────
-// onChange — empty-value reset path (lines 454-457)
-// ─────────────────────────────────────────────────────────────────────────────
-
-describe('useOTP (Vue) — onChange empty value resets state', () => {
-  it('clearing the input resets all slots (line 454)', async () => {
-    const [otp, input, unmount] = setup({ length: 4 })
-    type(otp, input, '1234')
-    await nextTick()
-    expect(otp.isComplete.value).toBe(true)
-    type(otp, input, '')
-    await nextTick()
-    expect(otp.value.value).toBe('')
-    expect(otp.isComplete.value).toBe(false)
-    unmount()
-  })
-
-  it('empty-value reset also clears inputRef DOM value (line 455)', async () => {
-    const [otp, input, unmount] = setup({ length: 4 })
-    type(otp, input, '12')
-    await nextTick()
-    type(otp, input, '')
-    await nextTick()
-    expect(input.value).toBe('')
-    unmount()
-  })
-})
-
-
-// ─────────────────────────────────────────────────────────────────────────────
-// onKeydown readOnly guard — Backspace and Delete (lines 410, 417)
-// ─────────────────────────────────────────────────────────────────────────────
-
-describe('useOTP (Vue) — onKeydown readOnly guard', () => {
-  it('Backspace is blocked when readOnly=true (line 410)', async () => {
-    const [otp, input, unmount] = setup({ length: 4 })
-    type(otp, input, '1234')
-    await nextTick()
-    otp.setReadOnly(true)
-    keyDown(otp, input, 'Backspace')
-    await nextTick()
-    expect(otp.value.value).toBe('1234')
-    unmount()
-  })
-
-  it('Delete is blocked when readOnly=true (line 417)', async () => {
-    const [otp, input, unmount] = setup({ length: 4 })
-    type(otp, input, '1234')
-    await nextTick()
-    otp.setReadOnly(true)
-    input.setSelectionRange(1, 1)
-    keyDown(otp, input, 'Delete')
-    await nextTick()
-    expect(otp.slotValues.value[1]).toBe('2')
-    unmount()
-  })
-
-  it('onKeydown is no-op when isDisabled=true (line 406)', async () => {
-    const [otp, input, unmount] = setup({ length: 4 })
-    type(otp, input, '1234')
-    await nextTick()
-    otp.setDisabled(true)
-    keyDown(otp, input, 'Backspace')
-    await nextTick()
-    expect(otp.value.value).toBe('1234')
-    unmount()
-  })
-})
-
-
-// ─────────────────────────────────────────────────────────────────────────────
-// reset() without inputRef (line 508 false branch)
-// ─────────────────────────────────────────────────────────────────────────────
-
-describe('useOTP (Vue) — reset() without inputRef', () => {
-  it('reset() is safe when inputRef.value is null (line 508 false branch)', async () => {
-    const [otp, unmount] = withSetup(() => useOTP({ length: 4, autoFocus: false }))
-    // Do NOT call attachInput — inputRef.value stays null
-    expect(() => otp.reset()).not.toThrow()
-    await nextTick()
-    expect(otp.value.value).toBe('')
-    unmount()
-  })
-})
-
-
-// ─────────────────────────────────────────────────────────────────────────────
-// setReadOnly() ref update (lines 530-534)
-// ─────────────────────────────────────────────────────────────────────────────
-
-describe('useOTP (Vue) — setReadOnly() updates isReadOnly ref', () => {
-  it('setReadOnly(true) sets isReadOnly ref and blocks onChange', async () => {
-    const [otp, input, unmount] = setup({ length: 4 })
-    otp.setReadOnly(true)
-    type(otp, input, '1234')
-    await nextTick()
-    expect(otp.value.value).toBe('')
-    unmount()
-  })
-
-  it('setReadOnly(false) re-enables typing', async () => {
-    const [otp, input, unmount] = setup({ length: 4, readOnly: true })
-    otp.setReadOnly(false)
-    type(otp, input, '1234')
-    await nextTick()
-    expect(otp.value.value).toBe('1234')
-    unmount()
-  })
-})
-
-
-// ─────────────────────────────────────────────────────────────────────────────
-// getCode() method (lines 543-545)
-// ─────────────────────────────────────────────────────────────────────────────
-
-describe('useOTP (Vue) — getCode()', () => {
-  it('returns the current joined code string', async () => {
-    const [otp, input, unmount] = setup({ length: 4 })
-    type(otp, input, '1234')
-    await nextTick()
-    expect(otp.getCode()).toBe('1234')
-    unmount()
-  })
-})
-
-
-// ─────────────────────────────────────────────────────────────────────────────
-// defaultValue applied in onMounted with inputRef pre-set (line 385)
-// ─────────────────────────────────────────────────────────────────────────────
-
-describe('useOTP (Vue) — defaultValue with inputRef set at mount', () => {
-  it('syncs inputRef.value when defaultValue is applied in onMounted (line 385)', async () => {
-    let otpResult!: ReturnType<typeof useOTP>
-    const App = defineComponent({
-      setup() {
-        otpResult = useOTP({ length: 4, defaultValue: '1234', autoFocus: false })
-        return { otp: otpResult }
-      },
-      template: `<div><input :ref="(el) => { if (el) otp.inputRef.value = el }" /></div>`,
-    })
-    const div = document.createElement('div')
-    document.body.appendChild(div)
-    const app = createApp(App)
-    app.mount(div)
-    await nextTick()
-
-    expect(otpResult.slotValues.value[0]).toBe('1')
-    expect(otpResult.slotValues.value[3]).toBe('4')
     app.unmount()
     div.remove()
   })

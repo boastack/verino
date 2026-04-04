@@ -97,13 +97,6 @@ async function wcSlotIsActive(page: Page, hostId: string, slotIndex: number): Pr
   }, { id: hostId, idx: slotIndex })
 }
 
-/** Wait until a shadow slot reports data-active="true". */
-async function expectWCSlotActive(page: Page, hostId: string, slotIndex: number): Promise<void> {
-  await expect
-    .poll(() => wcSlotIsActive(page, hostId, slotIndex), { timeout: 5_000 })
-    .toBe(true)
-}
-
 /** Read text content of a shadow slot by index. */
 async function wcSlotText(page: Page, hostId: string, slotIndex: number): Promise<string> {
   return page.evaluate(({ id, idx }) => {
@@ -227,17 +220,15 @@ test.describe('Web Component — attributeChangedCallback', () => {
     expect(count).toBe(2)
   })
 
-  test('rebuild preserves existing slot values', async ({ page }) => {
+  test('rebuild clears existing slot values', async ({ page }) => {
     // Fill some slots
     await wcFill(page, 'otp', '123')
     await expectSlotCount(page, 'otp', 'is-filled', 3)
 
-    // Trigger rebuild via structural attribute change
-    await page.evaluate(() => document.getElementById('otp')!.setAttribute('length', '7'))
-    await expectSlotCount(page, 'otp', 'is-filled', 3)
-
-    const code = await page.evaluate(() => (document.getElementById('otp') as any).getCode())
-    expect(code).toBe('123')
+    // Trigger rebuild via attribute change
+    await page.evaluate(() => document.getElementById('otp')!.setAttribute('length', '6'))
+    // After rebuild, slots should be cleared
+    await expectSlotCount(page, 'otp', 'is-filled', 0)
   })
 })
 
@@ -303,7 +294,8 @@ test.describe('Web Component — keyboard input', () => {
       el.setSelectionRange(2, 2)
     })
     await page.keyboard.press('ArrowLeft')
-    await expectWCSlotActive(page, 'otp', 1)
+    const isActive = await wcSlotIsActive(page, 'otp', 1)
+    expect(isActive).toBe(true)
   })
 
   test('ArrowRight moves focus to the next slot', async ({ page }) => {
@@ -315,7 +307,8 @@ test.describe('Web Component — keyboard input', () => {
       el.setSelectionRange(0, 0)
     })
     await page.keyboard.press('ArrowRight')
-    await expectWCSlotActive(page, 'otp', 1)
+    const isActive = await wcSlotIsActive(page, 'otp', 1)
+    expect(isActive).toBe(true)
   })
 })
 

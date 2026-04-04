@@ -5,13 +5,13 @@
 <h1 align="center">@verino/alpine</h1>
 
 <h3 align="center">
-  Alpine.js adapter for <a href="https://github.com/boastack/verino">Verino</a>. Reliable OTP inputs from a single core.
+  Alpine.js adapter for <a href="https://github.com/boastack/verino">verino</a>. Build reliable OTP inputs from a single core.
 </h3>
 
 <p align="center">
   <a href="https://verino.vercel.app"><img src="https://img.shields.io/badge/verino.vercel.app-live-20C55C" alt="Live demo" /></a>&nbsp;
   <a href="https://www.npmjs.com/package/@verino/alpine"><img src="https://img.shields.io/npm/v/@verino/alpine?color=20C55C&label=%40verino%2Falpine" alt="npm version" /></a>&nbsp;
-  <a href="https://bundlephobia.com/package/@verino/alpine"><img src="https://img.shields.io/bundlephobia/minzip/@verino/alpine?color=20C55C&label=gzip+size" alt="gzip size" /></a>&nbsp;
+  <a href="https://bundlephobia.com/package/@verino/alpine"><img src="https://img.shields.io/bundlephobia/minzip/@verino/alpine?color=20C55C&label=gzip" alt="gzip size" /></a>&nbsp;
   <img src="https://img.shields.io/badge/dependencies-0-20C55C" alt="Zero dependencies" />&nbsp;
   <a href="https://www.typescriptlang.org"><img src="https://img.shields.io/badge/TypeScript-strict-20C55C" alt="TypeScript" /></a>
 </p>
@@ -22,7 +22,7 @@
 
 `@verino/alpine` registers the `VerinoAlpine` plugin, which provides the `x-verino` directive. Attach it to any container element with a configuration expression, and Verino automatically builds the full OTP field (hidden input, visual slots, optional separators, countdown timer, and resend button) with no template authoring required.
 
-The expression is evaluated in the Alpine component scope and kept in sync through Alpine's reactivity, so `$data` references keep working after the directive is created. Programmatic runtime control is available on `el._verino` from any JavaScript context.
+The expression is evaluated in the Alpine component scope, so reactive `$data` references work directly. Programmatic control is available on `el._verino` from any JavaScript context.
 
 When Alpine destroys the component (via `x-if` or `x-for`), `destroy()` is called automatically via Alpine's `cleanup()` hook.
 
@@ -43,7 +43,7 @@ When Alpine destroys the component (via `x-if` or `x-for`), `destroy()` is calle
 
 ```bash
 # npm
-npm i @verino/alpine
+npm install @verino/alpine
 
 # pnpm
 pnpm add @verino/alpine
@@ -207,7 +207,6 @@ Set on the wrapper element as boolean presence attributes (no value):
 | `data-disabled` | Field is disabled |
 | `data-readonly` | Field is read-only |
 
-
 ```css
 /* Slot-level — scope to your field with an id or class prefix */
 [data-active="true"][data-focus="true"] { border-color: #3D3D3D; }
@@ -310,7 +309,7 @@ Alpine.plugin(VerinoAlpine)   // call before Alpine.start()
 
 ### `x-verino` expression options
 
-The directive accepts the core machine options from `@verino/core`, plus these Alpine/browser helper options:
+All `OTPOptions` from `@verino/core`, plus:
 
 | Option | Type | Default | Description |
 |---|---|---|---|
@@ -360,7 +359,7 @@ el._verino = {
 
 ## Integration with Core
 
-`VerinoAlpine` calls `createOTP()` from `@verino/core` when the `x-verino` directive mounts. Character filtering, cursor logic, paste normalization, and event routing live in core; countdown, feedback, scheduling, and toolkit helpers come from `@verino/core/toolkit`.
+`VerinoAlpine` calls `createOTP()` from `@verino/core` internally when the `x-verino` directive mounts. All character filtering, cursor logic, paste normalisation, timer management, and event routing live in core.
 
 See the [`@verino/core` README](https://github.com/boastack/verino/blob/main/packages/core/README.md) for the full state machine and event reference.
 
@@ -373,7 +372,7 @@ This package lives in the [verino monorepo](https://github.com/boastack/verino).
 ```bash
 # Clone and install
 git clone https://github.com/boastack/verino.git
-cd verino && pnpm i
+cd verino && pnpm install
 
 # Run before opening a PR
 pnpm --filter @verino/alpine build && pnpm test
@@ -385,10 +384,10 @@ pnpm --filter @verino/alpine build && pnpm test
 
 | Package | Purpose |
 |---|---|
-| [`@verino/core`](https://www.npmjs.com/package/@verino/core) | OTP state machine + toolkit |
+| [`@verino/core`](https://www.npmjs.com/package/@verino/core) | Pure OTP state machine — zero DOM, zero framework |
 | [`@verino/vanilla`](https://www.npmjs.com/package/@verino/vanilla) | Vanilla DOM adapter + `timerUIPlugin`, `webOTPPlugin`, `pmGuardPlugin` |
 | [`@verino/react`](https://www.npmjs.com/package/@verino/react) | `useOTP` hook + `HiddenOTPInput` component (React ≥ 18) |
-| [`@verino/vue`](https://www.npmjs.com/package/@verino/vue) | `useOTP` composable with reactive Vue refs (Vue ≥ 3) |
+| [`@verino/vue`](https://www.npmjs.com/package/@verino/vue) | `useOTP` composable with `Ref<T>` reactive state (Vue ≥ 3) |
 | [`@verino/svelte`](https://www.npmjs.com/package/@verino/svelte) | `useOTP` store + `use:action` directive (Svelte ≥ 4) |
 | [`@verino/web-component`](https://www.npmjs.com/package/@verino/web-component) | `<verino-input>` Shadow DOM custom element |
 

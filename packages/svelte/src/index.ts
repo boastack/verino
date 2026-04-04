@@ -2,69 +2,44 @@
  * @verino/svelte
  * ─────────────────────────────────────────────────────────────────────────────
  * Svelte adapter — useOTP store + action (single hidden-input architecture)
+ *
+ * @author  Olawale Balo — Product Designer + Design Engineer
+ * @license MIT
  */
 
 import { writable, derived, get, type Readable, type Writable } from 'svelte/store'
 
 import {
-  type CoreOTPOptions,
-  type FeedbackOptions,
-  type FieldBehaviorOptions,
-  type FocusDataAttrs,
+  createOTP,
+  createTimer,
+  filterString,
+  triggerHapticFeedback,
+  triggerSoundFeedback,
+  type OTPOptions,
+  type OTPState,
+  type InputType,
   type SlotEntry,
   type InputProps,
-  type OTPStateSnapshot,
-  type TimerUIOptions,
-  type ResendUIOptions,
-  type WrapperDataAttrs,
 } from '@verino/core'
-import { createOTP } from '@verino/core/machine'
-import {
-  applyPastedInput,
-  applyTypedInput,
-  boolAttr,
-  clearOTPInput,
-  createFrameScheduler,
-  focusOTPInput,
-  handleOTPKeyAction,
-  scheduleFocusSync,
-  scheduleInputBlur,
-  scheduleInputFocus,
-  scheduleInputSelection,
-  syncInputValue,
-} from '@verino/core/toolkit/controller'
-import { syncProgrammaticValue } from '@verino/core/toolkit/adapter-policy'
-import { createTimer } from '@verino/core'
-import { subscribeFeedback } from '@verino/core/toolkit/feedback'
 
 
 // ─────────────────────────────────────────────────────────────────────────────
 // TYPES
 // ─────────────────────────────────────────────────────────────────────────────
 
+/** Convert a boolean to the string literal `'true'` or `'false'` required by CSS attribute selectors. */
+const b = (v: boolean): 'true' | 'false' => v ? 'true' : 'false'
+
 /**
  * Extended options for the Svelte useOTP composable.
- * Builds on the core machine options with Svelte-specific controlled-input,
- * separator, and masked rendering behavior.
+ * Adds controlled-input, separator, and disabled support on top of OTPOptions.
  */
-type SvelteFieldBehaviorOptions = Pick<
-  FieldBehaviorOptions,
-  'autoFocus' | 'name' | 'onFocus' | 'onBlur' | 'placeholder' | 'selectOnFocus' | 'blurOnComplete' | 'defaultValue'
->
-
-export type SvelteOTPOptions =
-  & CoreOTPOptions
-  & FeedbackOptions
-  & SvelteFieldBehaviorOptions
-  & Pick<TimerUIOptions, 'onExpire'>
-  & Pick<ResendUIOptions, 'onResend'>
-  & {
+export type SvelteOTPOptions = OTPOptions & {
   /**
-   * Live external control for the OTP value.
-   * In Svelte, live external control is provided through a readable store.
-   * Use `defaultValue` for one-time prefill on mount.
+   * Controlled value — drives the slot state from outside the composable.
+   * Pass a string of up to length characters to pre-fill or sync the field.
    */
-  value?: Readable<string>
+  value?: string
   /**
    * Fires exactly ONCE per user interaction with the current joined code string.
    * Receives partial values too — not just when the code is complete.
@@ -106,7 +81,7 @@ export type SvelteOTPOptions =
 
 export type UseOTPResult = {
   /** Subscribe to the full state store. */
-  subscribe:      Writable<OTPStateSnapshot>['subscribe']
+  subscribe:      Writable<OTPState>['subscribe']
   /** Derived — joined code string. */
   value:          Readable<string>
   /** Derived — completion boolean. */
@@ -137,7 +112,7 @@ export type UseOTPResult = {
   /** The placeholder character for empty slots. Empty string when not set. */
   placeholder:    string
   /** Derived — spread onto the wrapper element as data attributes for CSS/Tailwind targeting. */
-  wrapperAttrs:   Readable<WrapperDataAttrs>
+  wrapperAttrs:   Readable<Record<string, string | undefined>>
   /**
    * Svelte action — bind to the single hidden input via `use:otp.action`.
    * Wires all keydown / input / paste / focus / blur listeners and starts
@@ -148,14 +123,14 @@ export type UseOTPResult = {
    * Reactive derived store — minimal snapshot of every slot.
    * Use in templates: `{#each $otp.slots as slot}`.
    */
-  slots:          Readable<readonly SlotEntry[]>
+  slots:          Readable<SlotEntry[]>
   /** Returns the current joined code string. */
   getCode:        () => string
   /**
    * Minimal array snapshot of every slot — non-reactive snapshot.
    * Use for one-off reads outside a reactive context. Prefer `$otp.slots` in templates.
    */
-  getSlots:       () => readonly SlotEntry[]
+  getSlots:       () => SlotEntry[]
   /**
    * Framework-agnostic handlers + data-* attributes for slot `index`.
    * Spread data-* onto visual slot divs for CSS-attribute-driven styling.
@@ -165,11 +140,9 @@ export type UseOTPResult = {
    * fields — sourced from the closure-level `isFocused` variable that the action's
    * focus/blur handlers update on every focus change.
    */
-  getInputProps:  (index: number) => InputProps & FocusDataAttrs
+  getInputProps:  (index: number) => InputProps & { 'data-focus': 'true' | 'false' }
   /** Clear all slots, restart timer, return focus to input. */
   reset:          () => void
-  /** Reset the field and fire `onResend`. */
-  resend:         () => void
   /** Apply or clear the error state. Clears success. */
   setError:       (isError: boolean) => void
   /** Apply or clear the success state. Clears error. */
@@ -229,12 +202,12 @@ export type UseOTPResult = {
 export function useOTP(options: SvelteOTPOptions = {}): UseOTPResult {
   const {
     length             = 6,
-    idBase,
-    type               = 'numeric',
+    type               = 'numeric' as InputType,
     timer:             timerSecs = 0,
     disabled:          initialDisabled = false,
     onComplete,
     onExpire,
+    onResend,
     haptic             = true,
     sound              = false,
     pattern,
@@ -255,30 +228,32 @@ export function useOTP(options: SvelteOTPOptions = {}): UseOTPResult {
     placeholder:       placeholderOpt = '',
     selectOnFocus:     selectOnFocusOpt = false,
     blurOnComplete:    blurOnCompleteOpt = false,
-    onResend,
   } = options
 
   // ── Suppress flag — prevents programmatic fills from firing onComplete ──────
   let suppressComplete = false
-  const invalidControlledValueMessage = '[verino/svelte] `value` must be a Svelte readable store for live external control. Use `defaultValue` for one-time prefill.'
 
   // ── Focus tracking — updated by the action's focus/blur handlers ─────────
   let isFocused = false
-  let inputEl: HTMLInputElement | null = null
-  const frameScheduler = createFrameScheduler(() => !!inputEl?.isConnected)
 
   // ── Core instance ──────────────────────────────────────────────────────────
   const otp = createOTP({
-    length, idBase, type, pattern, pasteTransformer, onInvalidChar,
+    length, type, pattern, pasteTransformer, onInvalidChar,
     onComplete: onComplete ? (code) => { if (!suppressComplete) onComplete(code) } : undefined,
-    disabled: initialDisabled,
-    readOnly: readOnlyOpt,
+    onExpire, onResend, readOnly: readOnlyOpt,
   })
 
-  const unsubFeedback = subscribeFeedback(otp, { haptic, sound })
+  otp.subscribe((_state, event) => {
+    if (event.type === 'COMPLETE') {
+      if (haptic) triggerHapticFeedback()
+      if (sound)  triggerSoundFeedback()
+    } else if (event.type === 'ERROR' && event.hasError) {
+      if (haptic) triggerHapticFeedback()
+    }
+  })
 
   // ── Stores ─────────────────────────────────────────────────────────────────
-  const store               = writable<OTPStateSnapshot>(otp.getSnapshot())
+  const store               = writable(otp.state)
   const timerStore          = writable(timerSecs)
   const isDisabledStore     = writable(initialDisabled)
   const isReadOnlyStore     = writable(readOnlyOpt)
@@ -287,6 +262,7 @@ export function useOTP(options: SvelteOTPOptions = {}): UseOTPResult {
   const maskedStore         = writable(maskedOpt)
   const maskCharStore       = writable(maskCharOpt)
 
+  let inputEl:    HTMLInputElement | null = null
   let isReadOnly: boolean                = readOnlyOpt
 
   // ── sync() ─────────────────────────────────────────────────────────────────
@@ -300,7 +276,7 @@ export function useOTP(options: SvelteOTPOptions = {}): UseOTPResult {
    */
   function sync(suppressOnChange = false): void {
     const s = otp.state
-    store.set({ ...s, slotValues: [...s.slotValues] })
+    store.set({ ...s })
     if (!suppressOnChange) {
       onChangeProp?.(s.slotValues.join(''))
     }
@@ -309,49 +285,53 @@ export function useOTP(options: SvelteOTPOptions = {}): UseOTPResult {
   // ── Controlled value sync ──────────────────────────────────────────────────
   function setValue(incoming: string | undefined): void {
     if (incoming === undefined) return
-    let result: ReturnType<typeof syncProgrammaticValue>
+    const filtered = filterString(incoming.slice(0, length), type, pattern)
+    const current  = otp.state.slotValues.join('')
+    if (filtered === current) return
+
     suppressComplete = true
     try {
-      result = syncProgrammaticValue(otp, incoming, { length, type, pattern }, 'input-end')
+      otp.reset()
+      for (let i = 0; i < filtered.length; i++) {
+        otp.insert(filtered[i], i)
+      }
     } finally {
       suppressComplete = false
     }
-    if (!result.changed) return
     sync(true)
-    syncInputValue(inputEl, result.value, result.nextSelection)
+    if (inputEl) {
+      inputEl.value = filtered
+      inputEl.setSelectionRange(filtered.length, filtered.length)
+    }
+    onChangeProp?.(filtered)
   }
 
-  let unsubscribeControlledValue: (() => void) | null = null
   if (controlledValue !== undefined) {
-    if (typeof controlledValue.subscribe === 'function') {
-      unsubscribeControlledValue = controlledValue.subscribe((incoming) => {
-        setValue(incoming)
-      })
-    } else {
-      console.error(invalidControlledValueMessage)
-    }
+    setValue(controlledValue)
   } else if (defaultValue) {
     // Apply defaultValue once — no onComplete, no onChange
-    let result: ReturnType<typeof syncProgrammaticValue>
-    suppressComplete = true
-    try {
-      result = syncProgrammaticValue(otp, defaultValue, { length, type, pattern }, 'input-end')
-    } finally {
-      suppressComplete = false
-    }
-    if (result.changed) {
+    const filtered = filterString(defaultValue.slice(0, length), type, pattern)
+    if (filtered) {
+      suppressComplete = true
+      try {
+        for (let i = 0; i < filtered.length; i++) otp.insert(filtered[i], i)
+      } finally {
+        suppressComplete = false
+      }
       sync(true)
     }
   }
 
   // ── Timer ──────────────────────────────────────────────────────────────────
-  const timerController = createTimer({
-    totalSeconds: timerSecs,
-    emitInitialTickOnStart: true,
-    emitInitialTickOnRestart: true,
-    onTick:   (remaining) => timerStore.set(remaining),
-    onExpire: () => { timerStore.set(0); onExpire?.() },
-  })
+  let timerControls: ReturnType<typeof createTimer> | null = null
+
+  if (timerSecs > 0) {
+    timerControls = createTimer({
+      totalSeconds: timerSecs,
+      onTick:   (r) => timerStore.set(r),
+      onExpire: () => { timerStore.set(0); onExpire?.() },
+    })
+  }
 
   // ── Svelte Action ──────────────────────────────────────────────────────────
   function action(node: HTMLInputElement): { destroy: () => void } {
@@ -368,56 +348,104 @@ export function useOTP(options: SvelteOTPOptions = {}): UseOTPResult {
     node.setAttribute('autocorrect',     'off')
     node.setAttribute('autocapitalize',  'off')
     if (readOnlyOpt) node.setAttribute('aria-readonly', 'true')
-    syncInputValue(node, otp.state.slotValues.join(''), otp.state.activeSlot)
 
     const unsubDisabled = isDisabledStore.subscribe((v: boolean) => { node.disabled = v })
 
     function onKeydown(e: KeyboardEvent): void {
       if (get(isDisabledStore)) return
-      const result = handleOTPKeyAction(otp, {
-        key: e.key,
-        position: node.selectionStart ?? 0,
-        length,
-        readOnly: isReadOnly,
-        shiftKey: e.shiftKey,
-      })
-      if (!result.handled) return
-
-      e.preventDefault()
-      sync(!result.valueChanged)
-      if (result.nextSelection !== null) {
-        scheduleInputSelection(frameScheduler, node, result.nextSelection)
+      const pos = node.selectionStart ?? 0
+      if (e.key === 'Backspace') {
+        e.preventDefault()
+        if (isReadOnly) return
+        otp.delete(pos)
+        sync()
+        const next = otp.state.activeSlot
+        requestAnimationFrame(() => node.setSelectionRange(next, next))
+      } else if (e.key === 'Delete') {
+        e.preventDefault()
+        if (isReadOnly) return
+        otp.clear(pos)
+        sync()
+        requestAnimationFrame(() => node.setSelectionRange(pos, pos))
+      } else if (e.key === 'ArrowLeft') {
+        e.preventDefault()
+        otp.move(pos - 1)
+        sync()
+        const next = otp.state.activeSlot
+        requestAnimationFrame(() => node.setSelectionRange(next, next))
+      } else if (e.key === 'ArrowRight') {
+        e.preventDefault()
+        otp.move(pos + 1)
+        sync()
+        const next = otp.state.activeSlot
+        requestAnimationFrame(() => node.setSelectionRange(next, next))
+      } else if (e.key === 'Tab') {
+        if (e.shiftKey) {
+          if (pos === 0) return
+          e.preventDefault()
+          otp.move(pos - 1)
+        } else {
+          if (!otp.state.slotValues[pos]) return
+          if (pos >= length - 1) return
+          e.preventDefault()
+          otp.move(pos + 1)
+        }
+        sync()
+        const next = otp.state.activeSlot
+        requestAnimationFrame(() => node.setSelectionRange(next, next))
       }
     }
 
     function onChange(e: Event): void {
       if (get(isDisabledStore) || isReadOnly) return
-      const raw = node.value
+      const raw = (e.target as HTMLInputElement).value
       if (!raw) {
-        clearOTPInput(otp, node, { focus: false })
+        otp.reset()
+        node.value = ''
+        node.setSelectionRange(0, 0)
         sync()
         return
       }
-      const result = applyTypedInput(otp, raw, { length, type, pattern })
-      syncInputValue(node, result.value, result.nextSelection)
+      const valid = filterString(raw, type, pattern).slice(0, length)
+      otp.reset()
+      for (let i = 0; i < valid.length; i++) otp.insert(valid[i], i)
+      const next = Math.min(valid.length, length - 1)
+      node.value = valid
+      node.setSelectionRange(next, next)
+      otp.move(next)
       sync()
-      scheduleInputBlur(frameScheduler, node, blurOnCompleteOpt && result.isComplete)
+      if (blurOnCompleteOpt && otp.state.isComplete) {
+        requestAnimationFrame(() => node.blur())
+      }
     }
 
     function onPaste(e: ClipboardEvent): void {
       if (get(isDisabledStore) || isReadOnly) return
       e.preventDefault()
       const text = e.clipboardData?.getData('text') ?? ''
-      const result = applyPastedInput(otp, text, node.selectionStart ?? 0)
-      syncInputValue(node, result.value, result.nextSelection)
+      const pos  = node.selectionStart ?? 0
+      otp.paste(text, pos)
+      const { slotValues, activeSlot } = otp.state
+      node.value = slotValues.join('')
+      node.setSelectionRange(activeSlot, activeSlot)
       sync()
-      scheduleInputBlur(frameScheduler, node, blurOnCompleteOpt && result.isComplete)
+      if (blurOnCompleteOpt && otp.state.isComplete) {
+        requestAnimationFrame(() => node.blur())
+      }
     }
 
     function onFocus(): void {
       isFocused = true
       onFocusProp?.()
-      scheduleFocusSync(frameScheduler, otp, node, selectOnFocusOpt)
+      const pos = otp.state.activeSlot
+      requestAnimationFrame(() => {
+        const char = otp.state.slotValues[pos]
+        if (selectOnFocusOpt && char) {
+          node.setSelectionRange(pos, pos + 1)
+        } else {
+          node.setSelectionRange(pos, pos)
+        }
+      })
     }
 
     function onBlur(): void {
@@ -432,27 +460,22 @@ export function useOTP(options: SvelteOTPOptions = {}): UseOTPResult {
     node.addEventListener('blur',    onBlur)
 
     if (autoFocusOpt && !get(isDisabledStore)) {
-      scheduleInputFocus(frameScheduler, node)
+      requestAnimationFrame(() => node.focus())
     }
 
     // Start timer now that the component is mounted and the input element is
     // available — matching Vue's onMounted pattern.
-    timerController.start()
+    timerControls?.start()
 
     return {
       destroy() {
-        frameScheduler.cancelAll()
         node.removeEventListener('keydown', onKeydown)
         node.removeEventListener('input',   onChange)
         node.removeEventListener('paste',   onPaste)
         node.removeEventListener('focus',   onFocus)
         node.removeEventListener('blur',    onBlur)
         unsubDisabled()
-        unsubscribeControlledValue?.()
-        unsubscribeControlledValue = null
-        timerController.stop()
-        unsubFeedback()
-        otp.destroy()
+        timerControls?.stop()
         inputEl = null
       },
     }
@@ -461,15 +484,10 @@ export function useOTP(options: SvelteOTPOptions = {}): UseOTPResult {
   // ── Public API ─────────────────────────────────────────────────────────────
 
   function reset(): void {
-    clearOTPInput(otp, inputEl, { focus: true, disabled: get(isDisabledStore) })
-    timerController.restart()
-    sync()
-  }
-
-  function resend(): void {
-    clearOTPInput(otp, inputEl, { focus: true, disabled: get(isDisabledStore) })
-    timerController.restart()
-    onResend?.()
+    otp.reset()
+    if (inputEl) { inputEl.value = ''; inputEl.focus(); inputEl.setSelectionRange(0, 0) }
+    timerStore.set(timerSecs)
+    timerControls?.restart()
     sync()
   }
 
@@ -486,7 +504,6 @@ export function useOTP(options: SvelteOTPOptions = {}): UseOTPResult {
   function setDisabled(value: boolean): void {
     isDisabledStore.set(value)
     otp.setDisabled(value)
-    sync(true)
   }
 
   function setReadOnly(value: boolean): void {
@@ -500,11 +517,12 @@ export function useOTP(options: SvelteOTPOptions = {}): UseOTPResult {
         inputEl.removeAttribute('aria-readonly')
       }
     }
-    sync(true)
   }
 
   function focus(slotIndex: number): void {
-    focusOTPInput(otp, inputEl, slotIndex)
+    otp.move(slotIndex)
+    inputEl?.focus()
+    requestAnimationFrame(() => inputEl?.setSelectionRange(slotIndex, slotIndex))
     sync(true)
   }
 
@@ -512,53 +530,50 @@ export function useOTP(options: SvelteOTPOptions = {}): UseOTPResult {
     return otp.getCode()
   }
 
-  function getSlots(): readonly SlotEntry[] {
+  function getSlots(): SlotEntry[] {
     return otp.getSlots()
   }
 
-  function getInputProps(slotIndex: number): InputProps & FocusDataAttrs {
-    const s        = otp.getSnapshot()
+  function getInputProps(slotIndex: number): InputProps & { 'data-focus': 'true' | 'false' } {
+    const s        = otp.state
     const char     = s.slotValues[slotIndex] ?? ''
     const isFilled = char.length === 1
     return {
       value:     char,
       onInput:   (c) => { otp.insert(c, slotIndex); sync() },
       onKeyDown: (key) => {
-        const result = handleOTPKeyAction(otp, {
-          key,
-          position: slotIndex,
-          length,
-          readOnly: isReadOnly,
-        })
-        if (result.handled) sync(!result.valueChanged)
+        if (key === 'Backspace')       { otp.delete(slotIndex); sync() }
+        else if (key === 'Delete')     { otp.clear(slotIndex); sync() }
+        else if (key === 'ArrowLeft')  { otp.move(slotIndex - 1); sync() }
+        else if (key === 'ArrowRight') { otp.move(slotIndex + 1); sync() }
       },
       onFocus: () => { isFocused = true; otp.move(slotIndex); sync(); onFocusProp?.() },
       onBlur:  () => { isFocused = false; onBlurProp?.() },
       'data-slot':     slotIndex,
-      'data-active':   boolAttr(s.activeSlot === slotIndex),
-      'data-focus':    boolAttr(isFocused),
-      'data-filled':   boolAttr(isFilled),
-      'data-empty':    boolAttr(!isFilled),
-      'data-complete': boolAttr(s.isComplete),
-      'data-invalid':  boolAttr(s.hasError),
-      'data-success':  boolAttr(s.hasSuccess),
-      'data-disabled': boolAttr(s.isDisabled),
+      'data-active':   b(s.activeSlot === slotIndex),
+      'data-focus':    b(isFocused),
+      'data-filled':   b(isFilled),
+      'data-empty':    b(!isFilled),
+      'data-complete': b(s.isComplete),
+      'data-invalid':  b(s.hasError),
+      'data-success':  b(s.hasSuccess),
+      'data-disabled': b(s.isDisabled),
       // Use the live `isReadOnly` closure variable (updated by setReadOnly()) rather
       // than the initial `readOnlyOpt` option value so that runtime calls to
       // setReadOnly() are correctly reflected in data-readonly.
-      'data-readonly': boolAttr(isReadOnly),
-      'data-first':    boolAttr(slotIndex === 0),
-      'data-last':     boolAttr(slotIndex === length - 1),
+      'data-readonly': b(isReadOnly),
+      'data-first':    b(slotIndex === 0),
+      'data-last':     b(slotIndex === length - 1),
     }
   }
 
   // Derived stores
-  const value      = derived(store, ($s: OTPStateSnapshot) => $s.slotValues.join(''))
-  const isComplete = derived(store, ($s: OTPStateSnapshot) => $s.isComplete)
-  const hasError   = derived(store, ($s: OTPStateSnapshot) => $s.hasError)
-  const hasSuccess = derived(store, ($s: OTPStateSnapshot) => $s.hasSuccess)
-  const activeSlot = derived(store, ($s: OTPStateSnapshot) => $s.activeSlot)
-  const slots      = derived(store, ($s: OTPStateSnapshot) => $s.slotValues.map((value, index) => ({
+  const value      = derived(store, ($s: OTPState) => $s.slotValues.join(''))
+  const isComplete = derived(store, ($s: OTPState) => $s.isComplete)
+  const hasError   = derived(store, ($s: OTPState) => $s.hasError)
+  const hasSuccess = derived(store, ($s: OTPState) => $s.hasSuccess)
+  const activeSlot = derived(store, ($s: OTPState) => $s.activeSlot)
+  const slots      = derived(store, ($s: OTPState) => $s.slotValues.map((value, index) => ({
     index,
     value,
     isActive: $s.activeSlot === index,
@@ -571,7 +586,7 @@ export function useOTP(options: SvelteOTPOptions = {}): UseOTPResult {
   // booleans changes — not on every slot value or cursor move.
   const wrapperAttrs = derived(
     [isComplete, hasError, hasSuccess, isDisabledStore, isReadOnlyStore],
-    ([$complete, $error, $success, $dis, $ro]): WrapperDataAttrs => ({
+    ([$complete, $error, $success, $dis, $ro]) => ({
       ...($complete ? { 'data-complete': '' } : {}),
       ...($error    ? { 'data-invalid':  '' } : {}),
       ...($success  ? { 'data-success':  '' } : {}),
@@ -602,7 +617,6 @@ export function useOTP(options: SvelteOTPOptions = {}): UseOTPResult {
     getSlots,
     getInputProps,
     reset,
-    resend,
     setError,
     setSuccess,
     setDisabled,

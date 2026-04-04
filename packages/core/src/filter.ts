@@ -2,80 +2,12 @@
  * verino/core/filter
  * ─────────────────────────────────────────────────────────────────────────────
  * Character filtering utilities — exported for use by all adapters.
+ *
+ * @author  Olawale Balo — Product Designer + Design Engineer
+ * @license MIT
  */
 
 import type { InputType } from './types.js'
-
-export const INPUT_TYPES = ['numeric', 'alphabet', 'alphanumeric', 'any'] as const
-const INPUT_TYPE_SET = new Set<string>(INPUT_TYPES)
-
-function parseInteger(
-  value: unknown,
-  fallback: number,
-  min = Number.NEGATIVE_INFINITY,
-  max = Number.POSITIVE_INFINITY,
-): number {
-  const parsed = typeof value === 'number'
-    ? value
-    : typeof value === 'string'
-      ? Number.parseInt(value, 10)
-      : Number.NaN
-
-  if (Number.isNaN(parsed)) return fallback
-  return Math.min(max, Math.max(min, Math.floor(parsed)))
-}
-
-/** Runtime guard for external values that claim to be an InputType. */
-export function isInputType(value: unknown): value is InputType {
-  return typeof value === 'string' && INPUT_TYPE_SET.has(value)
-}
-
-/** Parse a runtime value into a supported InputType, falling back safely. */
-export function parseInputType(value: unknown, fallback: InputType = 'numeric'): InputType {
-  return isInputType(value) ? value : fallback
-}
-
-/** Parse a boolean-ish runtime value safely, preserving an explicit fallback. */
-export function parseBooleanish(value: unknown, fallback: boolean): boolean {
-  if (typeof value === 'boolean') return value
-  if (typeof value === 'string') {
-    const normalized = value.trim().toLowerCase()
-    if (normalized === '' || normalized === 'true') return true
-    if (normalized === 'false') return false
-  }
-  if (typeof value === 'number') return value !== 0
-  return fallback
-}
-
-/**
- * Parse `separatorAfter` values from numbers, arrays, or comma-separated strings.
- * Returns a single number for single-position inputs and an array for multi-position inputs.
- */
-export function parseSeparatorAfter(
-  value: unknown,
-  fallback: number | number[] = 0,
-): number | number[] {
-  if (value === null || value === undefined || value === '') return fallback
-
-  if (Array.isArray(value)) {
-    const parsed = value
-      .map((entry) => parseInteger(entry, Number.NaN, 1))
-      .filter((entry) => !Number.isNaN(entry))
-    return parsed.length > 0 ? parsed : fallback
-  }
-
-  if (typeof value === 'string' && value.includes(',')) {
-    const parsed = value
-      .split(',')
-      .map((entry) => parseInteger(entry.trim(), Number.NaN, 1))
-      .filter((entry) => !Number.isNaN(entry))
-    return parsed.length > 0 ? parsed : fallback
-  }
-
-  const n = parseInteger(value, Number.NaN)
-  if (Number.isNaN(n) || n < 1) return fallback
-  return n
-}
 
 /**
  * Returns `char` unchanged if it is valid for `type` (and optional `pattern`),

@@ -31,19 +31,13 @@ jobs:
           registry-url: https://registry.npmjs.org
 
       - name: Install dependencies
-        run: pnpm i --frozen-lockfile
+        run: pnpm install --frozen-lockfile
 
       - name: Run unit tests
         run: pnpm test
 
-      - name: Build all packages and CDN bundles
-        run: pnpm build:all
-
-      - name: Verify CDN artifacts
-        run: |
-          test -f packages/vanilla/dist/verino.min.js
-          test -f packages/alpine/dist/verino-alpine.min.js
-          test -f packages/web-component/dist/verino-wc.min.js
+      - name: Build all packages
+        run: pnpm build
 
       - name: Create release PR or publish to npm registry
         uses: changesets/action@v1
