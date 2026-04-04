@@ -21,7 +21,7 @@ import type { OTPEvent, OTPStateSnapshot, StateListener } from '../types.js'
  * @returns `void` — result of `navigator.vibrate` is intentionally discarded.
  */
 export function triggerHapticFeedback(): void {
-  try { navigator?.vibrate?.(10) } catch { /* not supported — fail silently */ }
+  try { (globalThis as any).navigator?.vibrate?.(10) } catch { /* not supported — fail silently */ }
 }
 
 const TONE_FREQUENCY_HZ = 880
