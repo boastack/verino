@@ -1845,6 +1845,7 @@ describe('subscribeFeedback', () => {
     })
     Object.defineProperty(globalThis, 'AudioContext', {
       configurable: true,
+      writable: true,
       value: originalAudioContext,
     })
   })
@@ -2018,6 +2019,7 @@ describe('triggerHapticFeedback', () => {
     Object.defineProperty(global, 'navigator', {
       value: { vibrate },
       configurable: true,
+      writable: true,
     })
     triggerHapticFeedback()
     expect(vibrate).toHaveBeenCalledWith(10)
@@ -2027,6 +2029,7 @@ describe('triggerHapticFeedback', () => {
     Object.defineProperty(global, 'navigator', {
       value: {},
       configurable: true,
+      writable: true,
     })
     expect(() => triggerHapticFeedback()).not.toThrow()
   })
@@ -2035,6 +2038,7 @@ describe('triggerHapticFeedback', () => {
     Object.defineProperty(global, 'navigator', {
       value: undefined,
       configurable: true,
+      writable: true,
     })
     expect(() => triggerHapticFeedback()).not.toThrow()
   })
@@ -2072,6 +2076,7 @@ describe('triggerSoundFeedback', () => {
     const originalAudioContext = (globalThis as { AudioContext?: typeof AudioContext }).AudioContext
     Object.defineProperty(globalThis, 'AudioContext', {
       configurable: true,
+      writable: true,
       value: MockAudioContext,
     })
 
@@ -2088,6 +2093,7 @@ describe('triggerSoundFeedback', () => {
 
     Object.defineProperty(globalThis, 'AudioContext', {
       configurable: true,
+      writable: true,
       value: originalAudioContext,
     })
   })
@@ -2096,11 +2102,13 @@ describe('triggerSoundFeedback', () => {
     const originalAudioContext = (globalThis as { AudioContext?: typeof AudioContext }).AudioContext
     Object.defineProperty(globalThis, 'AudioContext', {
       configurable: true,
+      writable: true,
       value: undefined,
     })
     expect(() => triggerSoundFeedback()).not.toThrow()
     Object.defineProperty(globalThis, 'AudioContext', {
       configurable: true,
+      writable: true,
       value: originalAudioContext,
     })
   })
