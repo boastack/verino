@@ -3,9 +3,6 @@
  * ─────────────────────────────────────────────────────────────────────────────
  * Standalone countdown timer — re-exported from core for use by adapters and
  * developers who want to drive their own timer UI.
- *
- * @author  Olawale Balo — Product Designer + Design Engineer
- * @license MIT
  */
 
 import type { TimerOptions, TimerControls } from './types.js'
@@ -34,7 +31,13 @@ import type { TimerOptions, TimerControls } from './types.js'
  * ```
  */
 export function createTimer(options: TimerOptions): TimerControls {
-  const { totalSeconds, onTick, onExpire } = options
+  const {
+    totalSeconds,
+    onTick,
+    onExpire,
+    emitInitialTickOnStart   = false,
+    emitInitialTickOnRestart = emitInitialTickOnStart,
+  } = options
 
   let remainingSeconds = totalSeconds
   let intervalId: ReturnType<typeof setInterval> | null = null
@@ -53,19 +56,8 @@ export function createTimer(options: TimerOptions): TimerControls {
     remainingSeconds = totalSeconds
   }
 
-  /**
-   * Start ticking. Stops any existing interval first to prevent double-ticking.
-   * If `totalSeconds <= 0`, fires `onExpire` immediately without creating an interval.
-   */
-  function start(): void {
-    stop()
-    // Guard: if totalSeconds is zero or negative, fire onExpire immediately
-    // without starting an interval. Without this, the first tick would decrement
-    // to -1 and pass an invalid value to onTick before calling onExpire.
-    if (totalSeconds <= 0) {
-      onExpire?.()
-      return
-    }
+  /** Begin the interval without touching `remainingSeconds` or stopping first. */
+  function beginInterval(): void {
     intervalId = setInterval(() => {
       remainingSeconds -= 1
       onTick?.(remainingSeconds)
@@ -76,10 +68,25 @@ export function createTimer(options: TimerOptions): TimerControls {
     }, 1000)
   }
 
+  /**
+   * Start ticking. Stops any existing interval first to prevent double-ticking.
+   * If `totalSeconds <= 0`, fires `onExpire` immediately without creating an interval.
+   * When `emitInitialTickOnStart` is true, fires `onTick(totalSeconds)` synchronously
+   * before the first interval tick.
+   */
+  function start(): void {
+    stop()
+    if (totalSeconds <= 0) { onExpire?.(); return }
+    if (emitInitialTickOnStart) onTick?.(totalSeconds)
+    beginInterval()
+  }
+
   /** Reset to `totalSeconds` and immediately start ticking. */
   function restart(): void {
     reset()
-    start()
+    if (totalSeconds <= 0) { onExpire?.(); return }
+    if (emitInitialTickOnRestart) onTick?.(totalSeconds)
+    beginInterval()
   }
 
   return { start, stop, reset, restart }

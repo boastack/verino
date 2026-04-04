@@ -11,7 +11,17 @@
   <script type="importmap">
   {
     "imports": {
-      "@verino/core": "../packages/core/dist/index.js"
+      "@verino/core": "../packages/core/dist/index.js",
+      "@verino/core/filter": "../packages/core/dist/filter.js",
+      "@verino/core/machine": "../packages/core/dist/machine.js",
+      "@verino/core/timer": "../packages/core/dist/timer.js",
+      "@verino/core/toolkit": "../packages/core/dist/toolkit/index.js",
+      "@verino/core/toolkit/controller": "../packages/core/dist/toolkit/controller.js",
+      "@verino/core/toolkit/adapter-policy": "../packages/core/dist/toolkit/adapter-policy.js",
+      "@verino/core/toolkit/timer-policy": "../packages/core/dist/toolkit/timer-policy.js",
+      "@verino/core/toolkit/feedback": "../packages/core/dist/toolkit/feedback.js",
+      "@verino/core/toolkit/password-manager": "../packages/core/dist/toolkit/password-manager.js",
+      "@verino/alpine": "../packages/alpine/dist/index.js"
     }
   }
   </script>
@@ -217,7 +227,7 @@
   <!-- JavaScript -->
   <script type="module">
     import Alpine from 'https://esm.sh/alpinejs@3?bundle'
-    import { VerinoAlpine } from '../packages/alpine/dist/index.js'
+    import { VerinoAlpine } from '@verino/alpine'
 
     Alpine.plugin(VerinoAlpine)
 

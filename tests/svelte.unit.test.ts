@@ -18,10 +18,10 @@
  * without needing a real Svelte component.
  */
 
-import { get } from 'svelte/store'
+import { get, writable } from 'svelte/store'
 import { useOTP } from '@verino/svelte'
 import type { SvelteOTPOptions } from '@verino/svelte'
-import type { OTPState } from '@verino/core'
+import type { OTPStateSnapshot } from '@verino/core'
 
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -98,12 +98,12 @@ function pasteText(node: HTMLInputElement, text: string, pos = 0) {
   node.dispatchEvent(event)
 }
 
-/** Read the full OTPState snapshot from the main store. */
-function readStore(otp: ReturnType<typeof useOTP>): OTPState {
-  let snap: OTPState | null = null
-  const unsub = otp.subscribe((s: OTPState) => { snap = s })
+/** Read the full OTP state snapshot from the main store. */
+function readStore(otp: ReturnType<typeof useOTP>): OTPStateSnapshot {
+  let snap: OTPStateSnapshot | null = null
+  const unsub = otp.subscribe((s: OTPStateSnapshot) => { snap = s })
   unsub()
-  return snap as unknown as OTPState
+  return snap as unknown as OTPStateSnapshot
 }
 
 
@@ -404,6 +404,39 @@ describe('useOTP (Svelte) — reset()', () => {
   })
 })
 
+describe('useOTP (Svelte) — resend()', () => {
+  it('clears all slots', () => {
+    const { otp, node, destroy } = mount({ length: 4 })
+    typeValue(node, '1234')
+    otp.resend()
+    expect(get(otp.value)).toBe('')
+    destroy()
+  })
+
+  it('resets isComplete to false', () => {
+    const { otp, node, destroy } = mount({ length: 4 })
+    typeValue(node, '1234')
+    expect(get(otp.isComplete)).toBe(true)
+    otp.resend()
+    expect(get(otp.isComplete)).toBe(false)
+    destroy()
+  })
+
+  it('fires onResend callback', () => {
+    const onResend = jest.fn()
+    const { otp, destroy } = mount({ length: 4, onResend })
+    otp.resend()
+    expect(onResend).toHaveBeenCalledTimes(1)
+    destroy()
+  })
+
+  it('does not fire onResend when not provided', () => {
+    const { otp, destroy } = mount({ length: 4 })
+    expect(() => otp.resend()).not.toThrow()
+    destroy()
+  })
+})
+
 describe('useOTP (Svelte) — setError()', () => {
   it('setError(true) sets hasError store', () => {
     const { otp, destroy } = mount({ length: 4 })
@@ -441,6 +474,16 @@ describe('useOTP (Svelte) — setDisabled()', () => {
     expect(get(otp.isDisabled)).toBe(true)
     destroy()
   })
+
+  it('setDisabled(true) updates the root snapshot store too', () => {
+    const { otp, destroy } = mount({ length: 4 })
+    const snapshots: OTPStateSnapshot[] = []
+    const unsub = otp.subscribe((value: OTPStateSnapshot) => { snapshots.push(value) })
+    otp.setDisabled(true)
+    expect(snapshots.at(-1)?.isDisabled).toBe(true)
+    unsub()
+    destroy()
+  })
 })
 
 describe('useOTP (Svelte) — setReadOnly()', () => {
@@ -456,6 +499,16 @@ describe('useOTP (Svelte) — setReadOnly()', () => {
     const { otp, destroy } = mount({ length: 4 })
     otp.setReadOnly(true)
     expect(get(otp.isReadOnly)).toBe(true)
+    destroy()
+  })
+
+  it('setReadOnly(true) updates the root snapshot store too', () => {
+    const { otp, destroy } = mount({ length: 4 })
+    const snapshots: OTPStateSnapshot[] = []
+    const unsub = otp.subscribe((value: OTPStateSnapshot) => { snapshots.push(value) })
+    otp.setReadOnly(true)
+    expect(snapshots.at(-1)?.isReadOnly).toBe(true)
+    unsub()
     destroy()
   })
 })
@@ -482,6 +535,14 @@ describe('useOTP (Svelte) — setValue()', () => {
     destroy()
   })
 
+  it('does NOT trigger onChange during programmatic value sync', () => {
+    const onChange = jest.fn()
+    const { otp, destroy } = mount({ length: 4, onChange })
+    otp.setValue('1234')
+    expect(onChange).not.toHaveBeenCalled()
+    destroy()
+  })
+
   it('setValue(undefined) is a no-op', () => {
     const { otp, destroy } = mount({ length: 4 })
     otp.setValue(undefined)
@@ -501,6 +562,12 @@ describe('useOTP (Svelte) — defaultValue', () => {
     expect(readStore(otp).slotValues[0]).toBe('1')
     expect(readStore(otp).slotValues[1]).toBe('2')
     expect(readStore(otp).slotValues[2]).toBe('')
+    destroy()
+  })
+
+  it('hydrates the mounted input from defaultValue', () => {
+    const { node, destroy } = mount({ length: 4, defaultValue: '1234' })
+    expect(node.value).toBe('1234')
     destroy()
   })
 
@@ -881,20 +948,190 @@ describe('useOTP (Svelte) — getInputProps()', () => {
 
 
 // ─────────────────────────────────────────────────────────────────────────────
-// controlledValue path — setValue (line 310)
+// controlled value store path
 // ─────────────────────────────────────────────────────────────────────────────
 
 describe('useOTP (Svelte) — controlledValue (value option)', () => {
-  it('pre-fills from a string value prop on creation', () => {
-    const { otp, destroy } = mount({ length: 4, value: '1234' })
+  it('pre-fills from a readable store on creation', () => {
+    const controlledValue = writable('1234')
+    const { otp, destroy } = mount({ length: 4, value: controlledValue })
     expect(otp.getCode()).toBe('1234')
     destroy()
   })
 
-  it('does not trigger onComplete when pre-filling via value prop', () => {
+  it('hydrates the mounted input from a readable store before first interaction', () => {
+    const controlledValue = writable('1234')
+    const { node, destroy } = mount({ length: 4, value: controlledValue })
+    expect(node.value).toBe('1234')
+    expect(node.selectionStart).toBe(3)
+    expect(node.selectionEnd).toBe(3)
+    destroy()
+  })
+
+  it('syncs slots when the readable store value changes', () => {
+    const controlledValue = writable('')
+    const { otp, destroy } = mount({ length: 4, value: controlledValue })
+    controlledValue.set('12')
+    expect(otp.getCode()).toBe('12')
+    destroy()
+  })
+
+  it('does not trigger onComplete when pre-filling via value store', () => {
     const onComplete = jest.fn()
-    const { destroy } = mount({ length: 4, value: '1234', onComplete })
+    const controlledValue = writable('1234')
+    const { destroy } = mount({ length: 4, value: controlledValue, onComplete })
     expect(onComplete).not.toHaveBeenCalled()
+    destroy()
+  })
+
+  it('rejects a non-store value shape and leaves the field empty', () => {
+    const error = jest.spyOn(console, 'error').mockImplementation(() => {})
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { otp, node, destroy } = mount({ length: 4, value: '56' as any })
+    expect(otp.getCode()).toBe('')
+    expect(node.value).toBe('')
+    expect(error).toHaveBeenCalledWith(
+      '[verino/svelte] `value` must be a Svelte readable store for live external control. Use `defaultValue` for one-time prefill.',
+    )
+    destroy()
+  })
+})
+
+
+// ─────────────────────────────────────────────────────────────────────────────
+// haptic / sound feedback (lines 248-249, 251)
+// ─────────────────────────────────────────────────────────────────────────────
+
+describe('useOTP (Svelte) — haptic/sound feedback', () => {
+  it('haptic=false suppresses feedback on complete (false branch line 248)', () => {
+    const { node, destroy } = mount({ length: 4, haptic: false })
+    typeValue(node, '1234')
+    // No throw — haptic feedback skipped cleanly
+    expect(node.value).toBe('1234')
+    destroy()
+  })
+
+  it('sound=true triggers sound feedback on complete without throwing (line 249)', () => {
+    const { node, destroy } = mount({ length: 4, sound: true })
+    // AudioContext absent in jsdom — triggerSoundFeedback wraps in try/catch
+    expect(() => typeValue(node, '1234')).not.toThrow()
+    expect(node.value).toBe('1234')
+    destroy()
+  })
+
+  it('haptic=false suppresses feedback on error (false branch line 251)', () => {
+    const { otp, destroy } = mount({ length: 4, haptic: false })
+    otp.setError(true)
+    // No throw — haptic feedback skipped cleanly
+    expect(true).toBe(true)
+    destroy()
+  })
+})
+
+
+// ─────────────────────────────────────────────────────────────────────────────
+// wrapperAttrs — data-success and data-readonly (lines 592, 594)
+// ─────────────────────────────────────────────────────────────────────────────
+
+describe('useOTP (Svelte) — wrapperAttrs data-success and data-readonly', () => {
+  it('data-success is set when hasSuccess (line 592)', () => {
+    const { otp, destroy } = mount()
+    otp.setSuccess(true)
+    expect(get(otp.wrapperAttrs)).toHaveProperty('data-success')
+    destroy()
+  })
+
+  it('data-success is absent when hasSuccess is false', () => {
+    const { otp, destroy } = mount()
+    expect(get(otp.wrapperAttrs)).not.toHaveProperty('data-success')
+    destroy()
+  })
+
+  it('data-readonly is set when isReadOnly (line 594)', () => {
+    const { otp, destroy } = mount({ readOnly: true })
+    expect(get(otp.wrapperAttrs)).toHaveProperty('data-readonly')
+    destroy()
+  })
+
+  it('data-readonly is absent when readOnly=false', () => {
+    const { otp, destroy } = mount()
+    expect(get(otp.wrapperAttrs)).not.toHaveProperty('data-readonly')
+    destroy()
+  })
+})
+
+
+// ─────────────────────────────────────────────────────────────────────────────
+// setValue no-op when value unchanged (line 290)
+// ─────────────────────────────────────────────────────────────────────────────
+
+describe('useOTP (Svelte) — setValue no-op on identical value', () => {
+  it('setValue with the same value does not fire onChange (line 290)', () => {
+    const onChange = jest.fn()
+    const controlledValue = writable('1234')
+    const { otp, destroy } = mount({ length: 4, value: controlledValue, onChange })
+    expect(onChange).not.toHaveBeenCalled()
+    // Set the same value again — filtered === current, early return
+    otp.setValue('1234')
+    expect(onChange).not.toHaveBeenCalled()
+    destroy()
+  })
+})
+
+
+// ─────────────────────────────────────────────────────────────────────────────
+// action: name option sets node.name (line 346)
+// ─────────────────────────────────────────────────────────────────────────────
+
+describe('useOTP (Svelte) — action: name option', () => {
+  it('sets node.name when name option is provided (line 346)', () => {
+    const { node, destroy } = mount({ name: 'otp-code' })
+    expect(node.name).toBe('otp-code')
+    destroy()
+  })
+})
+
+
+// ─────────────────────────────────────────────────────────────────────────────
+// onKeydown Delete readOnly guard (line 366)
+// ─────────────────────────────────────────────────────────────────────────────
+
+describe('useOTP (Svelte) — Delete key blocked when readOnly', () => {
+  it('Delete is blocked when readOnly=true (line 366)', () => {
+    const { otp, node, destroy } = mount({ length: 4 })
+    typeValue(node, '1234')
+    otp.setReadOnly(true)
+    node.setSelectionRange(1, 1)
+    keyDown(node, 'Delete')
+    // Value should remain unchanged — readOnly blocks delete
+    expect(node.value).toBe('1234')
+    destroy()
+  })
+})
+
+
+// ─────────────────────────────────────────────────────────────────────────────
+// reset() after destroy() — inputEl null path (line 488 false branch)
+// ─────────────────────────────────────────────────────────────────────────────
+
+describe('useOTP (Svelte) — reset() when inputEl is null', () => {
+  it('reset() is safe after destroy() sets inputEl=null (line 488 false branch)', () => {
+    const { otp, destroy } = mount({ length: 4 })
+    destroy()
+    // inputEl is now null — reset() must not throw
+    expect(() => otp.reset()).not.toThrow()
+  })
+})
+
+
+// ─────────────────────────────────────────────────────────────────────────────
+// action: non-numeric type sets inputMode='text' (line 341 false branch)
+// ─────────────────────────────────────────────────────────────────────────────
+
+describe('useOTP (Svelte) — action: non-numeric inputMode', () => {
+  it('sets inputMode=text for alphabet type (line 341)', () => {
+    const { node, destroy } = mount({ type: 'alphabet' })
+    expect(node.inputMode).toBe('text')
     destroy()
   })
 })

@@ -5,13 +5,13 @@
 <h1 align="center">@verino/vanilla</h1>
 
 <h3 align="center">
-  Vanilla DOM adapter for <a href="https://github.com/boastack/verino">verino</a>. Build reliable OTP inputs with no framework.
+  Vanilla JS adapter for <a href="https://github.com/boastack/verino">Verino</a>. Reliable OTP inputs from a single core.
 </h3>
 
 <p align="center">
   <a href="https://verino.vercel.app"><img src="https://img.shields.io/badge/verino.vercel.app-live-20C55C" alt="Live demo" /></a>&nbsp;
   <a href="https://www.npmjs.com/package/@verino/vanilla"><img src="https://img.shields.io/npm/v/@verino/vanilla?color=20C55C&label=%40verino%2Fvanilla" alt="npm version" /></a>&nbsp;
-  <a href="https://bundlephobia.com/package/@verino/vanilla"><img src="https://img.shields.io/bundlephobia/minzip/@verino/vanilla?color=20C55C&label=gzip" alt="gzip size" /></a>&nbsp;
+  <a href="https://bundlephobia.com/package/@verino/vanilla"><img src="https://img.shields.io/bundlephobia/minzip/@verino/vanilla?color=20C55C&label=gzip+size" alt="gzip size" /></a>&nbsp;
   <img src="https://img.shields.io/badge/dependencies-0-20C55C" alt="Zero dependencies" />&nbsp;
   <a href="https://www.typescriptlang.org"><img src="https://img.shields.io/badge/TypeScript-strict-20C55C" alt="TypeScript" /></a>
 </p>
@@ -45,7 +45,7 @@ The adapter includes three tree-shakeable plugins as separate entry points. Impo
 
 ```bash
 # npm
-npm install @verino/vanilla
+npm i @verino/vanilla
 
 # pnpm
 pnpm add @verino/vanilla
@@ -105,6 +105,8 @@ The IIFE bundle exposes `window.Verino`. Call `Verino.init(...)` directly.
 ---
 
 ## Usage
+
+`haptic` and `sound` are mount-configured in the vanilla adapter. If you need to change feedback behavior at runtime, destroy and re-initialise the instance with the new options.
 
 ### Async verification
 
@@ -233,6 +235,7 @@ Set on the wrapper element as boolean presence attributes (no value):
 | `data-success` | Success state is active |
 | `data-disabled` | Field is disabled |
 | `data-readonly` | Field is read-only |
+
 
 ```css
 /* Slot-level — scope to your field with an id or class prefix */
@@ -380,7 +383,7 @@ All `OTPOptions` from `@verino/core`, plus:
 
 ## Integration with Core
 
-`@verino/vanilla` calls `createOTP()` from `@verino/core` internally. All character filtering, cursor logic, paste normalisation, timer management, and event routing live in core. The vanilla adapter only handles DOM construction, attribute management, and plugin lifecycle.
+`@verino/vanilla` calls `createOTP()` from `@verino/core` internally. Character filtering, cursor logic, paste normalization, and event routing live in core; countdown, feedback, scheduling, and toolkit helpers come from `@verino/core/toolkit`. The vanilla adapter handles DOM construction, attribute management, and plugin lifecycle.
 
 See the [`@verino/core` README](https://github.com/boastack/verino/blob/main/packages/core/README.md) for the full state machine and event reference.
 
@@ -393,7 +396,7 @@ This package lives in the [verino monorepo](https://github.com/boastack/verino).
 ```bash
 # Clone and install
 git clone https://github.com/boastack/verino.git
-cd verino && pnpm install
+cd verino && pnpm i
 
 # Run before opening a PR
 pnpm --filter @verino/vanilla build && pnpm test
@@ -405,9 +408,9 @@ pnpm --filter @verino/vanilla build && pnpm test
 
 | Package | Purpose |
 |---|---|
-| [`@verino/core`](https://www.npmjs.com/package/@verino/core) | Pure OTP state machine — zero DOM, zero framework |
+| [`@verino/core`](https://www.npmjs.com/package/@verino/core) | OTP state machine + toolkit |
 | [`@verino/react`](https://www.npmjs.com/package/@verino/react) | `useOTP` hook + `HiddenOTPInput` component (React ≥ 18) |
-| [`@verino/vue`](https://www.npmjs.com/package/@verino/vue) | `useOTP` composable with `Ref<T>` reactive state (Vue ≥ 3) |
+| [`@verino/vue`](https://www.npmjs.com/package/@verino/vue) | `useOTP` composable with reactive Vue refs (Vue ≥ 3) |
 | [`@verino/svelte`](https://www.npmjs.com/package/@verino/svelte) | `useOTP` store + `use:action` directive (Svelte ≥ 4) |
 | [`@verino/alpine`](https://www.npmjs.com/package/@verino/alpine) | `VerinoAlpine` plugin — `x-verino` directive (Alpine.js ≥ 3) |
 | [`@verino/web-component`](https://www.npmjs.com/package/@verino/web-component) | `<verino-input>` Shadow DOM custom element |

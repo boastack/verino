@@ -7,29 +7,44 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
-## [1.0.0] - 2026-04-01
+## [2.0.0] - 2026-04-04
+
+### Breaking Changes
+
+- `@verino/core` — `OTPState` type has been removed. Replace all references with `OTPStateSnapshot`.
+- `@verino/core` — `otp.state` now returns a new isolated snapshot on every read instead of a shared mutable reference. Code that cached `const s = otp.state` and expected it to reflect subsequent mutations will break — read `otp.state` fresh on each access, or use `otp.subscribe` to react to changes.
+- All adapters — `onTick` now fires immediately on mount and after every `reset()` with the full remaining seconds, not only on each decrement. Remove any code that manually sets the initial timer display — the first `onTick` call handles it.
 
 ### Added
 
-- `initOTP(target, options?)` — mounts a fully accessible OTP field into any CSS selector or DOM element. Returns `VerinoInstance[]` — one instance per matched element.
-- `VerinoInstance` API: `reset()`, `resend()`, `setError(bool)`, `setSuccess(bool)`, `setDisabled(bool)`, `setReadOnly(bool)`, `getCode()`, `focus(slotIndex?)`, `destroy()`.
-- Single hidden-input pattern — one transparent `<input>` overlays visual slot `<div>` elements. SMS autofill (`autocomplete="one-time-code"`), password managers, screen readers, and IME all target the real input natively.
-- Full `data-*` attribute system on every slot div: `data-active`, `data-focus`, `data-filled`, `data-empty`, `data-complete`, `data-invalid`, `data-success`, `data-disabled`, `data-readonly`, `data-masked`, `data-first`, `data-last`, `data-slot` (zero-based index string).
-- Wrapper-level boolean presence attributes (`data-complete`, `data-invalid`, `data-success`, `data-disabled`, `data-readonly`) for container-scoped CSS selectors.
-- CSS custom properties on `.verino-wrapper`: `--verino-size`, `--verino-gap`, `--verino-radius`, `--verino-font-size`, `--verino-bg`, `--verino-bg-filled`, `--verino-color`, `--verino-border-color`, `--verino-active-color`, `--verino-error-color`, `--verino-success-color`, `--verino-caret-color`, `--verino-placeholder-color`, `--verino-placeholder-size`, `--verino-separator-color`, `--verino-separator-size`, `--verino-masked-size`.
-- `separatorAfter` option — inserts a `.verino-separator` element after the specified slot index or indices.
-- `masked` and `maskChar` options — renders a glyph (default `●`) in filled slots; sets `type="password"` on the hidden input for secure mobile keyboards.
-- `onChange(code)` callback — fires on every user interaction (INPUT, DELETE, CLEAR, PASTE).
-- `resendAfter` option (default `30`) — cooldown in seconds before the resend button re-enables after being clicked.
-- Plugin system — `VerinoPlugin` contract (`{ name, install(ctx) → cleanup }`); installed plugins run their cleanup functions inside `instance.destroy()`.
-- `timerUIPlugin` — renders a live `.verino-timer-badge` countdown and a `.verino-resend-btn` resend button as siblings of the wrapper; countdown restarts automatically when `reset()` or `resend()` is called.
-- `webOTPPlugin` — intercepts incoming SMS OTPs via `navigator.credentials.get` and fills all slots automatically; aborts cleanly on `destroy()`.
-- `pmGuardPlugin` — detects and repositions credential badge overlays injected by LastPass, 1Password, Dashlane, Bitwarden, and Keeper; uses a `MutationObserver` that is disconnected on `destroy()`.
-- `data-*` attribute initialisation from HTML attributes on the wrapper element: `data-length`, `data-type`, `data-timer`, `data-resend`, `data-separator-after`, `data-separator`, `data-masked`, `data-mask-char`, `data-placeholder`, `data-name`.
-- CDN IIFE bundle at `dist/verino.min.js` — exposes `window.Verino` with `init`, `createOTP`, `filterChar`, `filterString`, `formatCountdown`. Call `Verino.init(...)` directly from a `<script>` tag.
-- Full TypeScript types: `VanillaOTPOptions`, `VerinoInstance`, `VerinoPlugin`, `VerinoPluginContext`, `VerinoWrapper`.
+- `@verino/core` — `@verino/core/toolkit` subpath export; provides `triggerHapticFeedback`, `triggerSoundFeedback`, `createResendTimer`, password-manager badge helpers, and shared input controller primitives for building custom adapters.
+- `@verino/core` — `createTimer` accepts `emitInitialTickOnStart` and `emitInitialTickOnRestart` boolean options. When enabled, `onTick` fires synchronously on `start()` and `restart()` with the full `totalSeconds` — eliminating the one-second blank delay at timer start.
+- `@verino/react` — `resend()` method on `UseOTPResult`; clears the field, restarts the timer, and fires `onResend`. Accepts `onResend` callback in `ReactOTPOptions`.
+- `@verino/vue` — `resend()` method on `UseOTPResult`; accepts `onResend` in `VueOTPOptions`.
+- `@verino/svelte` — `resend()` method on `UseOTPResult`; accepts `onResend` in `SvelteOTPOptions`.
+- `@verino/web-component` — `resend()` DOM method; `id-base` HTML attribute for setting a deterministic ID prefix on SSR-rendered pages.
+
+### Fixed
+
+- `@verino/core` — `parseSeparatorAfter` accepted `0` as a valid separator index on the single-value path, producing a separator before the first slot. Now consistently rejects any value less than `1`, matching the array path behaviour.
+- `@verino/core` — Duplicate `idBase` values across simultaneously mounted instances now log a warning in development, preventing silent ARIA ID collisions.
+- `@verino/vanilla` — Calling `initOTP` on an element that already has a live instance now destroys the stale instance before mounting the new one, instead of silently leaving the old listeners and plugins active.
 
 ---
 
-[Unreleased]: https://github.com/boastack/verino/compare/@verino/vanilla@1.0.0...HEAD
-[1.0.0]: https://github.com/boastack/verino/releases/tag/%40verino%2Fvanilla%401.0.0
+## [1.0.0] - 2026-04-01
+
+Initial release.
+
+### Added
+
+- `initOTP(target, options?)` — mounts a fully accessible OTP field into any CSS selector or DOM element. Returns `VerinoInstance[]`, one per matched element.
+- Single hidden-input pattern — one transparent `<input>` overlays visual slot `<div>` elements so SMS autofill, password managers, screen readers, and IME all work natively.
+- Full `data-*` attribute system on slot divs and the wrapper element for CSS-driven state styling (active, filled, error, success, masked, and more).
+- Extensible plugin system — `VerinoPlugin` contract (`{ name, install(ctx) → cleanup }`); cleanup runs inside `instance.destroy()`.
+- `timerUIPlugin` (built-in) — renders countdown and resend row as siblings of the wrapper; restarts automatically on `reset()` or `resend()`.
+- `webOTPPlugin` (built-in) — fills slots from an incoming SMS OTP via `navigator.credentials.get`; aborts cleanly on `destroy()`.
+- `pmGuardPlugin` (built-in) — repositions credential badge overlays injected by password managers via `MutationObserver`; disconnects on `destroy()`.
+- Data-attribute initialization from HTML attributes on the wrapper (`data-length`, `data-type`, `data-timer`, etc.) — no JS required for basic configuration.
+- CSS custom properties on `.verino-wrapper` for zero-class theming (`--verino-size`, `--verino-gap`, `--verino-radius`, `--verino-error-color`, and more).
+- CDN IIFE bundle at `dist/verino.min.js` exposing `window.Verino`; use `Verino.init(...)` directly from a `<script>` tag.

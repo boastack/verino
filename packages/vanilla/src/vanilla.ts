@@ -23,19 +23,30 @@
  * Timer + Resend UI:
  *   Handled by the timerUIPlugin — see adapters/plugins/timer-ui.ts.
  *   Pass `onTick` to drive your own timer UI and suppress the built-in one.
- *
- * @author  Olawale Balo — Product Designer + Design Engineer
- * @license MIT
  */
 
 import {
-  createOTP,
-  filterString,
-  triggerHapticFeedback,
-  triggerSoundFeedback,
-  type OTPOptions,
-  type InputType,
+  type CoreOTPOptions,
+  type FeedbackOptions,
+  type FieldBehaviorOptions,
+  type ResendUIOptions,
+  type TimerUIOptions,
 } from '@verino/core'
+import { parseBooleanish, parseInputType, parseSeparatorAfter } from '@verino/core/filter'
+import { createOTP } from '@verino/core/machine'
+import {
+  applyPastedInput,
+  applyTypedInput,
+  clearOTPInput,
+  createFrameScheduler,
+  focusOTPInput,
+  handleOTPKeyAction,
+  scheduleFocusSync,
+  scheduleInputBlur,
+  syncInputValue,
+} from '@verino/core/toolkit/controller'
+import { seedProgrammaticValue } from '@verino/core/toolkit/adapter-policy'
+import { subscribeFeedback } from '@verino/core/toolkit/feedback'
 import { timerUIPlugin } from './plugins/timer-ui.js'
 import { webOTPPlugin }  from './plugins/web-otp.js'
 import { pmGuardPlugin } from './plugins/pm-guard.js'
@@ -149,10 +160,16 @@ function injectStylesOnce(): void {
 // ─────────────────────────────────────────────────────────────────────────────
 
 /**
- * Vanilla-only options that extend the core OTPOptions.
+ * Vanilla-only options that extend the shared adapter fragments.
  * These are not part of the shared adapter API.
  */
-export type VanillaOnlyOptions = OTPOptions & {
+export type VanillaOnlyOptions =
+  & CoreOTPOptions
+  & TimerUIOptions
+  & ResendUIOptions
+  & FeedbackOptions
+  & FieldBehaviorOptions
+  & {
   /**
    * Insert a purely visual separator after the Nth slot (1-based).
    * The separator is aria-hidden, never enters the value, and has no effect on state.
@@ -200,6 +217,20 @@ export type VanillaOnlyOptions = OTPOptions & {
  * @returns        Array of VerinoInstance objects, one per wrapper found.
  */
 export function initOTP(
+  target:  HTMLElement,
+  options?: VanillaOnlyOptions,
+): [VerinoInstance]
+export function initOTP(
+  target:  string,
+  options?: VanillaOnlyOptions,
+): VerinoInstance[]
+export function initOTP(
+): VerinoInstance[]
+export function initOTP(
+  target:  string | HTMLElement,
+  options?: VanillaOnlyOptions,
+): VerinoInstance[]
+export function initOTP(
   target:  string | HTMLElement = '.verino-wrapper',
   options: VanillaOnlyOptions = {},
 ): VerinoInstance[] {
@@ -230,11 +261,19 @@ function mountOnWrapper(
   wrapperEl: VerinoWrapper,
   options:   VanillaOnlyOptions,
 ): VerinoInstance {
-  // Guard against double-initialisation on the same element. Calling initOTP
-  // twice without destroy() would orphan the first instance's event listeners
-  // and timers. Warn and clean up the stale DOM before proceeding.
-  if (wrapperEl.querySelector('.verino-element')) {
-    console.warn('[verino] initOTP() called on an already-initialised wrapper — call instance.destroy() first to avoid leaks.')
+  // Guard against double-initialization on the same element. Reusing the same
+  // wrapper in HMR/modal flows should tear down the old instance first so
+  // timers, observers, and feedback subscriptions do not leak.
+  if (wrapperEl.__verinoInstance) {
+    const stale = wrapperEl.__verinoInstance
+    console.warn('[verino] double-init on same element — destroying previous instance.')
+    stale.destroy()
+    const staleRecord = stale as unknown as Record<string, unknown>
+    for (const key of Object.keys(staleRecord)) {
+      if (typeof staleRecord[key] === 'function') {
+        staleRecord[key] = () => console.warn(`[verino] "${key}" called on a destroyed instance.`)
+      }
+    }
   }
 
   // ── Config ───────────────────────────────────────────────────────────────
@@ -242,9 +281,13 @@ function mountOnWrapper(
     Math.max(1, options.length ?? (parseInt(wrapperEl.dataset.length ?? '6', 10) || 6)),
     20
   )
-  const inputType       = (options.type       ?? wrapperEl.dataset.type            ?? 'numeric') as InputType
-  const timerSeconds    = Math.min(Math.max(0, options.timer       ?? (parseInt(wrapperEl.dataset.timer  ?? '0',  10) || 0)), 3600)
-  const resendCooldown  = Math.min(Math.max(0, options.resendAfter ?? (parseInt(wrapperEl.dataset.resend ?? '30', 10) || 30)), 3600)
+  const inputType       = parseInputType(options.type ?? wrapperEl.dataset.type)
+  const timerSeconds = Math.min(3600, Math.max(0,
+    options.timer ?? (parseInt(wrapperEl.dataset.timer ?? '0', 10) || 0),
+  ))
+  const resendCooldown = Math.min(3600, Math.max(0,
+    options.resendAfter ?? (parseInt(wrapperEl.dataset.resend ?? '30', 10) || 30),
+  ))
   const onResend        = options.onResend
   const onComplete      = options.onComplete
   let   suppressComplete = false
@@ -262,32 +305,29 @@ function mountOnWrapper(
   const blurOnComplete = options.blurOnComplete ?? false
 
   const rawSepAfter = options.separatorAfter
-    ?? (wrapperEl.dataset.separatorAfter !== undefined
-          ? wrapperEl.dataset.separatorAfter.split(',').map(s => parseInt(s.trim(), 10)).filter(n => !isNaN(n) && n > 0)
-          : [])
-  // Normalise to array so all rendering logic is consistent
+    ?? parseSeparatorAfter(wrapperEl.dataset.separatorAfter, [])
+  // Normalize to array so all rendering logic is consistent
   const separatorAfterPositions: number[] = Array.isArray(rawSepAfter) ? rawSepAfter : [rawSepAfter]
 
   const separatorChar  = options.separator
     ?? wrapperEl.dataset.separator
     ?? '—'
   // Support both `data-masked` (boolean presence) and `data-masked="true"` (explicit string)
-  const masked    = options.masked   ?? ('masked' in wrapperEl.dataset)
+  const masked    = options.masked   ?? parseBooleanish(wrapperEl.dataset.masked, false)
   const maskChar  = options.maskChar ?? wrapperEl.dataset.maskChar ?? '\u25CF'
 
-  // Feedback flags — read once; used in the event subscriber below.
+  // Feedback flags are mount-configured in the vanilla adapter. Runtime updates
+  // should re-initialise the instance or use a more reactive adapter.
   const hapticEnabled = options.haptic ?? true
   const soundEnabled  = options.sound  ?? false
 
   // ── Core state machine ───────────────────────────────────────────────────
   const otpCore = createOTP({
     length:           slotCount,
+    idBase:           options.idBase,
     type:             inputType,
     timer:            timerSeconds,
-    resendAfter:      resendCooldown,
     onComplete: onComplete ? (code) => { if (!suppressComplete) onComplete(code) } : undefined,
-    onTick:           onTickCallback,
-    onExpire,
     pattern,
     pasteTransformer: options.pasteTransformer,
     onInvalidChar:    options.onInvalidChar,
@@ -296,16 +336,9 @@ function mountOnWrapper(
   })
 
   // ── Feedback via events (side effects are handled here, not in the core) ─
-  // The core is now pure — it emits COMPLETE / ERROR events. This subscriber
-  // translates those events into haptic vibration and audio feedback so each
-  // adapter controls its own side effects rather than delegating to the core.
-  const unsubFeedback = otpCore.subscribe((_state, event) => {
-    if (event.type === 'COMPLETE') {
-      if (hapticEnabled) triggerHapticFeedback()
-      if (soundEnabled)  triggerSoundFeedback()
-    } else if (event.type === 'ERROR' && event.hasError) {
-      if (hapticEnabled) triggerHapticFeedback()
-    }
+  const unsubFeedback = subscribeFeedback(otpCore, {
+    haptic: hapticEnabled,
+    sound: soundEnabled,
   })
 
   // ── Build DOM ────────────────────────────────────────────────────────────
@@ -381,6 +414,7 @@ function mountOnWrapper(
   hiddenInputEl.setAttribute('spellcheck', 'false')
   hiddenInputEl.setAttribute('autocorrect', 'off')
   hiddenInputEl.setAttribute('autocapitalize', 'off')
+  const frameScheduler = createFrameScheduler(() => hiddenInputEl.isConnected)
 
   rootEl.appendChild(slotRowEl)
   rootEl.appendChild(hiddenInputEl)
@@ -390,16 +424,18 @@ function mountOnWrapper(
 
   // Apply defaultValue once on mount — no onComplete, no onChange
   if (defaultValue) {
-    const filtered = filterString(defaultValue.slice(0, slotCount), inputType, pattern)
-    if (filtered) {
-      suppressComplete = true
-      try {
-        for (let i = 0; i < filtered.length; i++) otpCore.insert(filtered[i], i)
-      } finally {
-        suppressComplete = false
-      }
-      hiddenInputEl.value = filtered
+    let result: ReturnType<typeof seedProgrammaticValue>
+    suppressComplete = true
+    try {
+      result = seedProgrammaticValue(otpCore, defaultValue, {
+        length: slotCount,
+        type: inputType,
+        pattern,
+      }, 'slot-end')
+    } finally {
+      suppressComplete = false
     }
+    if (result.changed) syncInputValue(hiddenInputEl, result.value)
   }
 
   // ── DOM sync ──────────────────────────────────────────────────────────────
@@ -422,8 +458,9 @@ function mountOnWrapper(
       const isActive = i === activeSlot
       const isFilled = char.length === 1
 
-      let textNode = slotEl.childNodes[1] as Text | undefined
-      if (!textNode || textNode.nodeType !== Node.TEXT_NODE) {
+      const existingTextNode = slotEl.childNodes[1]
+      let textNode = existingTextNode instanceof Text ? existingTextNode : null
+      if (!textNode) {
         textNode = document.createTextNode('')
         slotEl.appendChild(textNode)
       }
@@ -471,6 +508,7 @@ function mountOnWrapper(
     onResend,
     onTickCallback,
     onExpire,
+    clearField,
     syncSlots: syncSlotsToDOM,
   }
 
@@ -483,83 +521,44 @@ function mountOnWrapper(
   // ── Event handlers ────────────────────────────────────────────────────────
 
   function onHiddenInputKeydown(event: KeyboardEvent): void {
-    const cursorPos = hiddenInputEl.selectionStart ?? 0
+    const result = handleOTPKeyAction(otpCore, {
+      key: event.key,
+      position: hiddenInputEl.selectionStart ?? 0,
+      length: slotCount,
+      readOnly: otpCore.state.isReadOnly,
+      shiftKey: event.shiftKey,
+    })
+    if (!result.handled) return
 
-    if (event.key === 'Backspace') {
-      event.preventDefault()
-      if (otpCore.state.isReadOnly) return
-      otpCore.delete(cursorPos)
-      syncSlotsToDOM()
-      hiddenInputEl.setSelectionRange(otpCore.state.activeSlot, otpCore.state.activeSlot)
-    } else if (event.key === 'Delete') {
-      event.preventDefault()
-      if (otpCore.state.isReadOnly) return
-      otpCore.clear(cursorPos)
-      syncSlotsToDOM()
-      hiddenInputEl.setSelectionRange(cursorPos, cursorPos)
-    } else if (event.key === 'Tab') {
-      if (event.shiftKey) {
-        // Shift+Tab: move to previous slot, or exit to previous DOM element from first slot
-        if (cursorPos === 0) return
-        event.preventDefault()
-        otpCore.move(cursorPos - 1)
-      } else {
-        // Tab: advance to next slot only if current slot is filled
-        // On last slot (filled), fall through to let browser move to next DOM element
-        if (!otpCore.state.slotValues[cursorPos]) return
-        if (cursorPos >= slotCount - 1) return
-        event.preventDefault()
-        otpCore.move(cursorPos + 1)
-      }
-      const nextSlot = otpCore.state.activeSlot
-      hiddenInputEl.setSelectionRange(nextSlot, nextSlot)
-      syncSlotsToDOM()
-    } else if (event.key === 'ArrowLeft') {
-      event.preventDefault()
-      otpCore.move(cursorPos - 1)
-      const nextSlot = otpCore.state.activeSlot
-      hiddenInputEl.setSelectionRange(nextSlot, nextSlot)
-      syncSlotsToDOM()
-    } else if (event.key === 'ArrowRight') {
-      event.preventDefault()
-      otpCore.move(cursorPos + 1)
-      const nextSlot = otpCore.state.activeSlot
-      hiddenInputEl.setSelectionRange(nextSlot, nextSlot)
-      syncSlotsToDOM()
+    event.preventDefault()
+    if (result.nextSelection !== null) {
+      hiddenInputEl.setSelectionRange(result.nextSelection, result.nextSelection)
     }
+    syncSlotsToDOM()
   }
 
-  // Handles the `input` DOM event (not `change`). Named "Change" because the handler
-  // reconciles value changes caused by IME composition, autocomplete, and SMS autofill —
-  // all of which fire `input`, not `change`. The `_event` parameter is unused because
-  // we read directly from `hiddenInputEl.value` to avoid the `e.target as HTMLInputElement` cast.
-  function onHiddenInputChange(_event: Event): void {
+  // Handles the `input` DOM event — fires for IME composition, autocomplete, and
+  // SMS autofill. Reads directly from `hiddenInputEl.value` to avoid the
+  // `e.target as HTMLInputElement` cast; the event object itself is unused.
+  function onHiddenInputInput(_event: Event): void {
     if (otpCore.state.isReadOnly) return
     const rawValue = hiddenInputEl.value
 
     if (!rawValue) {
-      otpCore.reset()
-      hiddenInputEl.value = ''
-      hiddenInputEl.setSelectionRange(0, 0)
+      clearOTPInput(otpCore, hiddenInputEl, { focus: false })
       syncSlotsToDOM()
       return
     }
 
-    const validValue = filterString(rawValue, inputType, pattern)
-
-    otpCore.reset()
-    for (let i = 0; i < Math.min(validValue.length, slotCount); i++) {
-      otpCore.insert(validValue[i], i)
-    }
-
-    const filledCount = Math.min(validValue.length, slotCount)
-    const nextCursor  = Math.min(filledCount, slotCount - 1)
-    hiddenInputEl.value = validValue.slice(0, slotCount)
-    hiddenInputEl.setSelectionRange(nextCursor, nextCursor)
-    otpCore.move(nextCursor)
+    const result = applyTypedInput(otpCore, rawValue, {
+      length: slotCount,
+      type: inputType,
+      pattern,
+    })
+    syncInputValue(hiddenInputEl, result.value, result.nextSelection)
     syncSlotsToDOM()
-    if (blurOnComplete && otpCore.state.isComplete) {
-      requestAnimationFrame(() => hiddenInputEl.blur())
+    if (blurOnComplete && result.isComplete) {
+      scheduleInputBlur(frameScheduler, hiddenInputEl)
     }
   }
 
@@ -567,35 +566,17 @@ function mountOnWrapper(
     event.preventDefault()
     if (otpCore.state.isReadOnly) return
     const pastedText = event.clipboardData?.getData('text') ?? ''
-    const cursorPos  = hiddenInputEl.selectionStart ?? 0
-    otpCore.paste(pastedText, cursorPos)
-
-    const { slotValues, activeSlot } = otpCore.state
-    hiddenInputEl.value = slotValues.join('')
-    hiddenInputEl.setSelectionRange(activeSlot, activeSlot)
+    const result = applyPastedInput(otpCore, pastedText, hiddenInputEl.selectionStart ?? 0)
+    syncInputValue(hiddenInputEl, result.value, result.nextSelection)
     syncSlotsToDOM()
-    if (blurOnComplete && otpCore.state.isComplete) {
-      requestAnimationFrame(() => hiddenInputEl.blur())
+    if (blurOnComplete && result.isComplete) {
+      scheduleInputBlur(frameScheduler, hiddenInputEl)
     }
   }
 
   function onHiddenInputFocus(): void {
     onFocusProp?.()
-    // Read activeSlot inside the RAF — not before it.
-    // Browser event order on a fresh click: focus fires → click fires → RAF fires.
-    // Capturing pos outside the RAF would snapshot activeSlot=0 before the click
-    // handler has a chance to call moveFocusTo(clickedSlot), causing the RAF to
-    // overwrite the correct slot back to 0.
-    requestAnimationFrame(() => {
-      const pos  = otpCore.state.activeSlot
-      const char = otpCore.state.slotValues[pos]
-      if (selectOnFocus && char) {
-        hiddenInputEl.setSelectionRange(pos, pos + 1)
-      } else {
-        hiddenInputEl.setSelectionRange(pos, pos)
-      }
-      syncSlotsToDOM()
-    })
+    scheduleFocusSync(frameScheduler, otpCore, hiddenInputEl, selectOnFocus, syncSlotsToDOM)
   }
 
   function onHiddenInputBlur(): void {
@@ -633,13 +614,13 @@ function mountOnWrapper(
   }
 
   hiddenInputEl.addEventListener('keydown', onHiddenInputKeydown)
-  hiddenInputEl.addEventListener('input',   onHiddenInputChange)
+  hiddenInputEl.addEventListener('input',   onHiddenInputInput)
   hiddenInputEl.addEventListener('paste',   onHiddenInputPaste)
   hiddenInputEl.addEventListener('focus',   onHiddenInputFocus)
   hiddenInputEl.addEventListener('blur',    onHiddenInputBlur)
   hiddenInputEl.addEventListener('click',   onHiddenInputClick)
 
-  requestAnimationFrame(() => {
+  frameScheduler.schedule(() => {
     if (!otpCore.state.isDisabled && autoFocus) hiddenInputEl.focus()
     hiddenInputEl.setSelectionRange(0, 0)
     syncSlotsToDOM()
@@ -648,18 +629,22 @@ function mountOnWrapper(
 
   // ── Public API ────────────────────────────────────────────────────────────
 
-  function reset(): void {
-    otpCore.reset()
-    hiddenInputEl.value = ''
-    requestAnimationFrame(() => {
-      hiddenInputEl.focus()
-      hiddenInputEl.setSelectionRange(0, 0)
+  function clearField(): void {
+    clearOTPInput(otpCore, hiddenInputEl, { focus: false })
+    syncSlotsToDOM()
+    frameScheduler.schedule(() => {
+      if (!otpCore.state.isDisabled) hiddenInputEl.focus()
+      syncInputValue(hiddenInputEl, '', 0)
       syncSlotsToDOM()
     })
   }
 
+  function reset(): void {
+    clearField()
+  }
+
   function resend(): void {
-    reset()
+    clearField()
     onResend?.()
   }
 
@@ -677,7 +662,7 @@ function mountOnWrapper(
     otpCore.setDisabled(value)
     hiddenInputEl.disabled = value
     slotEls.forEach(slotEl => {
-      ;(slotEl as HTMLElement).style.pointerEvents = value ? 'none' : ''
+      slotEl.style.pointerEvents = value ? 'none' : ''
     })
     syncSlotsToDOM()
   }
@@ -697,15 +682,14 @@ function mountOnWrapper(
   }
 
   function focus(slotIndex: number): void {
-    otpCore.move(slotIndex)
-    hiddenInputEl.focus()
-    hiddenInputEl.setSelectionRange(slotIndex, slotIndex)
+    focusOTPInput(otpCore, hiddenInputEl, slotIndex)
     syncSlotsToDOM()
   }
 
   function destroy(): void {
+    frameScheduler.cancelAll()
     hiddenInputEl.removeEventListener('keydown',   onHiddenInputKeydown)
-    hiddenInputEl.removeEventListener('input',     onHiddenInputChange)
+    hiddenInputEl.removeEventListener('input',     onHiddenInputInput)
     hiddenInputEl.removeEventListener('paste',     onHiddenInputPaste)
     hiddenInputEl.removeEventListener('focus',     onHiddenInputFocus)
     hiddenInputEl.removeEventListener('blur',      onHiddenInputBlur)
@@ -721,24 +705,27 @@ function mountOnWrapper(
     wrapperEl.removeAttribute('data-success')
     wrapperEl.removeAttribute('data-disabled')
     wrapperEl.removeAttribute('data-readonly')
+    wrapperEl.__verinoInstance = null
 
     otpCore.destroy()
   }
 
-  return { reset, resend, setError, setSuccess, setDisabled, setReadOnly, getCode, focus, destroy }
+  const instance = { reset, resend, setError, setSuccess, setDisabled, setReadOnly, getCode, focus, destroy }
+  wrapperEl.__verinoInstance = instance
+  return instance
 }
 
 
 // ─────────────────────────────────────────────────────────────────────────────
-// CDN GLOBAL
+// CDN GLOBAL TYPE
 // ─────────────────────────────────────────────────────────────────────────────
 
+// TypeScript ambient declaration so CDN consumers can reference window.Verino
+// without type errors. The runtime global is set by the CDN bundle (cdn.ts +
+// esbuild globalName) — not here, to avoid polluting the global scope for
+// bundler/ESM users who import @verino/vanilla normally.
 declare global {
   interface Window {
     Verino: { init: typeof initOTP }
   }
-}
-
-if (typeof window !== 'undefined') {
-  window.Verino = { init: initOTP }
 }

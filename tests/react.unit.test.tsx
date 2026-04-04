@@ -96,6 +96,26 @@ function ControlledOTPFixture({ length = 6 }: { length?: number }) {
   )
 }
 
+function OTPWithInlineDynamicProps() {
+  const [tick, setTick] = useState(0)
+  const otp = useOTP({
+    length: 4,
+    autoFocus: false,
+    pattern: /^[0-9]$/,
+    pasteTransformer: (raw) => raw.replace(/[^0-9]/g, ''),
+  })
+
+  return (
+    <div>
+      <button data-testid="rerender" onClick={() => setTick((n) => n + 1)}>
+        Rerender {tick}
+      </button>
+      <input data-testid="input" {...otp.hiddenInputProps} autoFocus={false} />
+      <span data-testid="code">{otp.getCode()}</span>
+    </div>
+  )
+}
+
 /** Helper — get the hidden input element. */
 function getInput() {
   return screen.getByTestId('input') as HTMLInputElement
@@ -480,6 +500,53 @@ describe('useOTP — controlled value', () => {
     render(<OTPFixture length={3} value="123" onComplete={onComplete} autoFocus={false} />)
     expect(onComplete).not.toHaveBeenCalled()
   })
+
+  it('does NOT trigger onChange on programmatic value sync', () => {
+    const onChange = jest.fn()
+    const { rerender } = render(<OTPFixture length={4} value="" onChange={onChange} autoFocus={false} />)
+
+    expect(onChange).not.toHaveBeenCalled()
+
+    rerender(<OTPFixture length={4} value="123" onChange={onChange} autoFocus={false} />)
+
+    expect(screen.getByTestId('code').textContent).toBe('123')
+    expect(onChange).not.toHaveBeenCalled()
+  })
+
+  it('keeps the existing code when parent rerenders with inline pattern and pasteTransformer props', () => {
+    render(<OTPWithInlineDynamicProps />)
+    const input = getInput()
+
+    typeValue(input, '12')
+    expect(screen.getByTestId('code').textContent).toBe('12')
+
+    act(() => { fireEvent.click(screen.getByTestId('rerender')) })
+    expect(screen.getByTestId('code').textContent).toBe('12')
+
+    input.setSelectionRange(2, 2)
+    pasteText(input, '3-4')
+    expect(screen.getByTestId('code').textContent).toBe('1234')
+  })
+
+  it('re-filters the existing code when type changes without recreating the machine', () => {
+    const onChange = jest.fn()
+    const { rerender } = render(
+      <OTPFixture length={4} type="alphanumeric" value="1A2B" onChange={onChange} autoFocus={false} />,
+    )
+
+    expect(screen.getByTestId('code').textContent).toBe('1A2B')
+    expect(getInput().value).toBe('1A2B')
+    expect(onChange).not.toHaveBeenCalled()
+
+    rerender(
+      <OTPFixture length={4} type="numeric" value="1A2B" onChange={onChange} autoFocus={false} />,
+    )
+
+    expect(screen.getByTestId('code').textContent).toBe('12')
+    expect(getInput().value).toBe('12')
+    expect(onChange).toHaveBeenCalledTimes(1)
+    expect(onChange).toHaveBeenCalledWith('12')
+  })
 })
 
 
@@ -763,11 +830,12 @@ function OTPWithFullAPI(props: ReactOTPOptions) {
   const ref = useRef<{ otp: ReturnType<typeof useOTP> }>({ otp })
   ref.current.otp = otp
   return (
-    <div>
+    <div data-testid="api-wrapper" {...otp.wrapperProps}>
       <input data-testid="input" {...otp.hiddenInputProps} autoFocus={false} />
       <span data-testid="code">{otp.getCode()}</span>
       <span data-testid="active">{otp.activeSlot}</span>
       <span data-testid="success">{String(otp.hasSuccess)}</span>
+      <span data-testid="disabled">{String(otp.isDisabled)}</span>
       <button data-testid="focus2" onClick={() => otp.focus(2)}>Focus 2</button>
       <button data-testid="setSuccess" onClick={() => otp.setSuccess(true)}>Success</button>
       <button data-testid="clearSuccess" onClick={() => otp.setSuccess(false)}>ClearSuccess</button>
@@ -822,6 +890,14 @@ describe('useOTP — setDisabled()', () => {
     typeValue(screen.getByTestId('input') as HTMLInputElement, '1234')
     expect(screen.getByTestId('code').textContent).toBe('')
   })
+
+  it('setDisabled(true) updates hidden input, wrapper attrs, and result state', () => {
+    render(<OTPWithFullAPI length={4} autoFocus={false} />)
+    act(() => { fireEvent.click(screen.getByTestId('setDisabled')) })
+    expect((screen.getByTestId('input') as HTMLInputElement).disabled).toBe(true)
+    expect(screen.getByTestId('api-wrapper').hasAttribute('data-disabled')).toBe(true)
+    expect(screen.getByTestId('disabled').textContent).toBe('true')
+  })
 })
 
 describe('useOTP — setReadOnly()', () => {
@@ -830,6 +906,13 @@ describe('useOTP — setReadOnly()', () => {
     act(() => { fireEvent.click(screen.getByTestId('setReadOnly')) })
     typeValue(screen.getByTestId('input') as HTMLInputElement, '1234')
     expect(screen.getByTestId('code').textContent).toBe('')
+  })
+
+  it('setReadOnly(true) updates hidden input and wrapper attrs', () => {
+    render(<OTPWithFullAPI length={4} autoFocus={false} />)
+    act(() => { fireEvent.click(screen.getByTestId('setReadOnly')) })
+    expect(screen.getByTestId('input').getAttribute('aria-readonly')).toBe('true')
+    expect(screen.getByTestId('api-wrapper').hasAttribute('data-readonly')).toBe(true)
   })
 })
 

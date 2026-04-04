@@ -3,8 +3,10 @@ node_modules/
 dist/
 *.tsbuildinfo
 .DS_Store
+CLAUDE.md
 
 # Turbo
+.turbo/
 .turbo/cache/
 packages/*/.turbo/
 
@@ -16,8 +18,17 @@ test-results/
 playwright-report/
 .playwright/
 
+# pnpm
+.pnpm-store/
+
 # npm
 *.tgz
+npm-debug.log*
+pnpm-debug.log*
+yarn-*.log*
+
+# Local temp files
+.tmp-*
 
 # Editor
 .vscode/
