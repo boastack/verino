@@ -7,37 +7,44 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
-## [1.0.0] - 2026-04-01
+## [2.0.0] - 2026-04-04
+
+### Breaking Changes
+
+- `@verino/core` — `OTPState` type has been removed. Replace all references with `OTPStateSnapshot`.
+- `@verino/core` — `otp.state` now returns a new isolated snapshot on every read instead of a shared mutable reference. Code that cached `const s = otp.state` and expected it to reflect subsequent mutations will break — read `otp.state` fresh on each access, or use `otp.subscribe` to react to changes.
+- All adapters — `onTick` now fires immediately on mount and after every `reset()` with the full remaining seconds, not only on each decrement. Remove any code that manually sets the initial timer display — the first `onTick` call handles it.
 
 ### Added
 
-- `createOTP(options)` — pure state machine with zero DOM and zero framework dependencies. All input logic (character filtering, cursor movement, paste normalisation, timer management, event routing) lives here.
-- `OTPState` — immutable-at-type-level state object: `slotValues`, `activeSlot`, `hasError`, `hasSuccess`, `isComplete`, `isEmpty`, `timerSeconds`, `isDisabled`, `isReadOnly`. Note: `isEmpty` is NOT the complement of `isComplete` — a partially filled field has both `false`.
-- `subscribe(listener)` — registers a listener called on every state change with `(state, event)`; returns an unsubscribe function. All subscriptions are released by `destroy()`.
-- Discriminated `OTPEvent` union emitted on every state change: `INPUT`, `DELETE`, `CLEAR`, `PASTE`, `COMPLETE`, `INVALID_CHAR`, `FOCUS`, `BLUR`, `RESET`, `MOVE`, `ERROR`, `SUCCESS`, `DISABLED`, `READONLY`.
-- Input actions: `insert(char, index)`, `delete(index)`, `clear(index)`, `paste(text, cursorSlot?)`, `move(index)`.
-- Focus actions: `focus(slotIndex)` — emits `FOCUS` without changing state; `blur()` — emits `BLUR` carrying the active slot index for per-slot validation.
-- State-control actions: `setError(bool)`, `setSuccess(bool)`, `setDisabled(bool)`, `setReadOnly(bool)`, `reset()`, `destroy()`.
-- `getCode()` — returns the current assembled value string.
-- `getSnapshot()` / `getState()` — returns a safe isolated copy of state with cloned `slotValues`.
-- `getSlots()` — returns a memoised `SlotEntry[]` snapshot: `{ index, value, isActive, isFilled }` per slot. Result is cached by mutation version and recomputed only when state changes.
-- `getSlotProps(index)` — full per-slot display data for framework adapters: `id`, `char`, `index`, `isFilled`, `isActive`, `isError`, `isSuccess`, `isComplete`, `isEmpty`, `isDisabled`, `isReadOnly`.
-- `getInputProps(index)` — event handlers (`onInput`, `onKeyDown`, `onFocus`, `onBlur`) plus a full set of `data-*` attributes for CSS-driven slot styling: `data-slot`, `data-active`, `data-filled`, `data-empty`, `data-complete`, `data-invalid`, `data-success`, `data-disabled`, `data-readonly`, `data-first`, `data-last`. Note: `data-focus` is NOT included — adapters inject it themselves since the core is DOM-free.
-- Stable per-instance ID helpers (collision-free across multiple mounted fields): `getSlotId(index)`, `getGroupId()`, `getErrorId()`.
-- `filterChar(char, type, pattern?)` — returns the character if it passes validation or `''` if rejected.
-- `filterString(str, type, pattern?)` — applies `filterChar` to every Unicode code point; safe for emoji and multi-byte input via `Array.from()`.
-- `createTimer({ totalSeconds, onTick, onExpire })` — interval-based countdown; returns `TimerControls`: `start()`, `stop()`, `reset()` (stop and restore to `totalSeconds`), `restart()` (reset then start). If `totalSeconds <= 0`, `onExpire` fires synchronously on `start()`.
-- `formatCountdown(seconds)` — formats a second count as `m:ss` string (e.g. `65` → `"1:05"`, `9` → `"0:09"`). Used by vanilla, alpine, and web-component adapters for their built-in timer UI.
-- `triggerHapticFeedback()` — calls `navigator.vibrate(10)` in supported browsers; no-ops silently elsewhere. Re-exported for custom adapter authors.
-- `triggerSoundFeedback()` — plays a short tone via the Web Audio API. Re-exported for custom adapter authors.
-- `OTPOptions` — full configuration type: `length`, `type`, `pattern`, `pasteTransformer`, `onComplete`, `onExpire`, `onResend`, `onTick`, `onInvalidChar`, `autoFocus`, `blurOnComplete`, `selectOnFocus`, `placeholder`, `name`, `masked`, `maskChar`, `onFocus`, `onBlur`, `defaultValue`, `disabled`, `readOnly`, `timer`, `resendAfter`, `haptic`, `sound`.
-- Mutual-exclusion guarantee: `setError(true)` clears `hasSuccess`; `setSuccess(true)` clears `hasError`.
-- `onComplete` fires synchronously after the final `insert` or `paste` action; only on the `false → true` transition so re-typing over a complete field does not re-fire it.
-- `haptic` (default `true`) — triggers `navigator.vibrate(10)` on completion and error in supported browsers.
-- `sound` (default `false`) — plays a short audio tone on completion via the Web Audio API.
-- Full TypeScript types: `OTPOptions`, `OTPState`, `OTPEvent`, `OTPEventType`, `InputProps`, `SlotEntry`, `SlotProps`, `TimerOptions`, `TimerControls`, `StateListener`.
+- `@verino/core` — `@verino/core/toolkit` subpath export; provides `triggerHapticFeedback`, `triggerSoundFeedback`, `createResendTimer`, password-manager badge helpers, and shared input controller primitives for building custom adapters.
+- `@verino/core` — `createTimer` accepts `emitInitialTickOnStart` and `emitInitialTickOnRestart` boolean options. When enabled, `onTick` fires synchronously on `start()` and `restart()` with the full `totalSeconds` — eliminating the one-second blank delay at timer start.
+- `@verino/react` — `resend()` method on `UseOTPResult`; clears the field, restarts the timer, and fires `onResend`. Accepts `onResend` callback in `ReactOTPOptions`.
+- `@verino/vue` — `resend()` method on `UseOTPResult`; accepts `onResend` in `VueOTPOptions`.
+- `@verino/svelte` — `resend()` method on `UseOTPResult`; accepts `onResend` in `SvelteOTPOptions`.
+- `@verino/web-component` — `resend()` DOM method; `id-base` HTML attribute for setting a deterministic ID prefix on SSR-rendered pages.
+
+### Fixed
+
+- `@verino/core` — `parseSeparatorAfter` accepted `0` as a valid separator index on the single-value path, producing a separator before the first slot. Now consistently rejects any value less than `1`, matching the array path behaviour.
+- `@verino/core` — Duplicate `idBase` values across simultaneously mounted instances now log a warning in development, preventing silent ARIA ID collisions.
+- `@verino/vanilla` — Calling `initOTP` on an element that already has a live instance now destroys the stale instance before mounting the new one, instead of silently leaving the old listeners and plugins active.
 
 ---
 
-[Unreleased]: https://github.com/boastack/verino/compare/@verino/core@1.0.0...HEAD
-[1.0.0]: https://github.com/boastack/verino/releases/tag/%40verino%2Fcore%401.0.0
+## [1.0.0] - 2026-04-01
+
+Initial release.
+
+### Added
+
+- `createOTP(options)` — pure OTP state machine with zero DOM and zero dependencies. Handles character filtering, cursor movement, paste normalization, and a typed event system.
+- Discriminated `OTPEvent` union covering all mutations: `INPUT`, `DELETE`, `CLEAR`, `PASTE`, `COMPLETE`, `INVALID_CHAR`, `FOCUS`, `BLUR`, `RESET`, `MOVE`, `ERROR`, `SUCCESS`, `DISABLED`, `READONLY`.
+- `onComplete` fires synchronously on the `false → true` completion transition only — re-filling an already-complete field does not re-fire it.
+- `hasError` and `hasSuccess` are mutually exclusive — setting one clears the other.
+- `getInputProps(index)` — event handlers and `data-*` attributes for CSS-driven slot styling, ready to spread onto any DOM element or framework component.
+- `getSlotId`, `getGroupId`, `getErrorId` — stable per-instance DOM ID helpers; pass `idBase` for deterministic SSR IDs.
+- `filterChar` / `filterString` — Unicode-safe character filtering; `filterString` iterates code points via `Array.from` for correct emoji handling.
+- `createTimer` — interval-based countdown with `start`, `stop`, `reset`, `restart`; supports immediate tick on start and restart.
+- `formatCountdown(seconds)` — formats seconds as `m:ss`.
+- `@verino/core/toolkit` — shared adapter primitives: frame scheduling, input controller, programmatic value sync, resend timer, haptic/sound feedback, and password-manager badge guard.

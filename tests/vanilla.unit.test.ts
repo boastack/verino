@@ -877,6 +877,17 @@ describe('double-init guard', () => {
     expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining('[verino]'))
     warnSpy.mockRestore()
   })
+
+  it('auto-destroys the previous instance before remounting on the same wrapper', () => {
+    const warnSpy = jest.spyOn(console, 'warn').mockImplementation(() => {})
+    const wrapper = makeWrapper()
+    initOTP(wrapper, { timer: 10, autoFocus: false })
+    initOTP(wrapper, { timer: 10, autoFocus: false })
+
+    expect(document.body.querySelectorAll('.verino-timer')).toHaveLength(1)
+    expect(document.body.querySelectorAll('.verino-resend')).toHaveLength(1)
+    warnSpy.mockRestore()
+  })
 })
 
 
@@ -925,7 +936,7 @@ describe('built-in timer footer', () => {
     const wrapper = makeWrapper()
     initOTP(wrapper, { timer: 5, autoFocus: false, onTick })
     jest.advanceTimersByTime(3000)
-    expect(onTick).toHaveBeenCalledTimes(3)
+    expect(onTick).toHaveBeenCalledTimes(4)
   })
 
   it('calls onExpire when timer reaches zero', () => {
@@ -1250,24 +1261,9 @@ describe('Web OTP API', () => {
 })
 
 
-// ─────────────────────────────────────────────────────────────────────────────
-// 33. CDN GLOBAL (window.Verino)
-// ─────────────────────────────────────────────────────────────────────────────
-
-describe('CDN global', () => {
-  it('registers window.Verino.init in jsdom (window is defined)', () => {
-    // In jsdom environment, window is defined, so the CDN block runs at import time.
-    const w = window as unknown as Record<string, unknown>
-    expect(typeof w['Verino']).toBe('object')
-    expect(typeof (w['Verino'] as Record<string, unknown>)['init']).toBe('function')
-  })
-
-  it('window.Verino.init is the initOTP function', () => {
-    const w = window as unknown as Record<string, unknown>
-    const verinoGlobal = w['Verino'] as Record<string, unknown>
-    expect(verinoGlobal['init']).toBe(initOTP)
-  })
-})
+// NOTE: window.Verino is no longer set as a module-level side effect in
+// vanilla.ts. The CDN global is set exclusively by the esbuild CDN bundle
+// (cdn.ts + globalName: 'Verino'), so ESM/bundler users are not polluted.
 
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -1462,6 +1458,25 @@ describe('resend button click — timer re-setup', () => {
     jest.advanceTimersByTime(2000)  // expire resend countdown
     expect(resend.classList.contains('is-visible')).toBe(true)
   })
+
+  it('clicking resend clears stale code and error state before cooldown restart', () => {
+    const wrapper = makeWrapper()
+    const [instance] = initOTP(wrapper, { timer: 1, resendAfter: 5, autoFocus: false })
+    const input = getHiddenInput(wrapper)
+
+    typeInto(input, '1234')
+    instance.setError(true)
+    jest.advanceTimersByTime(1000)
+
+    const btn = document.body.querySelector('.verino-resend-btn') as HTMLButtonElement
+    btn.dispatchEvent(new MouseEvent('click', { bubbles: true }))
+    flushRAF()
+
+    expect(instance.getCode()).toBe('')
+    getSlots(wrapper).forEach((slot) => {
+      expect(slot.getAttribute('data-invalid')).toBe('false')
+    })
+  })
 })
 
 
@@ -1600,9 +1615,22 @@ describe('onExpire with custom onTick (no built-in footer)', () => {
     const onTick = jest.fn()
     const wrapper = makeWrapper()
     initOTP(wrapper, { timer: 3, autoFocus: false, onTick })
+    expect(onTick).toHaveBeenNthCalledWith(1, 3)
     jest.advanceTimersByTime(3000)
-    expect(onTick).toHaveBeenCalledTimes(3)
+    expect(onTick).toHaveBeenCalledTimes(4)
     expect(onTick).toHaveBeenLastCalledWith(0)
+  })
+})
+
+describe('pm-guard deferred setup cleanup', () => {
+  it('destroy() cancels the queued password-manager observer setup', () => {
+    const cancelSpy = jest.spyOn(global, 'cancelAnimationFrame')
+    const wrapper = makeWrapper()
+    const [instance] = initOTP(wrapper, { autoFocus: false })
+
+    instance.destroy()
+
+    expect(cancelSpy).toHaveBeenCalled()
   })
 })
 
@@ -2217,16 +2245,17 @@ describe('timer-ui custom-tick mode — RESET restarts countdown', () => {
 
     // Let 3 ticks elapse
     jest.advanceTimersByTime(3000)
-    expect(onTick).toHaveBeenCalledTimes(3)
+    expect(onTick).toHaveBeenCalledTimes(4)
 
     onTick.mockClear()
 
     // reset() fires RESET event → customCountdown.restart() (covers timer-ui.ts line 61 TRUE branch)
+    // restart() fires immediately with totalSeconds, then ticks every second
     inst.reset()
     flushRAF()
 
     jest.advanceTimersByTime(2000)
-    expect(onTick).toHaveBeenCalledTimes(2)
+    expect(onTick).toHaveBeenCalledTimes(3) // 1 immediate + 2 interval ticks
   })
 
   it('non-RESET event in custom-tick mode does not restart the countdown (line 61 FALSE branch)', () => {
@@ -2322,6 +2351,28 @@ describe('Web OTP — AbortError does not trigger console.warn', () => {
     initOTP(wrapper, { length: 6, autoFocus: false })
 
     // Flush the microtask queue twice to let the rejected promise settle
+    await new Promise(resolve => setTimeout(resolve, 0))
+    await new Promise(resolve => setTimeout(resolve, 0))
+
+    expect(warnSpy).not.toHaveBeenCalled()
+
+    Reflect.deleteProperty(navigator, 'credentials')
+    warnSpy.mockRestore()
+  })
+
+  it('credentials.get rejection with InvalidStateError backend unavailable does not call console.warn', async () => {
+    const warnSpy = jest.spyOn(console, 'warn').mockImplementation(() => {})
+
+    const invalidStateError = Object.assign(new Error('OTP backend unavailable.'), { name: 'InvalidStateError' })
+    Object.defineProperty(navigator, 'credentials', {
+      value: { get: jest.fn().mockRejectedValue(invalidStateError) },
+      configurable: true,
+      writable: true,
+    })
+
+    const wrapper = makeWrapper()
+    initOTP(wrapper, { length: 6, autoFocus: false })
+
     await new Promise(resolve => setTimeout(resolve, 0))
     await new Promise(resolve => setTimeout(resolve, 0))
 

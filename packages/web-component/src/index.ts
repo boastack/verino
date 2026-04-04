@@ -18,6 +18,7 @@
  *   name             Sets the hidden input's name attr for native form submission
  *   placeholder      Character shown in empty slots (e.g. "○" or "_")
  *   default-value    Uncontrolled initial value applied once on mount; does not trigger complete event
+ *   id-base          Stable prefix for request-scoped ids
  *   auto-focus       Boolean attribute — focus input on mount (default: true when absent)
  *   select-on-focus  Boolean attribute — selects the current slot char on focus
  *   blur-on-complete Boolean attribute — blurs the input when all slots are filled
@@ -46,25 +47,34 @@
  *   el.onFocus    = () => {}           (JS property)
  *   el.onBlur     = () => {}           (JS property)
  *   el.onInvalidChar = (char, i) => {} (JS property)
- *
- * @author  Olawale Balo — Product Designer + Design Engineer
- * @license MIT
+ *   el.idBase     = 'checkout-otp'     (JS property)
  */
 
 import {
-  createOTP,
-  createTimer,
-  filterString,
-  formatCountdown,
-  triggerHapticFeedback,
-  triggerSoundFeedback,
-  type InputType,
+  type OTPInstance,
   type SlotEntry,
   type InputProps,
 } from '@verino/core'
-
-/** Convert a boolean to the string literal `'true'` or `'false'` required by CSS attribute selectors. */
-const b = (v: boolean): 'true' | 'false' => v ? 'true' : 'false'
+import { parseBooleanish, parseInputType, parseSeparatorAfter } from '@verino/core/filter'
+import { createOTP } from '@verino/core/machine'
+import { formatCountdown } from '@verino/core/timer'
+import {
+  applyPastedInput,
+  applyTypedInput,
+  boolAttr,
+  clearOTPInput,
+  createFrameScheduler,
+  handleOTPKeyAction,
+  scheduleFocusSync,
+  scheduleInputBlur,
+  scheduleInputFocus,
+  scheduleInputSelection,
+  syncInputValue,
+} from '@verino/core/toolkit/controller'
+import { seedProgrammaticValue } from '@verino/core/toolkit/adapter-policy'
+import { createResendTimer } from '@verino/core/toolkit/timer-policy'
+import { subscribeFeedback } from '@verino/core/toolkit/feedback'
+import { watchForPasswordManagerBadge } from '@verino/core/toolkit/password-manager'
 
 // ─────────────────────────────────────────────────────────────────────────────
 // SHADOW DOM STYLES
@@ -244,97 +254,16 @@ const STYLES = `
 // TypeScript's standard DOM lib. Declare it locally to keep the build clean.
 interface OTPCredential extends Credential { code: string }
 
+export type VerinoCompleteEvent = CustomEvent<{ code: string }>
+export type VerinoChangeEvent = CustomEvent<{ code: string }>
+export type VerinoExpireEvent = CustomEvent<void>
+export type VerinoSuccessEvent = CustomEvent<void>
 
-// ─────────────────────────────────────────────────────────────────────────────
-// PASSWORD MANAGER BADGE GUARD
-// ─────────────────────────────────────────────────────────────────────────────
-//
-// This logic mirrors the equivalent guard in packages/vanilla/src/plugins/pm-guard.ts.
-// It is intentionally duplicated here because the web component is a standalone
-// bundle that cannot import from @verino/vanilla at runtime. Keep both copies
-// in sync when modifying.
-//
-// Password managers (LastPass, 1Password, Dashlane, Bitwarden, Keeper) inject
-// a small icon badge into or beside <input> elements they detect as credential
-// fields. On OTP inputs this badge physically overlaps the last visual slot.
-//
-// Fix: detect when any of these extensions are active, then push the hidden
-// input's width ~40px wider so the badge renders outside the slot boundary.
-
-const WC_PM_SELECTORS = [
-  '[data-lastpass-icon-root]',
-  '[data-lastpass-root]',
-  '[data-op-autofill]',
-  '[data-1p-ignore]',
-  '[data-dashlane-rid]',
-  '[data-dashlane-label]',
-  '[data-kwimpalastatus]',
-  '[data-bwautofill]',
-  'com-bitwarden-browser-arctic-modal',
-]
-
-const WC_PM_BADGE_OFFSET_PX = 40
-
-/**
- * Returns `true` if any known password manager badge element is present in the document.
- * Each query is wrapped in try/catch because extension-injected selectors can be malformed.
- */
-function wcIsPasswordManagerActive(): boolean {
-  return WC_PM_SELECTORS.some(sel => {
-    try { return document.querySelector(sel) !== null }
-    catch { return false }
-  })
-}
-
-/**
- * Detect password manager badge icons and widen the hidden input to prevent overlap
- * with the last visual slot.
- *
- * Runs inside a RAF (in the caller) so `baseWidthPx` reflects post-layout measurements.
- * Returns a disconnect function — call it from `disconnectedCallback` or on rebuild.
- *
- * @param hiddenInputEl - The hidden `<input>` whose width will be expanded.
- * @param baseWidthPx   - The natural slot row width measured after layout.
- */
-function wcWatchForPasswordManagerBadge(
-  hiddenInputEl: HTMLInputElement,
-  baseWidthPx:   number,
-): () => void {
-  if (typeof MutationObserver === 'undefined') return () => {}
-
-  function applyOffset(): void {
-    hiddenInputEl.style.width = `${baseWidthPx + WC_PM_BADGE_OFFSET_PX}px`
-  }
-
-  if (wcIsPasswordManagerActive()) {
-    applyOffset()
-    return () => {}
-  }
-
-  const observer = new MutationObserver(() => {
-    if (wcIsPasswordManagerActive()) {
-      applyOffset()
-      observer.disconnect()
-    }
-  })
-
-  observer.observe(document.documentElement, {
-    childList:  true,
-    subtree:    true,
-    attributes: true,
-    attributeFilter: [
-      'data-lastpass-icon-root',
-      'data-lastpass-root',
-      'data-op-autofill',
-      'data-1p-ignore',
-      'data-dashlane-rid',
-      'data-dashlane-label',
-      'data-kwimpalastatus',
-      'data-bwautofill',
-    ],
-  })
-
-  return () => observer.disconnect()
+export type VerinoInputEventMap = {
+  complete: VerinoCompleteEvent
+  change:   VerinoChangeEvent
+  expire:   VerinoExpireEvent
+  success:  VerinoSuccessEvent
 }
 
 
@@ -345,10 +274,10 @@ function wcWatchForPasswordManagerBadge(
 class VerinoInput extends HTMLElement {
   /**
    * HTML attribute names whose changes trigger `attributeChangedCallback`.
-   * Any change to these attributes causes a full shadow DOM rebuild so the
-   * component always reflects its attribute state without manual reconciliation.
+   * Structural attributes rebuild the component; runtime attributes are patched
+   * in place by `attributeChangedCallback`.
    */
-  static observedAttributes = ['length', 'type', 'timer', 'resend-after', 'disabled', 'readonly', 'separator-after', 'separator', 'masked', 'mask-char', 'name', 'placeholder', 'auto-focus', 'select-on-focus', 'blur-on-complete', 'default-value', 'sound', 'haptic']
+  static observedAttributes = ['length', 'type', 'timer', 'resend-after', 'disabled', 'readonly', 'separator-after', 'separator', 'masked', 'mask-char', 'name', 'placeholder', 'auto-focus', 'select-on-focus', 'blur-on-complete', 'default-value', 'id-base', 'sound', 'haptic']
 
   // Shadow DOM references — rebuilt in full on every attributeChangedCallback.
   private slotEls:        HTMLDivElement[]              = []
@@ -357,9 +286,8 @@ class VerinoInput extends HTMLElement {
   private timerEl:        HTMLDivElement          | null = null
   private timerBadgeEl:   HTMLSpanElement         | null = null
   private resendEl:       HTMLDivElement          | null = null
-  private timerCtrl:      ReturnType<typeof createTimer> | null = null
-  private resendCountdown: ReturnType<typeof createTimer> | null = null
-  private otp:            ReturnType<typeof createOTP> | null = null
+  private timer:    ReturnType<typeof createResendTimer> | null = null
+  private otp:            OTPInstance | null = null
   private shadow:         ShadowRoot
 
   // Runtime mutable state — toggled by setDisabled() without a full rebuild.
@@ -370,10 +298,16 @@ class VerinoInput extends HTMLElement {
   // Cleanup handles — cancelled/disconnected on rebuild and on disconnect.
   private webOTPController:  AbortController | null = null
   private disconnectPMWatch: () => void             = () => {}
+  private unsubscribeFeedback: () => void           = () => {}
+  private webOTPRequestId = 0
+  private readonly frameScheduler = createFrameScheduler(
+    () => this.isConnected && !!this.hiddenInput?.isConnected,
+  )
 
   // JS-property-only options. These cannot be expressed as HTML attributes
   // (RegExp and functions are not serialisable to strings), so they are stored
   // here and applied on every build().
+  private _idBase:           string | undefined = undefined
   private _pattern:          RegExp | undefined = undefined
   private _pasteTransformer: ((raw: string) => string) | undefined = undefined
   private _onComplete:       ((code: string) => void) | undefined = undefined
@@ -381,6 +315,19 @@ class VerinoInput extends HTMLElement {
   private _onFocus:          (() => void) | undefined = undefined
   private _onBlur:           (() => void) | undefined = undefined
   private _onInvalidChar:    ((char: string, index: number) => void) | undefined = undefined
+
+  private static readonly REBUILD_ATTRIBUTES = new Set([
+    'length',
+    'type',
+    'timer',
+    'resend-after',
+    'separator-after',
+    'separator',
+    'masked',
+    'mask-char',
+    'id-base',
+    'default-value',
+  ])
 
   /** Called when all slots are filled. Also dispatches the `complete` CustomEvent. */
   set onComplete(fn: ((code: string) => void) | undefined) {
@@ -420,6 +367,14 @@ class VerinoInput extends HTMLElement {
       console.warn('[verino] onInvalidChar must be a function, got:', typeof fn); return
     }
     this._onInvalidChar = fn
+  }
+
+  /** Optional stable prefix for request-scoped ids. Set as JS property or `id-base` attribute. */
+  set idBase(value: string | undefined) {
+    if (value !== undefined && typeof value !== 'string') {
+      console.warn('[verino] idBase must be a string, got:', typeof value); return
+    }
+    this._idBase = value?.trim() || undefined
     if (this.shadow.children.length > 0) {
       try {
         this.build()
@@ -427,6 +382,10 @@ class VerinoInput extends HTMLElement {
         console.error('[verino] Failed to rebuild after property change:', err)
       }
     }
+  }
+
+  get idBase(): string | undefined {
+    return this._idBase ?? (this.getAttribute('id-base') ?? undefined)
   }
 
   /**
@@ -485,11 +444,12 @@ class VerinoInput extends HTMLElement {
    * re-inserted into the DOM and should not lose user-entered content.
    */
   disconnectedCallback(): void {
-    this.timerCtrl?.stop()
-    this.resendCountdown?.stop()
-    this.webOTPController?.abort()
-    this.webOTPController = null
+    this.frameScheduler.cancelAll()
+    this.timer?.stop()
+    this.cancelPendingWebOTP()
     this.disconnectPMWatch()
+    this.unsubscribeFeedback()
+    this.unsubscribeFeedback = () => {}
   }
 
   /**
@@ -497,8 +457,39 @@ class VerinoInput extends HTMLElement {
    * Guards on `shadow.children.length > 0` so it does not fire before
    * `connectedCallback` has completed the first build.
    */
-  attributeChangedCallback(): void {
-    if (this.shadow.children.length > 0) this.build()
+  attributeChangedCallback(name: string, oldValue: string | null, newValue: string | null): void {
+    if (this.shadow.children.length === 0 || oldValue === newValue) return
+
+    if (VerinoInput.REBUILD_ATTRIBUTES.has(name)) {
+      this.build()
+      return
+    }
+
+    switch (name) {
+      case 'disabled':
+        this.setDisabled(this._disabledAttr)
+        return
+      case 'readonly':
+        this.setReadOnly(this._readOnlyAttr)
+        return
+      case 'name':
+        if (!this.hiddenInput) return
+        if (this._name) this.hiddenInput.name = this._name
+        else this.hiddenInput.removeAttribute('name')
+        return
+      case 'placeholder':
+      case 'auto-focus':
+      case 'select-on-focus':
+      case 'blur-on-complete':
+        this.syncSlotsToDOM()
+        return
+      case 'sound':
+      case 'haptic':
+        this.refreshFeedbackSubscription()
+        return
+      default:
+        this.build()
+    }
   }
 
   // ── Attribute accessors ─────────────────────────────────────────────────────
@@ -510,7 +501,7 @@ class VerinoInput extends HTMLElement {
     const v = parseInt(this.getAttribute('length') ?? '6', 10)
     return isNaN(v) || v < 1 ? 6 : Math.floor(v)
   }
-  private get _type():            InputType { return (this.getAttribute('type') ?? 'numeric') as InputType }
+  private get _type() { return parseInputType(this.getAttribute('type')) }
   private get _timer(): number {
     const v = parseInt(this.getAttribute('timer') ?? '0', 10)
     return isNaN(v) || v < 0 ? 0 : Math.floor(v)
@@ -522,11 +513,13 @@ class VerinoInput extends HTMLElement {
   private get _disabledAttr():    boolean   { return this.hasAttribute('disabled') }
   private get _readOnlyAttr():    boolean   { return this.hasAttribute('readonly') }
   private get _defaultValue():    string    { return this.getAttribute('default-value') ?? '' }
+  private get _idBaseAttr():      string | undefined {
+    return this.getAttribute('id-base') ?? this._idBase
+  }
   /** Parses `separator-after="2,4"` into `[2, 4]`. Filters NaN and zero values. */
   private get _separatorAfter():  number[]  {
-    const v = this.getAttribute('separator-after')
-    if (!v) return []
-    return v.split(',').map(s => parseInt(s.trim(), 10)).filter(n => !isNaN(n) && n > 0)
+    const parsed = parseSeparatorAfter(this.getAttribute('separator-after'), [])
+    return Array.isArray(parsed) ? parsed : parsed > 0 ? [parsed] : []
   }
   private get _separator():       string    { return this.getAttribute('separator') ?? '—' }
   /** `masked` is a boolean attribute — present means true, absent means false. */
@@ -538,25 +531,32 @@ class VerinoInput extends HTMLElement {
    * `auto-focus` defaults to `true` when the attribute is absent.
    * Setting `auto-focus="false"` explicitly suppresses focus on mount.
    */
-  private get _autoFocus():       boolean   { return !this.hasAttribute('auto-focus') || this.getAttribute('auto-focus') !== 'false' }
+  private get _autoFocus():       boolean   { return parseBooleanish(this.getAttribute('auto-focus'), true) }
   private get _selectOnFocus():   boolean   { return this.hasAttribute('select-on-focus') }
   private get _blurOnComplete():  boolean   { return this.hasAttribute('blur-on-complete') }
   /** `sound` defaults to `false` — present as boolean attribute to enable. */
   private get _sound():           boolean   { return this.hasAttribute('sound') }
   /** `haptic` defaults to `true` — set `haptic="false"` to disable. */
-  private get _haptic():          boolean   { return !this.hasAttribute('haptic') || this.getAttribute('haptic') !== 'false' }
+  private get _haptic():          boolean   { return parseBooleanish(this.getAttribute('haptic'), true) }
 
   // ── Build ───────────────────────────────────────────────────────────────────
   /**
    * Constructs the entire shadow DOM from scratch.
    *
    * Called on first connect, on every observed attribute change, and when
-   * certain JS-property setters (`pattern`, `pasteTransformer`, `onInvalidChar`)
+   * certain JS-property setters (`pattern`, `pasteTransformer`)
    * are assigned after mount. Tears down any running timer and resets the
    * state machine before rebuilding to prevent duplicate intervals or stale
    * closure references from the previous build.
    */
   private build(): void {
+    const previousCode       = this.otp?.getCode() ?? ''
+    const previousActiveSlot = this.otp?.state.activeSlot ?? 0
+    const previousHasError   = this.otp?.state.hasError ?? false
+    const previousHasSuccess = this._isSuccess
+    const previousDisabled   = this.otp ? this._isDisabled : this._disabledAttr
+    const previousReadOnly   = this.otp ? this._isReadOnly : this._readOnlyAttr
+
     const length             = this._length
     const type               = this._type
     const timerSecs          = this._timer
@@ -566,17 +566,17 @@ class VerinoInput extends HTMLElement {
     const masked             = this._masked
     const inputName          = this._name
     const autoFocus          = this._autoFocus
-    const selectOnFocus      = this._selectOnFocus
-    const blurOnComplete     = this._blurOnComplete
-    this._isDisabled         = this._disabledAttr
-    this._isReadOnly         = this._readOnlyAttr
+    this._isDisabled         = previousDisabled
+    this._isReadOnly         = previousReadOnly
+    this._isSuccess          = previousHasSuccess
 
-    this.timerCtrl?.stop()
-    this.resendCountdown?.stop()
-    this.webOTPController?.abort()
-    this.webOTPController = null
+    this.timer?.stop()
+    this.frameScheduler.cancelAll()
+    this.cancelPendingWebOTP()
     this.disconnectPMWatch()
-    this.otp?.reset()
+    this.unsubscribeFeedback()
+    this.unsubscribeFeedback = () => {}
+    this.otp?.destroy()
 
     // Clear shadow DOM using safe child removal
     while (this.shadow.firstChild) this.shadow.removeChild(this.shadow.firstChild)
@@ -585,8 +585,7 @@ class VerinoInput extends HTMLElement {
     this.timerEl        = null
     this.timerBadgeEl   = null
     this.resendEl       = null
-    this.timerCtrl      = null
-    this.resendCountdown = null
+    this.timer    = null
 
     // Styles
     const styleEl = document.createElement('style')
@@ -663,35 +662,26 @@ class VerinoInput extends HTMLElement {
     this.shadow.appendChild(outerEl)
 
     // Core
-    const soundEnabled  = this._sound
-    const hapticEnabled = this._haptic
-
     let suppressComplete = false
     this.otp = createOTP({
       length,
+      idBase: this._idBaseAttr,
       type,
       pattern:          this._pattern,
       pasteTransformer: this._pasteTransformer,
-      onInvalidChar:    this._onInvalidChar,
+      onInvalidChar:    (char, index) => { this._onInvalidChar?.(char, index) },
+      disabled:         this._isDisabled,
       readOnly:         this._isReadOnly,
       onComplete: (code) => {
         if (suppressComplete) return
         this._onComplete?.(code)
         this.dispatchEvent(
-          new CustomEvent('complete', { detail: { code }, bubbles: true, composed: true })
+          new CustomEvent<{ code: string }>('complete', { detail: { code }, bubbles: true, composed: true })
         )
       },
     })
 
-    // Feedback via events — mirrors vanilla/alpine adapter pattern.
-    this.otp.subscribe((_state, event) => {
-      if (event.type === 'COMPLETE') {
-        if (hapticEnabled) triggerHapticFeedback()
-        if (soundEnabled)  triggerSoundFeedback()
-      } else if (event.type === 'ERROR' && event.hasError) {
-        if (hapticEnabled) triggerHapticFeedback()
-      }
-    })
+    this.refreshFeedbackSubscription()
 
     // ── Built-in timer + resend (mirrors vanilla/alpine adapters) ──────────────
     if (timerSecs > 0) {
@@ -730,55 +720,66 @@ class VerinoInput extends HTMLElement {
       resendRowEl.appendChild(resendBtn)
       outerEl.appendChild(resendRowEl)
 
-      // Main countdown
-      this.timerCtrl = createTimer({
-        totalSeconds: timerSecs,
-        onTick: (r) => { if (this.timerBadgeEl) this.timerBadgeEl.textContent = formatCountdown(r) },
-        onExpire: () => {
+      this.timer = createResendTimer({
+        timerSeconds: timerSecs,
+        resendCooldown,
+        clearField: () => { this.clearField() },
+        showTimer: (remaining) => {
+          if (this.resendEl) this.resendEl.classList.remove('is-visible')
+          if (this.timerEl) this.timerEl.classList.remove('is-hidden')
+          if (this.timerBadgeEl) this.timerBadgeEl.textContent = formatCountdown(remaining)
+        },
+        showResend: () => {
           if (this.timerEl) this.timerEl.classList.add('is-hidden')
           if (this.resendEl) this.resendEl.classList.add('is-visible')
-          this.dispatchEvent(new CustomEvent('expire', { bubbles: true, composed: true }))
         },
+        onExpire: () => {
+          this.dispatchEvent(new CustomEvent<void>('expire', { bubbles: true, composed: true }))
+        },
+        onResend: () => { this._onResend?.() },
       })
-      this.timerCtrl.start()
+      this.timer.start()
 
       // Resend button click — restart with resend cooldown
       resendBtn.addEventListener('click', () => {
-        this.resendEl!.classList.remove('is-visible')
-        this.timerEl!.classList.remove('is-hidden')
-        this.timerBadgeEl!.textContent = formatCountdown(resendCooldown)
-        this.resendCountdown?.stop()
-        this.resendCountdown = createTimer({
-          totalSeconds: resendCooldown,
-          onTick:   (r) => { if (this.timerBadgeEl) this.timerBadgeEl.textContent = formatCountdown(r) },
-          onExpire: () => {
-            if (this.timerEl) this.timerEl.classList.add('is-hidden')
-            if (this.resendEl) this.resendEl.classList.add('is-visible')
-          },
-        })
-        this.resendCountdown.start()
-        this._onResend?.()
+        this.timer?.resend()
       })
     }
 
     if (this._isReadOnly) hiddenInput.setAttribute('aria-readonly', 'true')
 
-    // Apply defaultValue once on build — no onComplete, no change event
-    const dv = this._defaultValue
-    if (dv) {
-      const filtered = filterString(dv.slice(0, length), type, this._pattern)
-      if (filtered) {
-        suppressComplete = true
-        try {
-          for (let i = 0; i < filtered.length; i++) this.otp!.insert(filtered[i], i)
-        } finally {
-          suppressComplete = false
-        }
-        hiddenInput.value = filtered
+    // Re-apply the current code across rebuilds. If there is no live code yet,
+    // fall back to the declarative defaultValue attribute.
+    const seedValue = previousCode || this._defaultValue
+    if (seedValue) {
+      let result: ReturnType<typeof seedProgrammaticValue>
+      suppressComplete = true
+      try {
+        result = seedProgrammaticValue(
+          this.otp!,
+          seedValue,
+          {
+            length,
+            type,
+            pattern: this._pattern,
+          },
+          previousCode
+            ? { preserveActiveSlot: previousActiveSlot }
+            : 'slot-end',
+        )
+      } finally {
+        suppressComplete = false
       }
+      if (result.changed) syncInputValue(hiddenInput, result.value, result.nextSelection)
     }
 
-    this.attachEvents(selectOnFocus, blurOnComplete)
+    if (previousHasSuccess) {
+      this.otp.setSuccess(true)
+    } else if (previousHasError) {
+      this.otp.setError(true)
+    }
+
+    this.attachEvents()
 
     if (this._isDisabled) this.applyDisabledDOM(true)
 
@@ -787,25 +788,35 @@ class VerinoInput extends HTMLElement {
     // Chrome without any user gesture. AbortController is stored so
     // disconnectedCallback and rebuild can cancel the pending request.
     if (typeof navigator !== 'undefined' && 'credentials' in navigator) {
-      this.webOTPController = new AbortController()
-      const webOTPTimeoutId = setTimeout(() => this.webOTPController?.abort(), 5 * 60 * 1000)
+      const requestId = ++this.webOTPRequestId
+      const controller = new AbortController()
+      this.webOTPController = controller
+      const webOTPTimeoutId = setTimeout(() => controller.abort(), 5 * 60 * 1000)
       ;(navigator.credentials.get as (opts: object) => Promise<OTPCredential | null>)({
         otp:    { transport: ['sms'] },
-        signal: this.webOTPController.signal,
+        signal: controller.signal,
       }).then((credential) => {
         clearTimeout(webOTPTimeoutId)
-        if (!credential?.code || !this.otp || !this.hiddenInput) return
-        const valid = filterString(credential.code, type, this._pattern).slice(0, length)
-        if (!valid) return
-        this.otp.reset()
-        for (let i = 0; i < valid.length; i++) this.otp.insert(valid[i], i)
-        const nextCursor = Math.min(valid.length, length - 1)
-        this.hiddenInput.value = valid
-        this.hiddenInput.setSelectionRange(nextCursor, nextCursor)
-        this.otp.move(nextCursor)
+        if (requestId === this.webOTPRequestId) this.webOTPController = null
+        if (
+          controller.signal.aborted ||
+          !this.isConnected ||
+          requestId !== this.webOTPRequestId ||
+          !credential?.code ||
+          !this.otp ||
+          !this.hiddenInput
+        ) return
+        const result = applyTypedInput(this.otp, credential.code, {
+          length,
+          type,
+          pattern: this._pattern,
+        })
+        if (!result.value) return
+        syncInputValue(this.hiddenInput, result.value, result.nextSelection)
         this.syncSlotsToDOM()
       }).catch(() => {
         clearTimeout(webOTPTimeoutId)
+        if (requestId === this.webOTPRequestId) this.webOTPController = null
         /* aborted on rebuild/disconnect or not supported */
       })
     }
@@ -814,7 +825,7 @@ class VerinoInput extends HTMLElement {
     // Detect badge icons from LastPass, 1Password, Dashlane, Bitwarden, Keeper
     // and widen the hidden input to prevent overlap with the last visual slot.
     const slotRowWidth = slotRowEl.getBoundingClientRect().width
-    this.disconnectPMWatch = wcWatchForPasswordManagerBadge(hiddenInput, slotRowWidth)
+    this.disconnectPMWatch = watchForPasswordManagerBadge(hiddenInput, slotRowWidth)
 
     hiddenInput.addEventListener('click', (e: MouseEvent) => {
       if (this._isDisabled) return
@@ -829,7 +840,7 @@ class VerinoInput extends HTMLElement {
       const clickedSlot = Math.min(rawSlot, hiddenInput.value.length)
       this.otp?.move(clickedSlot)
       const char = this.otp?.state.slotValues[clickedSlot] ?? ''
-      if (selectOnFocus && char) {
+      if (this._selectOnFocus && char) {
         hiddenInput.setSelectionRange(clickedSlot, clickedSlot + 1)
       } else {
         hiddenInput.setSelectionRange(clickedSlot, clickedSlot)
@@ -837,9 +848,10 @@ class VerinoInput extends HTMLElement {
       this.syncSlotsToDOM()
     })
 
-    requestAnimationFrame(() => {
+    this.frameScheduler.schedule(() => {
       if (!this._isDisabled && autoFocus) hiddenInput.focus()
-      hiddenInput.setSelectionRange(0, 0)
+      const next = this.otp?.state.activeSlot ?? 0
+      hiddenInput.setSelectionRange(next, next)
       this.syncSlotsToDOM()
     })
   }
@@ -864,25 +876,26 @@ class VerinoInput extends HTMLElement {
       const char     = slotValues[i] ?? ''
       const isFilled = char.length === 1
 
-      let textNode = slotEl.childNodes[1] as Text | undefined
-      if (!textNode || textNode.nodeType !== Node.TEXT_NODE) {
+      const existingTextNode = slotEl.childNodes[1]
+      let textNode = existingTextNode instanceof Text ? existingTextNode : null
+      if (!textNode) {
         textNode = document.createTextNode('')
         slotEl.appendChild(textNode)
       }
       textNode.nodeValue = this._masked && char ? this._maskChar : char || this._placeholder
 
-      slotEl.setAttribute('data-active',   b(i === activeSlot))
-      slotEl.setAttribute('data-focus',    b(focused))
-      slotEl.setAttribute('data-filled',   b(isFilled))
-      slotEl.setAttribute('data-empty',    b(!isFilled))
-      slotEl.setAttribute('data-masked',   b(this._masked))
-      slotEl.setAttribute('data-invalid',  b(hasError))
+      slotEl.setAttribute('data-active',   boolAttr(i === activeSlot))
+      slotEl.setAttribute('data-focus',    boolAttr(focused))
+      slotEl.setAttribute('data-filled',   boolAttr(isFilled))
+      slotEl.setAttribute('data-empty',    boolAttr(!isFilled))
+      slotEl.setAttribute('data-masked',   boolAttr(this._masked))
+      slotEl.setAttribute('data-invalid',  boolAttr(hasError))
       // hasError and _isSuccess are mutually exclusive: setError(true) sets _isSuccess = false,
       // and setSuccess(true) calls otp.setError(false). No explicit guard needed.
-      slotEl.setAttribute('data-success',  b(this._isSuccess))
-      slotEl.setAttribute('data-disabled', b(this._isDisabled))
-      slotEl.setAttribute('data-complete', b(isComplete))
-      slotEl.setAttribute('data-readonly', b(this._isReadOnly))
+      slotEl.setAttribute('data-success',  boolAttr(this._isSuccess))
+      slotEl.setAttribute('data-disabled', boolAttr(this._isDisabled))
+      slotEl.setAttribute('data-complete', boolAttr(isComplete))
+      slotEl.setAttribute('data-readonly', boolAttr(this._isReadOnly))
 
       this.caretEls[i].style.display = i === activeSlot && focused && !isFilled && !this._isDisabled ? 'block' : 'none'
     })
@@ -909,17 +922,41 @@ class VerinoInput extends HTMLElement {
     this.slotEls.forEach(s => s.setAttribute('data-disabled', value ? 'true' : 'false'))
   }
 
+  private refreshFeedbackSubscription(): void {
+    this.unsubscribeFeedback()
+    this.unsubscribeFeedback = () => {}
+    if (!this.otp) return
+    this.unsubscribeFeedback = subscribeFeedback(this.otp, {
+      haptic: this._haptic,
+      sound:  this._sound,
+    })
+  }
+
+  private cancelPendingWebOTP(): void {
+    this.webOTPRequestId += 1
+    this.webOTPController?.abort()
+    this.webOTPController = null
+  }
+
+  private clearField(): void {
+    this._isSuccess = false
+    if (this.otp) {
+      clearOTPInput(this.otp, this.hiddenInput, {
+        focus: !this._isDisabled,
+        disabled: this._isDisabled,
+      })
+    }
+    this.syncSlotsToDOM()
+  }
+
   // ── Events ──────────────────────────────────────────────────────────────────
   /**
    * Wire all event listeners to the hidden input element.
    * Called once at the end of each `build()`. Because `build()` creates a fresh
    * `hiddenInput` element, there is no need to `removeEventListener` — the old
    * element is discarded and its listeners are garbage-collected with it.
-   *
-   * @param selectOnFocus  When `true`, focusing a filled slot selects its character.
-   * @param blurOnComplete When `true`, blurs the input after the last slot is filled.
    */
-  private attachEvents(selectOnFocus: boolean, blurOnComplete: boolean): void {
+  private attachEvents(): void {
     const input   = this.hiddenInput!
     const otp     = this.otp!
     const length  = this._length
@@ -928,46 +965,20 @@ class VerinoInput extends HTMLElement {
 
     input.addEventListener('keydown', (e) => {
       if (this._isDisabled) return
-      const pos = input.selectionStart ?? 0
-      if (e.key === 'Backspace') {
-        e.preventDefault()
-        if (this._isReadOnly) return
-        otp.delete(pos)
-        this.syncSlotsToDOM()
-        this.dispatchChange()
-        const next = otp.state.activeSlot
-        requestAnimationFrame(() => input.setSelectionRange(next, next))
-      } else if (e.key === 'Delete') {
-        e.preventDefault()
-        if (this._isReadOnly) return
-        otp.clear(pos)
-        this.syncSlotsToDOM()
-        this.dispatchChange()
-        requestAnimationFrame(() => input.setSelectionRange(pos, pos))
-      } else if (e.key === 'ArrowLeft') {
-        e.preventDefault()
-        otp.move(pos - 1)
-        this.syncSlotsToDOM()
-        requestAnimationFrame(() => input.setSelectionRange(otp.state.activeSlot, otp.state.activeSlot))
-      } else if (e.key === 'ArrowRight') {
-        e.preventDefault()
-        otp.move(pos + 1)
-        this.syncSlotsToDOM()
-        requestAnimationFrame(() => input.setSelectionRange(otp.state.activeSlot, otp.state.activeSlot))
-      } else if (e.key === 'Tab') {
-        if (e.shiftKey) {
-          if (pos === 0) return
-          e.preventDefault()
-          otp.move(pos - 1)
-        } else {
-          if (!otp.state.slotValues[pos]) return
-          if (pos >= length - 1) return
-          e.preventDefault()
-          otp.move(pos + 1)
-        }
-        this.syncSlotsToDOM()
-        const next = otp.state.activeSlot
-        requestAnimationFrame(() => input.setSelectionRange(next, next))
+      const result = handleOTPKeyAction(otp, {
+        key: e.key,
+        position: input.selectionStart ?? 0,
+        length,
+        readOnly: this._isReadOnly,
+        shiftKey: e.shiftKey,
+      })
+      if (!result.handled) return
+
+      e.preventDefault()
+      this.syncSlotsToDOM()
+      if (result.valueChanged) this.dispatchChange()
+      if (result.nextSelection !== null) {
+        scheduleInputSelection(this.frameScheduler, input, result.nextSelection)
       }
     })
 
@@ -975,55 +986,32 @@ class VerinoInput extends HTMLElement {
       if (this._isDisabled || this._isReadOnly) return
       const raw = input.value
       if (!raw) {
-        otp.reset()
-        input.value = ''
-        input.setSelectionRange(0, 0)
+        clearOTPInput(otp, input, { focus: false })
         this.syncSlotsToDOM()
         this.dispatchChange()
         return
       }
-      const valid = filterString(raw, type, pattern).slice(0, length)
-      otp.reset()
-      for (let i = 0; i < valid.length; i++) otp.insert(valid[i], i)
-      const next = Math.min(valid.length, length - 1)
-      input.value = valid
-      input.setSelectionRange(next, next)
-      otp.move(next)
+      const result = applyTypedInput(otp, raw, { length, type, pattern })
+      syncInputValue(input, result.value, result.nextSelection)
       this.syncSlotsToDOM()
       this.dispatchChange()
-      if (blurOnComplete && otp.state.isComplete) {
-        requestAnimationFrame(() => input.blur())
-      }
+      scheduleInputBlur(this.frameScheduler, input, this._blurOnComplete && result.isComplete)
     })
 
     input.addEventListener('paste', (e) => {
       if (this._isDisabled || this._isReadOnly) return
       e.preventDefault()
       const text = e.clipboardData?.getData('text') ?? ''
-      const pos  = input.selectionStart ?? 0
-      otp.paste(text, pos)
-      const { slotValues, activeSlot } = otp.state
-      input.value = slotValues.join('')
-      input.setSelectionRange(activeSlot, activeSlot)
+      const result = applyPastedInput(otp, text, input.selectionStart ?? 0)
+      syncInputValue(input, result.value, result.nextSelection)
       this.syncSlotsToDOM()
       this.dispatchChange()
-      if (blurOnComplete && otp.state.isComplete) {
-        requestAnimationFrame(() => input.blur())
-      }
+      scheduleInputBlur(this.frameScheduler, input, this._blurOnComplete && result.isComplete)
     })
 
     input.addEventListener('focus', () => {
       this._onFocus?.()
-      requestAnimationFrame(() => {
-        const pos  = otp.state.activeSlot
-        const char = otp.state.slotValues[pos]
-        if (selectOnFocus && char) {
-          input.setSelectionRange(pos, pos + 1)
-        } else {
-          input.setSelectionRange(pos, pos)
-        }
-        this.syncSlotsToDOM()
-      })
+      scheduleFocusSync(this.frameScheduler, otp, input, this._selectOnFocus, () => this.syncSlotsToDOM())
     })
 
     input.addEventListener('blur', () => {
@@ -1041,7 +1029,7 @@ class VerinoInput extends HTMLElement {
    * listeners registered with `el.addEventListener('change', ...)` receive it.
    */
   private dispatchChange(): void {
-    this.dispatchEvent(new CustomEvent('change', {
+    this.dispatchEvent(new CustomEvent<{ code: string }>('change', {
       detail:   { code: this.otp?.getCode() ?? '' },
       bubbles:  true,
       composed: true,
@@ -1052,19 +1040,18 @@ class VerinoInput extends HTMLElement {
 
   /** Clear all slots, reset the timer display, and re-focus the hidden input. */
   reset(): void {
-    this._isSuccess = false
-    this.otp?.reset()
-    if (this.hiddenInput) {
-      this.hiddenInput.value = ''
-      if (!this._isDisabled) this.hiddenInput.focus()
-      this.hiddenInput.setSelectionRange(0, 0)
+    this.clearField()
+    this.timer?.restartMain()
+  }
+
+  /** Reset the field and fire `onResend`. Restarts the timer with resend cooldown when a timer is active. */
+  resend(): void {
+    if (this.timer) {
+      this.timer.resend()
+    } else {
+      this.clearField()
+      this._onResend?.()
     }
-    if (this.timerBadgeEl) this.timerBadgeEl.textContent = formatCountdown(this._timer)
-    if (this.timerEl)      this.timerEl.classList.remove('is-hidden')
-    if (this.resendEl)     this.resendEl.classList.remove('is-visible')
-    this.resendCountdown?.stop()
-    this.timerCtrl?.restart()
-    this.syncSlotsToDOM()
   }
 
   /** Apply or clear the error state on all visual slots. */
@@ -1082,13 +1069,12 @@ class VerinoInput extends HTMLElement {
     this._isSuccess = isSuccess
     if (isSuccess) {
       this.otp?.setError(false)
-      this.timerCtrl?.stop()
-      this.resendCountdown?.stop()
+      this.timer?.stop()
       // Hide timer and resend via class-based approach so reset() can restore them.
       // Inline styles would persist across reset() calls and permanently suppress the UI.
       if (this.timerEl)  this.timerEl.classList.add('is-hidden')
       if (this.resendEl) this.resendEl.classList.remove('is-visible')
-      this.dispatchEvent(new CustomEvent('success', { bubbles: true, composed: true }))
+      this.dispatchEvent(new CustomEvent<void>('success', { bubbles: true, composed: true }))
     } else {
       if (this.timerEl)  this.timerEl.classList.remove('is-hidden')
     }
@@ -1109,10 +1095,7 @@ class VerinoInput extends HTMLElement {
     this.applyDisabledDOM(value)
     this.syncSlotsToDOM()
     if (!value && this.hiddenInput) {
-      requestAnimationFrame(() => {
-        this.hiddenInput?.focus()
-        this.hiddenInput?.setSelectionRange(this.otp?.state.activeSlot ?? 0, this.otp?.state.activeSlot ?? 0)
-      })
+      scheduleInputFocus(this.frameScheduler, this.hiddenInput, this.otp?.state.activeSlot ?? 0)
     }
   }
 
@@ -1140,7 +1123,7 @@ class VerinoInput extends HTMLElement {
   }
 
   /** Minimal snapshot of every slot — index, value, isActive, isFilled. */
-  getSlots(): SlotEntry[] {
+  getSlots(): readonly SlotEntry[] {
     return this.otp?.getSlots() ?? []
   }
 
@@ -1162,28 +1145,61 @@ class VerinoInput extends HTMLElement {
       value:     char,
       onInput:   (c) => { otp?.insert(c, slotIndex); this.syncSlotsToDOM() },
       onKeyDown: (key) => {
-        if (key === 'Backspace')       { otp?.delete(slotIndex); this.syncSlotsToDOM() }
-        else if (key === 'Delete')     { otp?.clear(slotIndex); this.syncSlotsToDOM() }
-        else if (key === 'ArrowLeft')  { otp?.move(slotIndex - 1); this.syncSlotsToDOM() }
-        else if (key === 'ArrowRight') { otp?.move(slotIndex + 1); this.syncSlotsToDOM() }
+        if (!otp) return
+        const result = handleOTPKeyAction(otp, {
+          key,
+          position: slotIndex,
+          length: this._length,
+          readOnly: this._isReadOnly,
+        })
+        if (result.handled) this.syncSlotsToDOM()
       },
       onFocus: () => this._onFocus?.(),
       onBlur:  () => this._onBlur?.(),
       'data-slot':     slotIndex,
-      'data-active':   b(s?.activeSlot === slotIndex),
-      'data-filled':   b(isFilled),
-      'data-empty':    b(!isFilled),
-      'data-complete': b(s?.isComplete ?? false),
-      'data-invalid':  b(s?.hasError ?? false),
+      'data-active':   boolAttr(s?.activeSlot === slotIndex),
+      'data-filled':   boolAttr(isFilled),
+      'data-empty':    boolAttr(!isFilled),
+      'data-complete': boolAttr(s?.isComplete ?? false),
+      'data-invalid':  boolAttr(s?.hasError ?? false),
       // Use _isSuccess (the local runtime flag) rather than s.hasSuccess (core state)
       // so this matches the value used in syncSlotsToDOM — setSuccess() updates _isSuccess
       // and otp.setSuccess() together, keeping them in sync.
-      'data-success':  b(this._isSuccess),
-      'data-disabled': b(this._isDisabled),
-      'data-readonly': b(this._isReadOnly),
-      'data-first':    b(slotIndex === 0),
-      'data-last':     b(slotIndex === this._length - 1),
+      'data-success':  boolAttr(this._isSuccess),
+      'data-disabled': boolAttr(this._isDisabled),
+      'data-readonly': boolAttr(this._isReadOnly),
+      'data-first':    boolAttr(slotIndex === 0),
+      'data-last':     boolAttr(slotIndex === this._length - 1),
     }
+  }
+}
+
+interface VerinoInput {
+  addEventListener<K extends keyof VerinoInputEventMap>(
+    type: K,
+    listener: (this: VerinoInput, ev: VerinoInputEventMap[K]) => void,
+    options?: boolean | AddEventListenerOptions,
+  ): void
+  addEventListener(
+    type: string,
+    listener: EventListenerOrEventListenerObject | null,
+    options?: boolean | AddEventListenerOptions,
+  ): void
+  removeEventListener<K extends keyof VerinoInputEventMap>(
+    type: K,
+    listener: (this: VerinoInput, ev: VerinoInputEventMap[K]) => void,
+    options?: boolean | EventListenerOptions,
+  ): void
+  removeEventListener(
+    type: string,
+    listener: EventListenerOrEventListenerObject | null,
+    options?: boolean | EventListenerOptions,
+  ): void
+}
+
+declare global {
+  interface HTMLElementTagNameMap {
+    'verino-input': VerinoInput
   }
 }
 

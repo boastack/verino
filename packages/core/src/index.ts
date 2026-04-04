@@ -1,28 +1,37 @@
 /**
  * verino/core
  * ─────────────────────────────────────────────────────────────────────────────
- * Pure OTP state machine — zero DOM, zero framework, zero side effects.
- * All adapters (vanilla, React, Vue, Svelte, Alpine, Web Components) import
- * from here. Nothing else is shared between them.
- *
- * @author  Olawale Balo — Product Designer + Design Engineer
- * @license MIT
+ * Shared Verino core package.
+ * This root entry is intentionally pure: state machine, filtering, timer, and
+ * types only. Toolkit helpers live at `@verino/core/toolkit`.
  */
 
 export type {
+  BooleanDataAttr,
   InputType,
-  OTPState,
+  OTPStateSnapshot,
+  CoreBehaviorOptions,
+  CoreCallbackOptions,
+  CoreOTPOptions,
   OTPOptions,
+  FeedbackOptions,
+  TimerUIOptions,
+  ResendUIOptions,
+  FieldBehaviorOptions,
   OTPEvent,
   OTPEventType,
   InputProps,
+  OTPDataAttrs,
+  FocusDataAttrs,
+  WrapperDataAttrs,
+  HiddenInputAttrs,
   SlotEntry,
   SlotProps,
   TimerOptions,
   TimerControls,
   StateListener,
+  OTPInstance,
 } from './types.js'
-export { filterChar, filterString }                    from './filter.js'
+export { filterChar, filterString, isInputType, parseBooleanish, parseInputType, parseSeparatorAfter } from './filter.js'
 export { createTimer, formatCountdown }                from './timer.js'
-export { triggerHapticFeedback, triggerSoundFeedback } from './feedback.js'
 export { createOTP }                                   from './machine.js'

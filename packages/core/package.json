@@ -1,6 +1,6 @@
 {
   "name": "@verino/core",
-  "version": "1.0.0",
+  "version": "2.0.0",
   "description": "Reliable OTP input state machine that powers React, Vue, Svelte, Alpine, Vanilla JS, and Web Components.",
   "type": "module",
   "main": "./dist/index.js",
@@ -11,25 +11,70 @@
       "types": "./dist/index.d.ts",
       "import": "./dist/index.js",
       "require": "./dist/index.cjs"
+    },
+    "./filter": {
+      "types": "./dist/filter.d.ts",
+      "import": "./dist/filter.js",
+      "require": "./dist/filter.cjs"
+    },
+    "./machine": {
+      "types": "./dist/machine.d.ts",
+      "import": "./dist/machine.js",
+      "require": "./dist/machine.cjs"
+    },
+    "./timer": {
+      "types": "./dist/timer.d.ts",
+      "import": "./dist/timer.js",
+      "require": "./dist/timer.cjs"
+    },
+    "./toolkit": {
+      "types": "./dist/toolkit/index.d.ts",
+      "import": "./dist/toolkit/index.js",
+      "require": "./dist/toolkit/index.cjs"
+    },
+    "./toolkit/controller": {
+      "types": "./dist/toolkit/controller.d.ts",
+      "import": "./dist/toolkit/controller.js",
+      "require": "./dist/toolkit/controller.cjs"
+    },
+    "./toolkit/adapter-policy": {
+      "types": "./dist/toolkit/adapter-policy.d.ts",
+      "import": "./dist/toolkit/adapter-policy.js",
+      "require": "./dist/toolkit/adapter-policy.cjs"
+    },
+    "./toolkit/timer-policy": {
+      "types": "./dist/toolkit/timer-policy.d.ts",
+      "import": "./dist/toolkit/timer-policy.js",
+      "require": "./dist/toolkit/timer-policy.cjs"
+    },
+    "./toolkit/feedback": {
+      "types": "./dist/toolkit/feedback.d.ts",
+      "import": "./dist/toolkit/feedback.js",
+      "require": "./dist/toolkit/feedback.cjs"
+    },
+    "./toolkit/password-manager": {
+      "types": "./dist/toolkit/password-manager.d.ts",
+      "import": "./dist/toolkit/password-manager.js",
+      "require": "./dist/toolkit/password-manager.cjs"
     }
   },
   "sideEffects": false,
   "files": [
-    "dist",
-    "src",
+    "dist/",
     "README.md",
-    "LICENSE",
-    "CHANGELOG.md"
+    "LICENSE"
   ],
   "scripts": {
     "build": "tsup",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc -b"
   },
   "keywords": [
     "otp",
     "otp-input",
     "one-time-password",
     "one-time-code",
+    "authentication",
+    "otp-field",
     "pin-input",
     "verification-code",
     "passcode",

@@ -1,15 +1,15 @@
 /**
- * verino/core/feedback
+ * @verino/core/toolkit/feedback
  * ─────────────────────────────────────────────────────────────────────────────
- * Optional sensory feedback utilities — exported so consumers can call them
- * in their own event handlers without reimplementing the Web Audio / vibration
- * boilerplate ("bring your own feedback" pattern).
+ * Browser feedback utilities — exported so adapters and consumers can trigger
+ * haptic/audio confirmation without reimplementing Web Audio or the Vibration
+ * API boilerplate.
  *
- * Used internally by the core machine when `haptic` / `sound` options are set.
- *
- * @author  Olawale Balo — Product Designer + Design Engineer
- * @license MIT
+ * The OTP state machine itself stays side-effect free. Adapters call these in
+ * response to emitted core events.
  */
+
+import type { OTPEvent, OTPStateSnapshot, StateListener } from '../types.js'
 
 /**
  * Trigger a short 10ms haptic pulse via `navigator.vibrate`.
@@ -24,9 +24,9 @@ export function triggerHapticFeedback(): void {
   try { navigator?.vibrate?.(10) } catch { /* not supported — fail silently */ }
 }
 
-const TONE_FREQUENCY_HZ  = 880   // A5 — chosen for clear audible confirmation
-const TONE_DURATION_S    = 0.08  // 80ms — short enough to not be intrusive
-const TONE_INITIAL_GAIN  = 0.08  // 0–1 amplitude; quiet by design so the tone is noticeable but not jarring
+const TONE_FREQUENCY_HZ = 880
+const TONE_DURATION_S  = 0.08
+const TONE_INITIAL_GAIN = 0.08
 
 /**
  * Play a brief 880 Hz tone via the Web Audio API.
@@ -45,9 +45,10 @@ const TONE_INITIAL_GAIN  = 0.08  // 0–1 amplitude; quiet by design so the tone
  */
 export function triggerSoundFeedback(): void {
   try {
-    const audioCtx:   AudioContext   = new AudioContext()
+    const audioCtx: AudioContext = new AudioContext()
     const oscillator: OscillatorNode = audioCtx.createOscillator()
-    const gainNode:   GainNode       = audioCtx.createGain()
+    const gainNode: GainNode = audioCtx.createGain()
+
     oscillator.connect(gainNode)
     gainNode.connect(audioCtx.destination)
     oscillator.frequency.value = TONE_FREQUENCY_HZ
@@ -56,12 +57,34 @@ export function triggerSoundFeedback(): void {
     oscillator.start()
     oscillator.stop(audioCtx.currentTime + TONE_DURATION_S)
 
-    // Primary close path — fires when the oscillator finishes naturally.
-    oscillator.onended = () => { audioCtx.close().catch(() => { /* ignore */ }) }
-
-    // Safety fallback — close the context even if onended never fires (e.g. the
-    // oscillator is garbage-collected before it stops, or the browser omits the
-    // event). Prevents AudioContext accumulation against Chrome's ~6-context limit.
-    setTimeout(() => { audioCtx.close().catch(() => { /* ignore */ }) }, 500)
+    oscillator.onended = () => { audioCtx.close().catch(() => {}) }
+    const closeTimeout = setTimeout(() => { audioCtx.close().catch(() => {}) }, 500)
+    closeTimeout.unref?.()
   } catch { /* Web Audio not available — fail silently */ }
+}
+
+type OTPSubscribable = {
+  subscribe(listener: StateListener): () => void
+}
+
+/**
+ * Attach the shared completion/error feedback behavior used by adapters.
+ *
+ * `COMPLETE` triggers optional haptic and sound feedback.
+ * `ERROR` triggers optional haptic feedback when the machine is in an error state.
+ */
+export function subscribeFeedback(
+  otp: OTPSubscribable,
+  options: { haptic?: boolean; sound?: boolean } = {},
+): () => void {
+  const { haptic = true, sound = false } = options
+
+  return otp.subscribe((_state: OTPStateSnapshot, event: OTPEvent) => {
+    if (event.type === 'COMPLETE') {
+      if (haptic) triggerHapticFeedback()
+      if (sound) triggerSoundFeedback()
+    } else if (event.type === 'ERROR' && event.hasError) {
+      if (haptic) triggerHapticFeedback()
+    }
+  })
 }

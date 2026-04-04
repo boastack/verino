@@ -1,6 +1,21 @@
 {
   "name": "verino",
+  "description": "Reliable OTP inputs for any framework from a single core.",
   "private": true,
+  "author": "Olawale Balo",
+  "license": "MIT",
+  "homepage": "https://verino.vercel.app",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/boastack/verino"
+  },
+  "bugs": {
+    "url": "https://github.com/boastack/verino/issues"
+  },
+  "engines": {
+    "node": ">=18",
+    "pnpm": ">=10"
+  },
   "type": "module",
   "packageManager": "pnpm@10.13.1",
   "scripts": {
@@ -8,12 +23,14 @@
     "build:cdn": "node build-cdn.js",
     "build:all": "pnpm build && pnpm build:cdn",
     "typecheck": "turbo run typecheck",
-    "lint": "tsc --noEmit",
+    "lint": "pnpm typecheck",
     "test": "jest --no-coverage",
+    "test:watch": "jest --watch",
     "test:coverage": "jest --coverage",
     "test:e2e": "playwright test",
+    "serve:test": "node scripts/serve-static.mjs",
     "dev": "turbo run build --watch",
-    "release": "pnpm build && changeset publish",
+    "release": "pnpm build:all && changeset publish",
     "size": "pnpm build:cdn && size-limit",
     "size:ci": "pnpm build:cdn && size-limit --json"
   },
@@ -25,8 +42,8 @@
     },
     {
       "name": "@verino/vanilla (ESM)",
-      "path": "packages/vanilla/dist/index.js",
-      "limit": "8 kB",
+      "path": "packages/vanilla/dist/vanilla.js",
+      "limit": "6 kB",
       "ignore": ["@verino/core"]
     },
     {
@@ -77,17 +94,17 @@
     {
       "name": "CDN: verino.min.js",
       "path": "packages/vanilla/dist/verino.min.js",
-      "limit": "10 kB"
+      "limit": "12 kB"
     },
     {
       "name": "CDN: verino-alpine.min.js",
       "path": "packages/alpine/dist/verino-alpine.min.js",
-      "limit": "8 kB"
+      "limit": "10 kB"
     },
     {
       "name": "CDN: verino-wc.min.js",
       "path": "packages/web-component/dist/verino-wc.min.js",
-      "limit": "10 kB"
+      "limit": "12 kB"
     }
   ],
   "devDependencies": {

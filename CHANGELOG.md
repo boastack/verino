@@ -12,13 +12,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
-## [1.0.0] - 2026-03-22
+## [1.0.0] - 2026-04-01
+
+Initial public release of the Verino monorepo.
 
 ### Added
 
-- `verino` — zero-dependency OTP state machine and vanilla DOM adapter. Ships ESM, CJS, declaration maps, source maps, and CDN IIFE bundles.
+- `@verino/core` — pure OTP state machine and shared adapter toolkit; zero DOM, zero dependencies, runs in any JavaScript environment.
+- `@verino/vanilla` — DOM adapter with an extensible plugin system; ships three built-in plugins: Web OTP API (SMS autofill), password manager badge guard, and countdown timer with resend UI.
 - `@verino/react` — `useOTP` hook and `HiddenOTPInput` component for React ≥ 18.
-- `@verino/vue` — `useOTP` composable for Vue 3 with fully reactive `Ref<T>` state.
+- `@verino/vue` — `useOTP` composable for Vue 3 with reactive refs and watch-source controlled value.
 - `@verino/svelte` — `useOTP` function with Svelte stores and a `use:action` directive for Svelte ≥ 4.
 - `@verino/alpine` — `VerinoAlpine` plugin registering the `x-verino` directive for Alpine.js ≥ 3.
 - `@verino/web-component` — `<verino-input>` Shadow DOM custom element; self-registers on import with no peer dependencies.

@@ -2,9 +2,6 @@
  * @verino/vue
  * ─────────────────────────────────────────────────────────────────────────────
  * Vue 3 adapter — useOTP composable (single hidden-input architecture)
- *
- * @author  Olawale Balo — Product Designer + Design Engineer
- * @license MIT
  */
 
 import {
@@ -15,51 +12,92 @@ import {
   onUnmounted,
   isRef,
   type Ref,
+  type WatchSource,
 } from 'vue'
 
 import {
-  createOTP,
-  createTimer,
-  filterString,
-  triggerHapticFeedback,
-  triggerSoundFeedback,
-  type OTPOptions,
-  type InputType,
+  type CoreOTPOptions,
+  type FeedbackOptions,
+  type FieldBehaviorOptions,
+  type FocusDataAttrs,
+  type HiddenInputAttrs,
   type SlotEntry,
   type InputProps,
+  type TimerUIOptions,
+  type ResendUIOptions,
+  type WrapperDataAttrs,
 } from '@verino/core'
+import { createOTP } from '@verino/core/machine'
+import {
+  applyPastedInput,
+  applyTypedInput,
+  boolAttr,
+  clearOTPInput,
+  createFrameScheduler,
+  focusOTPInput,
+  handleOTPKeyAction,
+  scheduleFocusSync,
+  scheduleInputBlur,
+  scheduleInputSelection,
+  syncInputValue,
+} from '@verino/core/toolkit/controller'
+import { syncProgrammaticValue } from '@verino/core/toolkit/adapter-policy'
+import { createTimer } from '@verino/core'
+import { subscribeFeedback } from '@verino/core/toolkit/feedback'
 
 
 // ─────────────────────────────────────────────────────────────────────────────
 // TYPES
 // ─────────────────────────────────────────────────────────────────────────────
 
-/** Convert a boolean to the string literal `'true'` or `'false'` required by CSS attribute selectors. */
-const b = (v: boolean): 'true' | 'false' => v ? 'true' : 'false'
-
 /**
  * Extended options for the Vue useOTP composable.
- * Adds controlled-input, separator, and disabled support on top of OTPOptions.
+ * Builds on the core machine options with Vue-specific controlled-input,
+ * separator, and masked rendering behavior.
  */
-export type VueOTPOptions = OTPOptions & {
+type VueFieldBehaviorOptions = Pick<
+  FieldBehaviorOptions,
+  'autoFocus' | 'name' | 'onFocus' | 'onBlur' | 'placeholder' | 'selectOnFocus' | 'blurOnComplete' | 'defaultValue'
+>
+
+type VueHiddenInputAttrs = {
+  type:             HiddenInputAttrs['type']
+  inputmode:        HiddenInputAttrs['inputMode']
+  autocomplete:     HiddenInputAttrs['autoComplete']
+  maxlength:        HiddenInputAttrs['maxLength']
+  disabled:         HiddenInputAttrs['disabled']
+  name?:            HiddenInputAttrs['name']
+  autofocus?:       true
+  'aria-label':     HiddenInputAttrs['aria-label']
+  spellcheck:       'false'
+  autocorrect:      HiddenInputAttrs['autoCorrect']
+  autocapitalize:   HiddenInputAttrs['autoCapitalize']
+  'aria-readonly'?: HiddenInputAttrs['aria-readonly']
+}
+
+export type VueOTPOptions =
+  & CoreOTPOptions
+  & FeedbackOptions
+  & VueFieldBehaviorOptions
+  & Pick<TimerUIOptions, 'onExpire'>
+  & Pick<ResendUIOptions, 'onResend'>
+  & {
   /**
-   * Controlled value — pre-fills and drives the slot state from outside the composable.
+   * Live external control for the OTP value.
    *
-   * Reactive mode (recommended): pass a Ref<string>. The composable watches it
-   * via Vue's reactivity system — changes propagate automatically, making it
-   * fully equivalent to React's controlled-input pattern.
+   * In Vue, live external control is provided through a watch source such as a
+   * `ref`, `computed`, or getter function. Use `defaultValue` for one-time
+   * prefill on mount.
+   *
+   * Reactive mode:
    * ```ts
    * const code = ref('')
    * const otp = useOTP({ value: code, length: 6 })
    * // Clearing from parent:
    * code.value = ''
    * ```
-   *
-   * Static mode: pass a plain string to pre-fill slots once on creation.
-   * Subsequent changes to the string will NOT be reactive (composables run
-   * once during setup()). Use reset() or the Ref pattern for runtime updates.
    */
-  value?: string | Ref<string>
+  value?: WatchSource<string>
   /**
    * Fires exactly ONCE per user interaction with the current joined code string.
    * Receives partial values too — not just when the code is complete.
@@ -101,7 +139,7 @@ export type VueOTPOptions = OTPOptions & {
 
 export type UseOTPResult = {
   /** Current value of each slot. Empty string = unfilled. */
-  slotValues:       Ref<string[]>
+  slotValues:       Ref<readonly string[]>
   /** Index of the currently active slot. */
   activeSlot:       Ref<number>
   /** Computed joined code string. */
@@ -137,16 +175,16 @@ export type UseOTPResult = {
   /** Ref to bind to the hidden input element via :ref. */
   inputRef:         Ref<HTMLInputElement | null>
   /** Attribute object to spread onto the hidden input via v-bind. */
-  hiddenInputAttrs: Ref<Record<string, unknown>>
+  hiddenInputAttrs: Ref<VueHiddenInputAttrs>
   /** Spread onto the wrapper element to expose state as data attributes for CSS/Tailwind targeting. */
-  wrapperAttrs:     Ref<Record<string, string | undefined>>
+  wrapperAttrs:     Ref<WrapperDataAttrs>
   /** Returns the current joined code string. */
   getCode:          () => string
   /**
    * Minimal array snapshot of every slot — reactive, reads from Vue refs.
    * Use in templates: `v-for="slot in otp.getSlots()"`.
    */
-  getSlots:         () => SlotEntry[]
+  getSlots:         () => readonly SlotEntry[]
   /**
    * Framework-agnostic handlers + data-* attributes for slot `index`.
    * Reactive in Vue templates — reads from Vue refs, not core state.
@@ -156,9 +194,11 @@ export type UseOTPResult = {
    * fields — sourced from the reactive `isFocused` ref so templates re-render
    * correctly when the hidden input gains or loses browser focus.
    */
-  getInputProps:    (index: number) => InputProps & { 'data-focus': 'true' | 'false' }
+  getInputProps:    (index: number) => InputProps & FocusDataAttrs
   /** Clear all slots, restart timer, return focus to input. */
   reset:            () => void
+  /** Reset the field and fire `onResend`. */
+  resend:           () => void
   /** Apply or clear the error state. Clears success. */
   setError:         (isError: boolean) => void
   /** Apply or clear the success state. Clears error. */
@@ -221,12 +261,12 @@ export type UseOTPResult = {
 export function useOTP(options: VueOTPOptions = {}): UseOTPResult {
   const {
     length             = 6,
-    type               = 'numeric' as InputType,
+    idBase,
+    type               = 'numeric',
     timer:             timerSecs = 0,
     disabled:          initialDisabled = false,
     onComplete,
     onExpire,
-    onResend,
     haptic             = true,
     sound              = false,
     pattern,
@@ -247,31 +287,27 @@ export function useOTP(options: VueOTPOptions = {}): UseOTPResult {
     placeholder:       placeholderOpt = '',
     selectOnFocus:     selectOnFocusOpt = false,
     blurOnComplete:    blurOnCompleteOpt = false,
+    onResend,
   } = options
 
   // ── Suppress flag — prevents programmatic fills from firing onComplete ──────
   // onComplete fires synchronously on the last insert(); wrap it so that
   // controlled-value sync and defaultValue application can bypass the callback.
   let suppressComplete = false
+  const invalidControlledValueMessage = '[verino/vue] `value` must be a Vue ref, computed, or getter for live external control. Use `defaultValue` for one-time prefill.'
 
   // ── Core instance ──────────────────────────────────────────────────────────
   const otp = createOTP({
-    length, type, pattern, pasteTransformer, onInvalidChar,
+    length, idBase, type, pattern, pasteTransformer, onInvalidChar,
     onComplete: onComplete ? (code) => { if (!suppressComplete) onComplete(code) } : undefined,
-    onExpire, onResend, readOnly: readOnlyOpt,
+    disabled: initialDisabled,
+    readOnly: readOnlyOpt,
   })
 
-  otp.subscribe((_state, event) => {
-    if (event.type === 'COMPLETE') {
-      if (haptic) triggerHapticFeedback()
-      if (sound)  triggerSoundFeedback()
-    } else if (event.type === 'ERROR' && event.hasError) {
-      if (haptic) triggerHapticFeedback()
-    }
-  })
+  const unsubFeedback = subscribeFeedback(otp, { haptic, sound })
 
   // ── Reactive state ─────────────────────────────────────────────────────────
-  const slotValues   = ref<string[]>(Array(length).fill(''))
+  const slotValues   = ref<readonly string[]>(Array(length).fill(''))
   const activeSlot   = ref(0)
   const isComplete   = ref(false)
   const hasError     = ref(false)
@@ -281,6 +317,7 @@ export function useOTP(options: VueOTPOptions = {}): UseOTPResult {
   const timerSeconds = ref(timerSecs)
   const isFocused    = ref(false)
   const inputRef     = ref<HTMLInputElement | null>(null)
+  const frameScheduler = createFrameScheduler(() => !!inputRef.value?.isConnected)
   const separatorAfter = ref<number | number[]>(separatorAfterOpt)
   const separator      = ref(separatorOpt)
   const masked         = ref(maskedOpt)
@@ -288,7 +325,7 @@ export function useOTP(options: VueOTPOptions = {}): UseOTPResult {
 
   const value = computed(() => slotValues.value.join(''))
 
-  const hiddenInputAttrs = computed<Record<string, unknown>>(() => ({
+  const hiddenInputAttrs = computed<VueHiddenInputAttrs>(() => ({
     type:           masked.value ? 'password' : 'text',
     inputmode:      type === 'numeric' ? 'numeric' : 'text',
     autocomplete:   'one-time-code',
@@ -303,7 +340,7 @@ export function useOTP(options: VueOTPOptions = {}): UseOTPResult {
     ...(isReadOnly.value ? { 'aria-readonly': 'true' } : {}),
   }))
 
-  const wrapperAttrs = computed<Record<string, string | undefined>>(() => ({
+  const wrapperAttrs = computed<WrapperDataAttrs>(() => ({
     ...(isComplete.value ? { 'data-complete': '' } : {}),
     ...(hasError.value   ? { 'data-invalid':  '' } : {}),
     ...(hasSuccess.value ? { 'data-success':  '' } : {}),
@@ -332,168 +369,120 @@ export function useOTP(options: VueOTPOptions = {}): UseOTPResult {
   }
 
   // ── Controlled value sync ──────────────────────────────────────────────────
-  // When value is a Ref<string>, watch it reactively so parent changes
-  // propagate automatically. When it's a plain string, the arrow-function
-  // source returns a constant — watch fires once via { immediate: true }
-  // and never again (documented static-pre-fill behaviour).
+  // `value` is live external control only when the caller passes a Vue watch
+  // source. Invalid value shapes are rejected; one-off prefills should use
+  // `defaultValue`.
+  let stopControlledValueWatch: (() => void) | null = null
   if (controlledValue !== undefined) {
-    const watchSource = isRef(controlledValue)
-      ? controlledValue
-      : () => controlledValue as string
-
-    watch(
-      watchSource,
-      (incoming: string) => {
-        const filtered = filterString(incoming.slice(0, length), type, pattern)
-        const current  = otp.state.slotValues.join('')
-        if (filtered === current) return
-
+    const applyControlledValue = (incoming: string): void => {
+        let result: ReturnType<typeof syncProgrammaticValue>
         suppressComplete = true
         try {
-          otp.reset()
-          for (let i = 0; i < filtered.length; i++) {
-            otp.insert(filtered[i], i)
-          }
+          result = syncProgrammaticValue(otp, incoming, { length, type, pattern }, 'input-end')
         } finally {
           suppressComplete = false
         }
+        if (!result.changed) return
         sync(true)
-        if (inputRef.value) {
-          inputRef.value.value = filtered
-          inputRef.value.setSelectionRange(filtered.length, filtered.length)
-        }
-        onChangeProp?.(filtered)
-      },
-      { immediate: true }
-    )
+        syncInputValue(inputRef.value, result.value, result.nextSelection)
+    }
+
+    if (isRef(controlledValue) || typeof controlledValue === 'function') {
+      stopControlledValueWatch = watch(controlledValue, (incoming) => applyControlledValue(incoming), { immediate: true })
+    } else {
+      console.error(invalidControlledValueMessage)
+    }
   }
 
   // ── Timer ──────────────────────────────────────────────────────────────────
-  let timerControls: ReturnType<typeof createTimer> | null = null
+  const timerController = createTimer({
+    totalSeconds: timerSecs,
+    emitInitialTickOnStart: true,
+    emitInitialTickOnRestart: true,
+    onTick:   (remaining) => { timerSeconds.value = remaining },
+    onExpire: () => { timerSeconds.value = 0; onExpire?.() },
+  })
 
   onMounted(() => {
     if (controlledValue === undefined && defaultValue) {
-      const filtered = filterString(defaultValue.slice(0, length), type, pattern)
-      if (filtered) {
-        suppressComplete = true
-        try {
-          for (let i = 0; i < filtered.length; i++) otp.insert(filtered[i], i)
-        } finally {
-          suppressComplete = false
-        }
+      let result: ReturnType<typeof syncProgrammaticValue>
+      suppressComplete = true
+      try {
+        result = syncProgrammaticValue(otp, defaultValue, { length, type, pattern }, 'input-end')
+      } finally {
+        suppressComplete = false
+      }
+      if (result.changed) {
         sync(true)
-        if (inputRef.value) { inputRef.value.value = filtered; inputRef.value.setSelectionRange(filtered.length, filtered.length) }
+        syncInputValue(inputRef.value, result.value, result.nextSelection)
       }
     }
+    syncInputValue(inputRef.value, otp.state.slotValues.join(''), otp.state.activeSlot)
     if (autoFocusOpt && !initialDisabled && inputRef.value) {
       inputRef.value.focus()
       inputRef.value.setSelectionRange(0, 0)
     }
-    if (!timerSecs) return
-    timerControls = createTimer({
-      totalSeconds: timerSecs,
-      onTick:   (r) => { timerSeconds.value = r },
-      onExpire: () => { timerSeconds.value = 0; onExpire?.() },
-    })
-    timerControls.start()
+    timerController.start()
   })
 
-  onUnmounted(() => timerControls?.stop())
+  onUnmounted(() => {
+    frameScheduler.cancelAll()
+    stopControlledValueWatch?.()
+    stopControlledValueWatch = null
+    timerController.stop()
+    unsubFeedback()
+    otp.destroy()
+  })
 
   // ── Event handlers ─────────────────────────────────────────────────────────
 
   function onKeydown(e: KeyboardEvent): void {
     if (isDisabled.value) return
-    const pos = inputRef.value?.selectionStart ?? 0
-    if (e.key === 'Backspace') {
-      e.preventDefault()
-      if (isReadOnly.value) return
-      otp.delete(pos)
-      sync()
-      const next = otp.state.activeSlot
-      requestAnimationFrame(() => inputRef.value?.setSelectionRange(next, next))
-    } else if (e.key === 'Delete') {
-      e.preventDefault()
-      if (isReadOnly.value) return
-      otp.clear(pos)
-      sync()
-      requestAnimationFrame(() => inputRef.value?.setSelectionRange(pos, pos))
-    } else if (e.key === 'ArrowLeft') {
-      e.preventDefault()
-      otp.move(pos - 1)
-      sync(true)   // cursor-only move — no value change, suppress onChange
-      const next = otp.state.activeSlot
-      requestAnimationFrame(() => inputRef.value?.setSelectionRange(next, next))
-    } else if (e.key === 'ArrowRight') {
-      e.preventDefault()
-      otp.move(pos + 1)
-      sync(true)   // cursor-only move — no value change, suppress onChange
-      const next = otp.state.activeSlot
-      requestAnimationFrame(() => inputRef.value?.setSelectionRange(next, next))
-    } else if (e.key === 'Tab') {
-      if (e.shiftKey) {
-        if (pos === 0) return
-        e.preventDefault()
-        otp.move(pos - 1)
-      } else {
-        if (!otp.state.slotValues[pos]) return
-        if (pos >= length - 1) return
-        e.preventDefault()
-        otp.move(pos + 1)
-      }
-      sync(true)   // cursor-only move — no value change, suppress onChange
-      const next = otp.state.activeSlot
-      requestAnimationFrame(() => inputRef.value?.setSelectionRange(next, next))
+    const result = handleOTPKeyAction(otp, {
+      key: e.key,
+      position: inputRef.value?.selectionStart ?? 0,
+      length,
+      readOnly: isReadOnly.value,
+      shiftKey: e.shiftKey,
+    })
+    if (!result.handled) return
+
+    e.preventDefault()
+    sync(!result.valueChanged)
+    if (result.nextSelection !== null) {
+      scheduleInputSelection(frameScheduler, () => inputRef.value, result.nextSelection)
     }
   }
 
   function onChange(e: Event): void {
     if (isDisabled.value || isReadOnly.value) return
-    const raw = (e.target as HTMLInputElement).value
+    if (!(e.target instanceof HTMLInputElement)) return
+    const raw = e.target.value
     if (!raw) {
-      otp.reset()
-      if (inputRef.value) { inputRef.value.value = ''; inputRef.value.setSelectionRange(0, 0) }
+      clearOTPInput(otp, inputRef.value, { focus: false })
       sync()
       return
     }
-    const valid = filterString(raw, type, pattern).slice(0, length)
-    otp.reset()
-    for (let i = 0; i < valid.length; i++) otp.insert(valid[i], i)
-    const next = Math.min(valid.length, length - 1)
-    if (inputRef.value) { inputRef.value.value = valid; inputRef.value.setSelectionRange(next, next) }
-    otp.move(next)
+    const result = applyTypedInput(otp, raw, { length, type, pattern })
+    syncInputValue(inputRef.value, result.value, result.nextSelection)
     sync()
-    if (blurOnCompleteOpt && otp.state.isComplete) {
-      requestAnimationFrame(() => inputRef.value?.blur())
-    }
+    scheduleInputBlur(frameScheduler, () => inputRef.value, blurOnCompleteOpt && result.isComplete)
   }
 
   function onPaste(e: ClipboardEvent): void {
     if (isDisabled.value || isReadOnly.value) return
     e.preventDefault()
     const text = e.clipboardData?.getData('text') ?? ''
-    const pos  = inputRef.value?.selectionStart ?? 0
-    otp.paste(text, pos)
-    const { slotValues: sv, activeSlot: nextSlot } = otp.state
-    if (inputRef.value) { inputRef.value.value = sv.join(''); inputRef.value.setSelectionRange(nextSlot, nextSlot) }
+    const result = applyPastedInput(otp, text, inputRef.value?.selectionStart ?? 0)
+    syncInputValue(inputRef.value, result.value, result.nextSelection)
     sync()
-    if (blurOnCompleteOpt && otp.state.isComplete) {
-      requestAnimationFrame(() => inputRef.value?.blur())
-    }
+    scheduleInputBlur(frameScheduler, () => inputRef.value, blurOnCompleteOpt && result.isComplete)
   }
 
   function onFocus(): void {
     isFocused.value = true
     onFocusProp?.()
-    const pos = otp.state.activeSlot
-    requestAnimationFrame(() => {
-      const char = otp.state.slotValues[pos]
-      if (selectOnFocusOpt && char) {
-        inputRef.value?.setSelectionRange(pos, pos + 1)
-      } else {
-        inputRef.value?.setSelectionRange(pos, pos)
-      }
-    })
+    scheduleFocusSync(frameScheduler, otp, () => inputRef.value, selectOnFocusOpt)
   }
 
   function onBlur(): void {
@@ -504,10 +493,15 @@ export function useOTP(options: VueOTPOptions = {}): UseOTPResult {
   // ── Public API ─────────────────────────────────────────────────────────────
 
   function reset(): void {
-    otp.reset()
-    if (inputRef.value) { inputRef.value.value = ''; inputRef.value.focus(); inputRef.value.setSelectionRange(0, 0) }
-    timerSeconds.value = timerSecs
-    timerControls?.restart()
+    clearOTPInput(otp, inputRef.value, { focus: true, disabled: isDisabled.value })
+    timerController.restart()
+    sync()
+  }
+
+  function resend(): void {
+    clearOTPInput(otp, inputRef.value, { focus: true, disabled: isDisabled.value })
+    timerController.restart()
+    onResend?.()
     sync()
   }
 
@@ -534,9 +528,7 @@ export function useOTP(options: VueOTPOptions = {}): UseOTPResult {
   }
 
   function focus(slotIndex: number): void {
-    otp.move(slotIndex)
-    inputRef.value?.focus()
-    requestAnimationFrame(() => inputRef.value?.setSelectionRange(slotIndex, slotIndex))
+    focusOTPInput(otp, inputRef.value, slotIndex)
     sync(true)
   }
 
@@ -544,7 +536,7 @@ export function useOTP(options: VueOTPOptions = {}): UseOTPResult {
     return otp.getCode()
   }
 
-  function getSlots(): SlotEntry[] {
+  function getSlots(): readonly SlotEntry[] {
     return slotValues.value.map((value, index) => ({
       index,
       value,
@@ -558,32 +550,35 @@ export function useOTP(options: VueOTPOptions = {}): UseOTPResult {
   // isFocused.value, isComplete.value) so that Vue's template change-detection
   // picks up updates correctly. Delegating to the core would read stale closure
   // state and bypass Vue's reactivity system.
-  function getInputProps(slotIndex: number): InputProps & { 'data-focus': 'true' | 'false' } {
+  function getInputProps(slotIndex: number): InputProps & FocusDataAttrs {
     const char     = slotValues.value[slotIndex] ?? ''
     const isFilled = char.length === 1
     return {
       value:     char,
       onInput:   (c) => { otp.insert(c, slotIndex); sync() },
       onKeyDown: (key) => {
-        if (key === 'Backspace')   { otp.delete(slotIndex); sync() }
-        else if (key === 'Delete') { otp.clear(slotIndex); sync() }
-        else if (key === 'ArrowLeft')  { otp.move(slotIndex - 1); sync() }
-        else if (key === 'ArrowRight') { otp.move(slotIndex + 1); sync() }
+        const result = handleOTPKeyAction(otp, {
+          key,
+          position: slotIndex,
+          length,
+          readOnly: isReadOnly.value,
+        })
+        if (result.handled) sync(!result.valueChanged)
       },
       onFocus: () => { activeSlot.value = slotIndex; isFocused.value = true; onFocusProp?.() },
       onBlur:  () => { isFocused.value = false; onBlurProp?.() },
       'data-slot':     slotIndex,
-      'data-active':   b(activeSlot.value === slotIndex),
-      'data-focus':    b(isFocused.value),
-      'data-filled':   b(isFilled),
-      'data-empty':    b(!isFilled),
-      'data-complete': b(isComplete.value),
-      'data-invalid':  b(hasError.value),
-      'data-success':  b(hasSuccess.value),
-      'data-disabled': b(isDisabled.value),
-      'data-readonly': b(isReadOnly.value),
-      'data-first':    b(slotIndex === 0),
-      'data-last':     b(slotIndex === length - 1),
+      'data-active':   boolAttr(activeSlot.value === slotIndex),
+      'data-focus':    boolAttr(isFocused.value),
+      'data-filled':   boolAttr(isFilled),
+      'data-empty':    boolAttr(!isFilled),
+      'data-complete': boolAttr(isComplete.value),
+      'data-invalid':  boolAttr(hasError.value),
+      'data-success':  boolAttr(hasSuccess.value),
+      'data-disabled': boolAttr(isDisabled.value),
+      'data-readonly': boolAttr(isReadOnly.value),
+      'data-first':    boolAttr(slotIndex === 0),
+      'data-last':     boolAttr(slotIndex === length - 1),
     }
   }
 
@@ -609,6 +604,7 @@ export function useOTP(options: VueOTPOptions = {}): UseOTPResult {
     getSlots,
     getInputProps,
     reset,
+    resend,
     setError,
     setSuccess,
     setDisabled,

@@ -6,5 +6,17 @@ export default defineConfig({
   dts:    true,
   clean:  true,
   sourcemap: false,
-  external: ['react', '@verino/core'],
+  external: [
+    'react',
+    '@verino/core',
+    '@verino/core/filter',
+    '@verino/core/machine',
+    '@verino/core/timer',
+    '@verino/core/toolkit',
+    '@verino/core/toolkit/controller',
+    '@verino/core/toolkit/adapter-policy',
+    '@verino/core/toolkit/timer-policy',
+    '@verino/core/toolkit/feedback',
+    '@verino/core/toolkit/password-manager',
+  ],
 })

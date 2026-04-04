@@ -9,13 +9,16 @@
 import {
   filterChar,
   filterString,
+  isInputType,
+  parseBooleanish,
+  parseInputType,
+  parseSeparatorAfter,
   createOTP,
   createTimer,
   formatCountdown,
-  triggerHapticFeedback,
-  triggerSoundFeedback,
   type InputType,
 } from '@verino/core'
+import { subscribeFeedback, triggerHapticFeedback, triggerSoundFeedback } from '@verino/core/toolkit'
 
 // ─────────────────────────────────────────────────────────────────────────────
 // 1. filterChar
@@ -62,12 +65,6 @@ describe('filterChar', () => {
       expect(filterChar('!', 'any')).toBe('!')
       expect(filterChar('漢', 'any')).toBe('漢')
     })
-    it('rejects empty string', () => {
-      expect(filterChar('', 'any')).toBe('')
-    })
-    it('rejects multi-character strings', () => {
-      expect(filterChar('ab', 'any')).toBe('')
-    })
   })
 
   it('rejects empty string and multi-char for all types', () => {
@@ -110,6 +107,37 @@ describe('filterString', () => {
   })
   it('filterString rejects emoji in numeric mode', () => {
     expect(filterString('1😀2', 'numeric')).toBe('12')
+  })
+})
+
+describe('input type parsing', () => {
+  it('isInputType returns true only for supported runtime values', () => {
+    expect(isInputType('numeric')).toBe(true)
+    expect(isInputType('alphabet')).toBe(true)
+    expect(isInputType('letters')).toBe(false)
+    expect(isInputType(123)).toBe(false)
+    expect(isInputType(null)).toBe(false)
+  })
+
+  it('parseInputType falls back safely for unsupported runtime values', () => {
+    expect(parseInputType('alphanumeric')).toBe('alphanumeric')
+    expect(parseInputType('letters')).toBe('numeric')
+    expect(parseInputType(undefined, 'any')).toBe('any')
+  })
+
+  it('parseBooleanish handles booleans, empty attrs, and fallback values safely', () => {
+    expect(parseBooleanish(true, false)).toBe(true)
+    expect(parseBooleanish(false, true)).toBe(false)
+    expect(parseBooleanish('', false)).toBe(true)
+    expect(parseBooleanish('false', true)).toBe(false)
+    expect(parseBooleanish(undefined, true)).toBe(true)
+  })
+
+  it('parseSeparatorAfter handles single values, comma lists, arrays, and fallback values safely', () => {
+    expect(parseSeparatorAfter('3')).toBe(3)
+    expect(parseSeparatorAfter('2,4')).toEqual([2, 4])
+    expect(parseSeparatorAfter([1, '3', 'bad'])).toEqual([1, 3])
+    expect(parseSeparatorAfter(undefined, [])).toEqual([])
   })
 })
 
@@ -663,11 +691,6 @@ describe('FIX #6 — separator config (adapter layer — core is agnostic)', () 
     // feature, which doesn't affect the zero-based slot array — that's unchanged.)
   })
 
-  it('vanilla adapter does not contain the dead newPos variable (Bug #3 regression)', () => {
-    const fs  = require('fs')
-    const src = fs.readFileSync('./packages/vanilla/src/vanilla.ts', 'utf8')
-    expect(src).not.toMatch(/const newPos = Math\.max/)
-  })
 })
 
 
@@ -939,22 +962,6 @@ describe('FIX #11 — delete out-of-bounds guard', () => {
 
 
 // ─────────────────────────────────────────────────────────────────────────────
-// FIX #12 — onTick / onExpire silently dropped by createOTP
-// ─────────────────────────────────────────────────────────────────────────────
-
-describe('FIX #12 — createOTP: onTick and onExpire are adapter-layer concerns', () => {
-  it('passes onTick/onExpire in options without throwing', () => {
-    // Core must accept (and silently ignore) these for backwards compat with
-    // adapters that forward the full options object to createOTP.
-    expect(() => createOTP({
-      length:   4,
-      onExpire: () => { /* noop */ },
-    })).not.toThrow()
-  })
-})
-
-
-// ─────────────────────────────────────────────────────────────────────────────
 // FEATURE — pattern option (arbitrary per-character regex validation)
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -1019,7 +1026,7 @@ describe('pasteTransformer option', () => {
     expect(otp.state.slotValues).toEqual(['1', '2', '3', '4', '5', '6'])
   })
 
-  it('normalises case — lowercase paste fills correctly with alphanumeric pattern', () => {
+  it('normalizes case — lowercase paste fills correctly with alphanumeric pattern', () => {
     const otp = createOTP({ length: 4, type: 'any', pattern: /^[A-Z0-9]$/, pasteTransformer: (r) => r.toUpperCase() })
     otp.paste('ab12', 0)
     expect(otp.state.slotValues).toEqual(['A', 'B', '1', '2'])
@@ -1061,6 +1068,7 @@ describe('pasteTransformer option', () => {
   })
 
   it('paste falls back to raw text when pasteTransformer throws', () => {
+    const warnSpy = jest.spyOn(console, 'warn').mockImplementation(() => {})
     const otp = createOTP({
       length: 6,
       type: 'numeric',
@@ -1069,6 +1077,7 @@ describe('pasteTransformer option', () => {
     // raw '123456' is valid numeric, so it fills all slots despite transformer throwing
     otp.paste('123456', 0)
     expect(otp.state.slotValues).toEqual(['1', '2', '3', '4', '5', '6'])
+    warnSpy.mockRestore()
   })
 })
 
@@ -1303,7 +1312,7 @@ describe('getSnapshot()', () => {
     expect(st.slotValues[0]).toBe('')   // cached copy is not mutated
   })
 
-  it('includes all OTPState fields', () => {
+  it('includes all OTPStateSnapshot fields', () => {
     const otp = createOTP({ length: 6, timer: 30 })
     const st  = otp.getSnapshot()
     expect(typeof st.activeSlot).toBe('number')
@@ -1456,35 +1465,7 @@ describe('delete — edge cases', () => {
 
 
 // ─────────────────────────────────────────────────────────────────────────────
-// haptic / sound — fail silently in Node.js
-// ─────────────────────────────────────────────────────────────────────────────
-
-describe('haptic and sound options', () => {
-  it('haptic=true does not throw in Node.js (navigator.vibrate unavailable)', () => {
-    expect(() => {
-      const otp = createOTP({ length: 4, haptic: true })
-      '1234'.split('').forEach((c, i) => otp.insert(c, i))
-    }).not.toThrow()
-  })
-
-  it('sound=true does not throw in Node.js (AudioContext unavailable)', () => {
-    expect(() => {
-      const otp = createOTP({ length: 4, sound: true })
-      '1234'.split('').forEach((c, i) => otp.insert(c, i))
-    }).not.toThrow()
-  })
-
-  it('setError with haptic=true does not throw', () => {
-    expect(() => {
-      const otp = createOTP({ length: 4, haptic: true })
-      otp.setError(true)
-    }).not.toThrow()
-  })
-})
-
-
-// ─────────────────────────────────────────────────────────────────────────────
-// state getter — behaviour as live reference
+// state getter — isolated snapshot behavior
 // ─────────────────────────────────────────────────────────────────────────────
 
 describe('otp.state getter', () => {
@@ -1495,19 +1476,35 @@ describe('otp.state getter', () => {
     expect(otp.state.slotValues[0]).toBe('1')
   })
 
-  it('slotValues is mutated in-place so cached references see the same array; scalar fields diverge after applyState', () => {
+  it('returns a fresh snapshot on each read so cached references stay isolated', () => {
     const otp    = createOTP({ length: 4 })
-    const cached = otp.state  // reference to current state object
+    const cached = otp.state
     otp.insert('9', 0)
-    // slotValues is mutated in-place — cached.slotValues IS the live array
-    expect(cached.slotValues[0]).toBe('9')
-    // applyState spreads a new object, so scalar fields on the cached ref are stale
-    expect(cached.activeSlot).toBe(0)    // still the pre-mutation value
-    expect(otp.state.activeSlot).toBe(1) // live getter shows the advanced cursor
-    // Use getSnapshot() for a fully isolated copy
+    expect(cached.slotValues[0]).toBe('')
+    expect(cached.activeSlot).toBe(0)
+    expect(otp.state.slotValues[0]).toBe('9')
+    expect(otp.state.activeSlot).toBe(1)
     const snap = otp.getSnapshot()
     otp.reset()
-    expect(snap.slotValues[0]).toBe('9') // snapshot clone is independent
+    expect(snap.slotValues[0]).toBe('9')
+  })
+
+  it('action early-exit returns an isolated snapshot — disabled path', () => {
+    const otp = createOTP({ length: 4, disabled: true })
+    const returned = otp.insert('1', 0)
+    otp.setDisabled(false)
+    otp.insert('9', 0)
+    // returned must be isolated — if it were a live ref, slotValues[0] would be '9'
+    expect(returned.slotValues[0]).toBe('')
+  })
+
+  it('action early-exit returns an isolated snapshot — out-of-bounds path', () => {
+    const otp = createOTP({ length: 4 })
+    otp.insert('1', 0)
+    const returned = otp.insert('X', 99)  // out of bounds
+    otp.reset()
+    // returned must be isolated — if it were a live ref, slotValues[0] would be ''
+    expect(returned.slotValues[0]).toBe('1')
   })
 
   it('getSnapshot() and getSnapshot() both return a copy independent of further mutations', () => {
@@ -1723,7 +1720,7 @@ describe('slotValues immutability in snapshots', () => {
     const otp  = createOTP({ length: 4 })
     otp.insert('7', 0)
     const snap = otp.getSnapshot()
-    snap.slotValues[0] = 'MUTATED'
+    ;(snap.slotValues as string[])[0] = 'MUTATED'
     expect(otp.state.slotValues[0]).toBe('7')
   })
 
@@ -1731,22 +1728,22 @@ describe('slotValues immutability in snapshots', () => {
     const otp = createOTP({ length: 4 })
     otp.insert('3', 0)
     const st  = otp.getSnapshot()
-    st.slotValues[0] = 'MUTATED'
+    ;(st.slotValues as string[])[0] = 'MUTATED'
     expect(otp.state.slotValues[0]).toBe('3')
   })
 
   it('subscriber receives a slotValues copy — mutating it does not corrupt live state', () => {
     const otp = createOTP({ length: 4 })
-    let captured: string[] = []
+    let captured: readonly string[] = []
     otp.subscribe(s => { captured = s.slotValues })
     otp.insert('5', 0)
-    captured[0] = 'MUTATED'
+    ;(captured as string[])[0] = 'MUTATED'
     expect(otp.state.slotValues[0]).toBe('5')
   })
 
   it('subscriber slotValues is a different array reference than live state.slotValues', () => {
     const otp = createOTP({ length: 4 })
-    let subscriberRef: string[] | null = null
+    let subscriberRef: readonly string[] | null = null
     otp.subscribe(s => { subscriberRef = s.slotValues })
     otp.insert('1', 0)
     expect(subscriberRef).not.toBe(otp.state.slotValues)
@@ -1758,8 +1755,98 @@ describe('slotValues immutability in snapshots', () => {
     const snap = otp.getSnapshot()
     expect(snap.slotValues).toEqual(['', '', '', '1'])
     // Mutation must not leak back
-    snap.slotValues[0] = 'X'
+    ;(snap.slotValues as string[])[0] = 'X'
     expect(otp.state.slotValues[0]).toBe('')
+  })
+})
+
+describe('subscribeFeedback', () => {
+  it('uses default feedback options and triggers haptic on COMPLETE', () => {
+    const unsubscribe = jest.fn()
+    let listener: (state: unknown, event: { type: string; hasError?: boolean }) => void = () => {}
+    const originalNavigator = (globalThis as { navigator?: Navigator }).navigator
+    const vibrate = jest.fn()
+    Object.defineProperty(globalThis, 'navigator', {
+      configurable: true,
+      value: { vibrate },
+    })
+
+    subscribeFeedback({
+      subscribe(callback) {
+        listener = callback as typeof listener
+        return unsubscribe
+      },
+    })
+
+    listener({}, { type: 'COMPLETE' })
+
+    expect(vibrate).toHaveBeenCalledWith(10)
+    Object.defineProperty(globalThis, 'navigator', {
+      configurable: true,
+      value: originalNavigator,
+    })
+  })
+
+  it('supports explicit feedback overrides and only vibrates on active error states', () => {
+    let listener: (state: unknown, event: { type: string; hasError?: boolean }) => void = () => {}
+    const originalNavigator = (globalThis as { navigator?: Navigator }).navigator
+    const originalAudioContext = (globalThis as { AudioContext?: typeof AudioContext }).AudioContext
+    const vibrate = jest.fn()
+    const start = jest.fn()
+    const stop = jest.fn()
+    const gainNode = {
+      gain: { value: 0 },
+      connect: jest.fn(),
+    }
+    const oscillator = {
+      type: 'sine',
+      frequency: { value: 0 },
+      connect: jest.fn(),
+      start,
+      stop,
+      onended: null as (() => void) | null,
+    }
+    const MockAudioContext = jest.fn().mockImplementation(() => ({
+      createOscillator: () => oscillator,
+      createGain: () => gainNode,
+      destination: {},
+      close: jest.fn().mockResolvedValue(undefined),
+      currentTime: 0,
+    }))
+
+    Object.defineProperty(globalThis, 'navigator', {
+      configurable: true,
+      value: { vibrate },
+    })
+    Object.defineProperty(globalThis, 'AudioContext', {
+      configurable: true,
+      value: MockAudioContext,
+    })
+
+    subscribeFeedback(
+      {
+        subscribe(callback) {
+          listener = callback as typeof listener
+          return () => {}
+        },
+      },
+      { haptic: false, sound: true },
+    )
+
+    listener({}, { type: 'ERROR', hasError: true })
+    listener({}, { type: 'ERROR', hasError: false })
+    listener({}, { type: 'COMPLETE' })
+
+    expect(vibrate).not.toHaveBeenCalled()
+    expect(MockAudioContext).toHaveBeenCalledTimes(1)
+    Object.defineProperty(globalThis, 'navigator', {
+      configurable: true,
+      value: originalNavigator,
+    })
+    Object.defineProperty(globalThis, 'AudioContext', {
+      configurable: true,
+      value: originalAudioContext,
+    })
   })
 })
 
@@ -1889,29 +1976,6 @@ describe('subscribe — paste from last slot notification', () => {
 
 
 // ─────────────────────────────────────────────────────────────────────────────
-// onTick in OTPOptions is not wired to the core machine
-// (core has no timer — timer is adapter-level)
-// ─────────────────────────────────────────────────────────────────────────────
-
-describe('createOTP — onTick is adapter-level, not wired to core', () => {
-  beforeEach(() => jest.useFakeTimers())
-  afterEach(()  => jest.useRealTimers())
-
-  it('passing onTick to createOTP does not throw', () => {
-    expect(() => createOTP({ length: 6, onTick: jest.fn() })).not.toThrow()
-  })
-
-  it('onTick passed to createOTP is never called (core has no timer)', () => {
-    const onTick = jest.fn()
-    const otp    = createOTP({ length: 6, onTick })
-    // Fill the field and advance time — onTick should never fire
-    '123456'.split('').forEach((c, i) => otp.insert(c, i))
-    jest.advanceTimersByTime(5000)
-    expect(onTick).not.toHaveBeenCalled()
-  })
-})
-
-// ─────────────────────────────────────────────────────────────────────────────
 // pasteTransformer error path
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -2005,8 +2069,11 @@ describe('triggerSoundFeedback', () => {
       close,
     }))
 
-    const originalAudioContext = (global as Record<string, unknown>).AudioContext
-    ;(global as Record<string, unknown>).AudioContext = MockAudioContext
+    const originalAudioContext = (globalThis as { AudioContext?: typeof AudioContext }).AudioContext
+    Object.defineProperty(globalThis, 'AudioContext', {
+      configurable: true,
+      value: MockAudioContext,
+    })
 
     triggerSoundFeedback()
 
@@ -2019,14 +2086,23 @@ describe('triggerSoundFeedback', () => {
     oscillator.onended!()
     expect(close).toHaveBeenCalled()
 
-    ;(global as Record<string, unknown>).AudioContext = originalAudioContext
+    Object.defineProperty(globalThis, 'AudioContext', {
+      configurable: true,
+      value: originalAudioContext,
+    })
   })
 
   it('does not throw when AudioContext is unavailable', () => {
-    const originalAudioContext = (global as Record<string, unknown>).AudioContext
-    delete (global as Record<string, unknown>).AudioContext
+    const originalAudioContext = (globalThis as { AudioContext?: typeof AudioContext }).AudioContext
+    Object.defineProperty(globalThis, 'AudioContext', {
+      configurable: true,
+      value: undefined,
+    })
     expect(() => triggerSoundFeedback()).not.toThrow()
-    ;(global as Record<string, unknown>).AudioContext = originalAudioContext
+    Object.defineProperty(globalThis, 'AudioContext', {
+      configurable: true,
+      value: originalAudioContext,
+    })
   })
 })
 
@@ -2263,7 +2339,7 @@ describe('isDisabled and isReadOnly reflected in state', () => {
 })
 
 
-describe('defaultValue in core initialisation', () => {
+describe('defaultValue in core initialization', () => {
   it('adapters use a suppress flag to pre-fill without triggering onComplete', () => {
     const cb  = jest.fn()
     let suppress = false
@@ -2316,16 +2392,17 @@ describe('formatCountdown', () => {
 // ─────────────────────────────────────────────────────────────────────────────
 
 describe('onComplete — option combinations', () => {
-  it('haptic: false does not throw and fires onComplete', () => {
+  it('fires onComplete for a plain completion path', () => {
     const cb  = jest.fn()
-    const otp = createOTP({ length: 4, onComplete: cb, haptic: false })
+    const otp = createOTP({ length: 4, onComplete: cb })
     expect(() => { '1234'.split('').forEach((c, i) => otp.insert(c, i)) }).not.toThrow()
     expect(cb).toHaveBeenCalledWith('1234')
   })
 
-  it('sound: true does not throw and fires onComplete', () => {
+  it('still fires onComplete after previous state changes', () => {
     const cb  = jest.fn()
-    const otp = createOTP({ length: 4, onComplete: cb, sound: true })
+    const otp = createOTP({ length: 4, onComplete: cb })
+    otp.setError(true)
     expect(() => { '1234'.split('').forEach((c, i) => otp.insert(c, i)) }).not.toThrow()
     expect(cb).toHaveBeenCalledWith('1234')
   })
@@ -2375,21 +2452,33 @@ describe('triggerSoundFeedback — onended and close rejection', () => {
       close,
     }))
 
-    const orig = (global as Record<string, unknown>).AudioContext
-    ;(global as Record<string, unknown>).AudioContext = MockAudioContext
+    const orig = (globalThis as { AudioContext?: typeof AudioContext }).AudioContext
+    Object.defineProperty(globalThis, 'AudioContext', {
+      configurable: true,
+      value: MockAudioContext,
+    })
     triggerSoundFeedback()
     // Trigger onended — it calls audioCtx.close().catch() which must not throw
     expect(() => oscillator.onended?.()).not.toThrow()
-    ;(global as Record<string, unknown>).AudioContext = orig
+    Object.defineProperty(globalThis, 'AudioContext', {
+      configurable: true,
+      value: orig,
+    })
   })
 
   it('does not throw when AudioContext constructor throws', () => {
-    const orig = (global as Record<string, unknown>).AudioContext
-    ;(global as Record<string, unknown>).AudioContext = jest.fn().mockImplementation(() => {
-      throw new Error('AudioContext construction failed')
+    const orig = (globalThis as { AudioContext?: typeof AudioContext }).AudioContext
+    Object.defineProperty(globalThis, 'AudioContext', {
+      configurable: true,
+      value: jest.fn().mockImplementation(() => {
+        throw new Error('AudioContext construction failed')
+      }),
     })
     expect(() => triggerSoundFeedback()).not.toThrow()
-    ;(global as Record<string, unknown>).AudioContext = orig
+    Object.defineProperty(globalThis, 'AudioContext', {
+      configurable: true,
+      value: orig,
+    })
   })
 })
 
@@ -2527,7 +2616,7 @@ describe('getSlotProps / input()', () => {
   })
 
   it('reflects filled state after insert', () => {
-    const otp = createOTP({ length: 4, autoFocus: false })
+    const otp = createOTP({ length: 4 })
     otp.insert('7', 0)
     const props = otp.getSlotProps(0)
     expect(props.char).toBe('7')
@@ -2578,6 +2667,20 @@ describe('identity helpers', () => {
     const b = createOTP({ length: 3 })
     expect(a.getGroupId()).not.toBe(b.getGroupId())
     expect(a.getSlotId(0)).not.toBe(b.getSlotId(0))
+  })
+
+  it('uses an explicit idBase when provided', () => {
+    const otp = createOTP({ length: 3, idBase: 'checkout-otp' })
+
+    expect(otp.getSlotId(0)).toBe('checkout-otp-slot-0')
+    expect(otp.getGroupId()).toBe('checkout-otp-group')
+    expect(otp.getErrorId()).toBe('checkout-otp-error')
+  })
+
+  it('falls back to the generated prefix when idBase is blank', () => {
+    const otp = createOTP({ length: 3, idBase: '   ' })
+
+    expect(otp.getGroupId()).toMatch(/^verino-\d+-group$/)
   })
 })
 
@@ -3054,4 +3157,3 @@ describe('destroy', () => {
     expect(() => unsub()).not.toThrow()
   })
 })
-

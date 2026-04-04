@@ -56,6 +56,7 @@ type MountResult = {
   wrapper:  HTMLElement
   api:      ReturnType<typeof getApi>
   result:   { cleanup(): void }
+  setOptions: (next: AlpineOTPOptions) => void
 }
 
 function getApi(wrapper: HTMLElement) {
@@ -79,6 +80,8 @@ function mountAlpine(opts: AlpineOTPOptions = {}): MountResult {
   document.body.appendChild(wrapper)
 
   let handler: ((el: HTMLElement, data: unknown, utils: unknown) => { cleanup(): void }) | null = null
+  let reactiveOpts = opts
+  const effects: Array<() => void> = []
 
   VerinoAlpine({
     directive: (_name: string, fn: typeof handler) => { handler = fn },
@@ -88,14 +91,22 @@ function mountAlpine(opts: AlpineOTPOptions = {}): MountResult {
     wrapper,
     { expression: 'opts', value: '', modifiers: [] },
     {
-      evaluate:      () => opts,
-      evaluateLater: () => () => {},
+      evaluate:      () => reactiveOpts,
+      evaluateLater: () => (callback: (value: unknown) => void) => { callback(reactiveOpts) },
       cleanup:       () => {},
-      effect:        () => {},
+      effect:        (fn: () => void) => { effects.push(fn); fn() },
     },
   )
 
-  return { wrapper, api: getApi(wrapper), result }
+  return {
+    wrapper,
+    api: getApi(wrapper),
+    result,
+    setOptions(next: AlpineOTPOptions) {
+      reactiveOpts = next
+      effects.forEach((fn) => fn())
+    },
+  }
 }
 
 function getHiddenInput(wrapper: HTMLElement): HTMLInputElement {
@@ -583,18 +594,6 @@ describe('click handler', () => {
 // ─────────────────────────────────────────────────────────────────────────────
 
 describe('onInvalidChar callback', () => {
-  it('calls onInvalidChar when a rejected char is typed', () => {
-    const onInvalidChar = jest.fn()
-    const { wrapper } = mountAlpine({ type: 'numeric', onInvalidChar, autoFocus: false })
-    flushRAF()
-    // Typing 'a' into a numeric field fires onInvalidChar
-    const inp = getHiddenInput(wrapper)
-    inp.value = 'a'
-    inp.dispatchEvent(new Event('input', { bubbles: true }))
-    // The invalid char callback fires through core — may not fire on batch
-    // (filterString rejects the char silently); use pattern to force it:
-  })
-
   it('does not throw when onInvalidChar is not provided', () => {
     const { wrapper } = mountAlpine({ type: 'numeric', autoFocus: false })
     flushRAF()
@@ -762,9 +761,13 @@ describe('reset and resend', () => {
     const { wrapper, api } = mountAlpine({ onResend, autoFocus: false })
     flushRAF()
     typeInto(getHiddenInput(wrapper), '1234')
+    api.setError(true)
     api.resend()
     flushRAF()
     expect(api.getCode()).toBe('')
+    getSlotEls(wrapper).forEach((slot) => {
+      expect(slot.getAttribute('data-invalid')).toBe('false')
+    })
     expect(onResend).toHaveBeenCalledTimes(1)
   })
 
@@ -938,7 +941,7 @@ describe('built-in timer footer', () => {
     const onTick = jest.fn()
     mountAlpine({ timer: 5, onTick, autoFocus: false })
     jest.advanceTimersByTime(3000)
-    expect(onTick).toHaveBeenCalledTimes(3)
+    expect(onTick).toHaveBeenCalledTimes(4)
   })
 
   it('calls onExpire when timer reaches zero', () => {
@@ -1165,5 +1168,142 @@ describe('resend countdown timer callbacks', () => {
     const footer = document.body.querySelector('.verino-timer') as HTMLElement
     expect(footer.style.display).toBe('none')
     jest.useRealTimers()
+  })
+})
+
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 24. haptic / sound feedback (lines 188-189, 191)
+// ─────────────────────────────────────────────────────────────────────────────
+
+describe('haptic/sound feedback on complete and error', () => {
+  it('haptic=false suppresses haptic on complete (false branch line 188)', () => {
+    const { wrapper } = mountAlpine({ length: 4, haptic: false, autoFocus: false })
+    flushRAF()
+    typeInto(getHiddenInput(wrapper), '1234')
+    // No throw — haptic skipped cleanly, OTP completes
+    expect(getApi(wrapper).getCode()).toBe('1234')
+  })
+
+  it('sound=true triggers sound feedback on complete without throwing (line 189)', () => {
+    const { wrapper } = mountAlpine({ length: 4, sound: true, autoFocus: false })
+    flushRAF()
+    // AudioContext absent in jsdom — triggerSoundFeedback wraps in try/catch
+    expect(() => typeInto(getHiddenInput(wrapper), '1234')).not.toThrow()
+    expect(getApi(wrapper).getCode()).toBe('1234')
+  })
+
+  it('haptic=false suppresses haptic on error (false branch line 191)', () => {
+    const { api } = mountAlpine({ length: 4, haptic: false, autoFocus: false })
+    flushRAF()
+    // No throw — haptic skipped cleanly on ERROR event
+    expect(() => api.setError(true)).not.toThrow()
+  })
+})
+
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 25. name option sets hidden input name (line 298)
+// ─────────────────────────────────────────────────────────────────────────────
+
+describe('name option sets hidden input name attribute', () => {
+  it('sets the name attribute on the hidden input when name option is provided (line 298)', () => {
+    const { wrapper } = mountAlpine({ length: 4, name: 'otp-code', autoFocus: false })
+    flushRAF()
+    const input = getHiddenInput(wrapper)
+    expect(input.name).toBe('otp-code')
+  })
+})
+
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 26. defaultValue that filters to empty string (line 305 false branch)
+// ─────────────────────────────────────────────────────────────────────────────
+
+describe('defaultValue filters to empty string', () => {
+  it('skips pre-fill when defaultValue is all-invalid chars (line 305 false branch)', () => {
+    // type=numeric, defaultValue='abc' → filterString returns '' → if (filtered) is false
+    const { wrapper } = mountAlpine({ length: 4, type: 'numeric', defaultValue: 'abc', autoFocus: false })
+    flushRAF()
+    expect(getApi(wrapper).getCode()).toBe('')
+  })
+})
+
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 27. Timer expiry with custom onTick (no built-in footer) — false branches 366-367
+// ─────────────────────────────────────────────────────────────────────────────
+
+describe('timer expiry with custom onTick (no built-in footer)', () => {
+  beforeEach(() => jest.useFakeTimers())
+  afterEach(() => jest.useRealTimers())
+
+  it('onExpire fires and null-guards on lines 366-367 take false branch', () => {
+    const onTick   = jest.fn()
+    const onExpire = jest.fn()
+    // With onTick provided, shouldUseBuiltInFooter=false → builtInFooterEl/builtInResendRowEl=null
+    mountAlpine({ timer: 2, onTick, onExpire, autoFocus: false })
+    jest.advanceTimersByTime(2000)
+    // onExpire still fires, but the null-guard ifs (lines 366-367) take the false branch
+    expect(onExpire).toHaveBeenCalled()
+    // Verify no .verino-timer element was created (custom-tick mode)
+    expect(document.body.querySelector('.verino-timer')).toBeNull()
+  })
+
+  it('fires an immediate initial tick before the countdown begins', () => {
+    const onTick = jest.fn()
+    mountAlpine({ timer: 3, onTick, autoFocus: false })
+
+    expect(onTick).toHaveBeenNthCalledWith(1, 3)
+
+    jest.advanceTimersByTime(3000)
+
+    expect(onTick.mock.calls.map(([remaining]) => remaining)).toEqual([3, 2, 1, 0])
+  })
+})
+
+describe('reactive Alpine options', () => {
+  it('rebuilds when Alpine data changes and preserves the current code', () => {
+    const mounted = mountAlpine({ length: 4, autoFocus: false })
+    flushRAF()
+
+    typeInto(getHiddenInput(mounted.wrapper), '12')
+    mounted.setOptions({ length: 4, timer: 2, autoFocus: false })
+    flushRAF()
+
+    expect(getApi(mounted.wrapper).getCode()).toBe('12')
+    expect(document.body.querySelector('.verino-timer')).not.toBeNull()
+  })
+
+  it('updates callback props without remounting the directive', () => {
+    const onCompleteA = jest.fn()
+    const onCompleteB = jest.fn()
+    const mounted = mountAlpine({ length: 4, onComplete: onCompleteA, autoFocus: false })
+    flushRAF()
+
+    const originalInput = getHiddenInput(mounted.wrapper)
+    typeInto(originalInput, '12')
+
+    mounted.setOptions({ length: 4, onComplete: onCompleteB, autoFocus: false })
+    flushRAF()
+
+    expect(getHiddenInput(mounted.wrapper)).toBe(originalInput)
+    expect(getApi(mounted.wrapper).getCode()).toBe('12')
+
+    typeInto(originalInput, '1234')
+
+    expect(onCompleteA).not.toHaveBeenCalled()
+    expect(onCompleteB).toHaveBeenCalledWith('1234')
+  })
+
+  it('cancels queued RAF work on destroy before it runs', () => {
+    const mounted = mountAlpine({ length: 4 })
+    const input = getHiddenInput(mounted.wrapper)
+    const focusSpy = jest.spyOn(input, 'focus')
+
+    mounted.api.destroy()
+    flushRAF()
+
+    expect(focusSpy).not.toHaveBeenCalled()
   })
 })

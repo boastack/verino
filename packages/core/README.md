@@ -5,13 +5,13 @@
 <h1 align="center">@verino/core</h1>
 
 <h3 align="center">
-  A single OTP state machine that powers React, Vue, Svelte, Alpine, Vanilla JS, and Web Components.
+  Reliable OTP input state machine that powers React, Vue, Svelte, Alpine, Vanilla JS, and Web Components.
 </h3>
 
 <p align="center">
   <a href="https://verino.vercel.app"><img src="https://img.shields.io/badge/verino.vercel.app-live-20C55C" alt="Live demo" /></a>&nbsp;
   <a href="https://www.npmjs.com/package/@verino/core"><img src="https://img.shields.io/npm/v/@verino/core?color=20C55C&label=version" alt="npm version" /></a>&nbsp;
-  <a href="https://bundlephobia.com/package/@verino/core"><img src="https://img.shields.io/bundlephobia/minzip/@verino/core?color=20C55C&label=core+gzip" alt="gzip size" /></a>&nbsp;
+  <a href="https://bundlephobia.com/package/@verino/core"><img src="https://img.shields.io/bundlephobia/minzip/@verino/core?color=20C55C&label=gzip+size" alt="gzip size" /></a>&nbsp;
   <img src="https://img.shields.io/badge/dependencies-0-20C55C" alt="Zero dependencies" />&nbsp;
   <a href="https://www.typescriptlang.org"><img src="https://img.shields.io/badge/TypeScript-strict-20C55C" alt="TypeScript" /></a>
 </p>
@@ -20,7 +20,7 @@
 
 ## Overview
 
-`@verino/core` is the foundation of the Verino ecosystem: a **pure TypeScript state machine** for OTP and verification code inputs. It has **no DOM, no framework, no side effects**, and runs identically in browsers, Node.js, Deno, Bun, and Web Workers.
+`@verino/core` is the foundation of the Verino ecosystem: a **pure TypeScript state machine** for OTP and verification code inputs. The state machine itself has **no DOM, no framework, no side effects**, and runs identically in browsers, Node.js, Deno, Bun, and Web Workers. The `@verino/core/toolkit` subpath extends this with browser toolkit helpers for adapter authors.
 
 ### Core capabilities
 
@@ -36,9 +36,9 @@
 
 - **Programmatic state control.** `setError`, `setSuccess`, `setDisabled`, `setReadOnly`, `reset`, and `focus` are all first-class machine actions that go through the same event pipeline. Calling `setError(true)` emits an `ERROR` event and clears success state atomically.
 
-- **Feedback utilities.** `triggerHapticFeedback()` uses `navigator.vibrate` and `triggerSoundFeedback()` uses the Web Audio API. Both are no-ops in environments that do not support them, no try/catch required in adapters.
+- **Adapter toolkit.** `@verino/core/toolkit` exposes `triggerHapticFeedback()`, `triggerSoundFeedback()`, password-manager badge guard helpers, frame scheduling, input controller primitives, resend timer, and value-sync helpers used by DOM adapters.
 
-- **Stable DOM ID helpers.** Each `createOTP()` call gets a unique instance counter. `getSlotId(i)`, `getGroupId()`, and `getErrorId()` produce deterministic, collision-free `id` strings scoped to the instance. Adapters use these to wire `aria-labelledby` and `aria-describedby` without any DOM querying.
+- **Stable DOM ID helpers.** Each `createOTP()` call gets a deterministic instance prefix. By default that prefix comes from a process-local counter; in SSR or multi-request environments you can pass `idBase` to seed it per request. `getSlotId(i)`, `getGroupId()`, and `getErrorId()` produce stable `id` strings scoped to that instance. Adapters use these to wire `aria-labelledby` and `aria-describedby` without any DOM querying.
 
 - **`data-*` attribute system.** `getInputProps(index)` returns a complete set of `data-*` attributes reflecting the machine's current state for every slot. Adapters spread these onto visual elements, enabling full CSS-driven state targeting with no JS class management.
 
@@ -57,7 +57,7 @@
 
 ```bash
 # npm
-npm install @verino/core
+npm i @verino/core
 
 # pnpm
 pnpm add @verino/core
@@ -110,6 +110,8 @@ action → applyState(patch, event) → state updated → emit(event) → subscr
 No action mutates state directly. No event fires without a state update. No state update occurs without an event. The pipeline is the only entry point.
 
 ```ts
+import { triggerHapticFeedback } from '@verino/core/toolkit'
+
 otp.subscribe((state, event) => {
   switch (event.type) {
     case 'COMPLETE':     triggerHapticFeedback();        break
@@ -127,46 +129,35 @@ otp.subscribe((state, event) => {
 ### `createOTP(options?)`
 
 ```ts
-function createOTP(options?: OTPOptions): OTPInstance
+function createOTP(options?: CoreOTPOptions): OTPInstance
 ```
 
-### `OTPOptions`
+### `CoreOTPOptions`
 
 ```ts
-type OTPOptions = {
+type CoreOTPOptions = {
   // Field shape
   length?:           number   // default: 6
+  idBase?:           string   // stable ID prefix for SSR / multi-request environments
   type?:             'numeric' | 'alphabet' | 'alphanumeric' | 'any' // default: 'numeric'
   pattern?:          RegExp   // overrides type for per-char validation
   pasteTransformer?: (raw: string) => string
 
   // Behaviour
-  autoFocus?:        boolean  // default: true
-  blurOnComplete?:   boolean  // default: false
-  selectOnFocus?:    boolean  // default: false
-  placeholder?:      string
-  defaultValue?:     string
-  name?:             string   // hidden input name for form submission
   disabled?:         boolean
   readOnly?:         boolean
   timer?:            number   // countdown in seconds; 0 = no timer
-  resendAfter?:      number   // resend button cooldown in seconds; default: 30
-  haptic?:           boolean  // vibrate on complete/error via navigator.vibrate; default: true
-  sound?:            boolean  // play audio tone on complete via AudioContext; default: false
 
   // Callbacks
   onComplete?:    (code: string) => void
-  onExpire?:      () => void
-  onResend?:      () => void
-  onTick?:        (remaining: number) => void  // live countdown tick; adapter-driven
   onInvalidChar?: (char: string, index: number) => void
-  onFocus?:       () => void
-  onBlur?:        () => void
 }
 
-// Note: onChange (fires on every input change) is adapter-level only —
-// it is not part of OTPOptions and has no effect when passed to createOTP().
-// Each adapter (React, Vue, Svelte, Vanilla, Alpine) adds it independently.
+// `OTPOptions` is the broader adapter-facing config type (includes field
+// behaviour, feedback, and timer/resend options). `createOTP()` intentionally
+// accepts the narrower `CoreOTPOptions` surface only — adapter options like
+// `autoFocus`, `placeholder`, `onExpire`, `onResend`, and `haptic` are handled
+// at the adapter layer, not the core machine.
 ```
 
 ### `OTPInstance`
@@ -174,13 +165,12 @@ type OTPOptions = {
 ```ts
 type OTPInstance = {
   // State access
-  state:         Readonly<OTPState>
+  state:         OTPStateSnapshot
   getCode():     string        // joined slot values
-  getSnapshot(): OTPState      // safe copy with cloned slotValues
-  getState():    OTPState      // alias for getSnapshot()
+  getSnapshot(): OTPStateSnapshot      // safe copy with cloned slotValues
 
   // Subscription
-  subscribe(cb: (state: OTPState, event: OTPEvent) => void): () => void
+  subscribe(cb: (state: OTPStateSnapshot, event: OTPEvent) => void): () => void
 
   // Input actions (all guarded by filter and disabled/readOnly checks)
   insert(char: string, slotIndex: number):  void  // validated insert
@@ -202,18 +192,18 @@ type OTPInstance = {
   getSlotProps(i: number):     SlotProps
   getInputProps(i: number):    InputProps
 
-  // Stable DOM ID helpers (collision-free per instance)
+  // Stable DOM ID helpers (seed with idBase in SSR when needed)
   getSlotId(i: number): string  // e.g. 'verino-1-slot-2'
   getGroupId():         string  // e.g. 'verino-1-group'
   getErrorId():         string  // e.g. 'verino-1-error'
 }
 ```
 
-### `OTPState`
+### `OTPStateSnapshot`
 
 ```ts
-type OTPState = {
-  slotValues:   string[]  // '' = unfilled
+type OTPStateSnapshot = {
+  slotValues:   readonly string[]  // '' = unfilled
   activeSlot:   number
   hasError:     boolean
   hasSuccess:   boolean   // mutually exclusive with hasError
@@ -293,6 +283,7 @@ These are set on the containing element, not individual slots. Target them with 
 | `data-disabled` | Field is disabled |
 | `data-readonly` | Field is read-only |
 
+
 ```css
 /* Slot-level — use string value selectors */
 [data-active="true"][data-focus="true"] { border-color: #3D3D3D; }
@@ -322,7 +313,7 @@ These are set on the containing element, not individual slots. Target them with 
 
 ```ts
 import { createTimer, formatCountdown }                from '@verino/core'
-import { triggerHapticFeedback, triggerSoundFeedback } from '@verino/core'
+import { triggerHapticFeedback, triggerSoundFeedback } from '@verino/core/toolkit'
 
 // Timer engine used internally by all adapters
 const timer = createTimer({
@@ -384,7 +375,7 @@ input.addEventListener('blur',  () => { /* sync blur state if needed */ })
 export { otp }
 ```
 
-No character filtering, cursor logic, paste normalisation, timer management, or event routing belongs in the adapter.
+No character filtering, cursor logic, paste normalization, event routing, or countdown/input logic belongs in the adapter.
 
 ---
 
@@ -393,7 +384,7 @@ No character filtering, cursor logic, paste normalisation, timer management, or 
 ```bash
 # Clone and install
 git clone https://github.com/boastack/verino.git
-cd verino && pnpm install
+cd verino && pnpm i
 
 # Build core
 pnpm --filter @verino/core build
@@ -422,10 +413,6 @@ Core tests live in [`tests/core.test.ts`](https://github.com/boastack/verino/blo
 See [CONTRIBUTING.md](https://github.com/boastack/verino/blob/main/.github/CONTRIBUTING.md) for guidelines. For bug reports use the [bug report template](https://github.com/boastack/verino/issues/new?template=bug_report.yml).
 
 ```bash
-# Clone and install
-git clone https://github.com/boastack/verino.git
-cd verino && pnpm install
-
 # Run before opening a PR
 pnpm --filter @verino/core build && pnpm test
 ```
@@ -438,7 +425,7 @@ pnpm --filter @verino/core build && pnpm test
 |---|---|
 | [`@verino/vanilla`](https://www.npmjs.com/package/@verino/vanilla) | Vanilla DOM adapter + `timerUIPlugin`, `webOTPPlugin`, `pmGuardPlugin` |
 | [`@verino/react`](https://www.npmjs.com/package/@verino/react) | `useOTP` hook + `HiddenOTPInput` component (React ≥ 18) |
-| [`@verino/vue`](https://www.npmjs.com/package/@verino/vue) | `useOTP` composable with `Ref<T>` reactive state (Vue ≥ 3) |
+| [`@verino/vue`](https://www.npmjs.com/package/@verino/vue) | `useOTP` composable with reactive Vue refs (Vue ≥ 3) |
 | [`@verino/svelte`](https://www.npmjs.com/package/@verino/svelte) | `useOTP` store + `use:action` directive (Svelte ≥ 4) |
 | [`@verino/alpine`](https://www.npmjs.com/package/@verino/alpine) | `VerinoAlpine` plugin — `x-verino` directive (Alpine.js ≥ 3) |
 | [`@verino/web-component`](https://www.npmjs.com/package/@verino/web-component) | `<verino-input>` Shadow DOM custom element |

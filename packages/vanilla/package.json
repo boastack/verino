@@ -1,19 +1,22 @@
 {
   "name": "@verino/vanilla",
-  "version": "1.0.0",
-  "description": "Vanilla adapter for verino. Build reliable OTP inputs from a single core.",
+  "version": "2.0.0",
+  "description": "Vanilla JS adapter for Verino. Reliable OTP inputs from a single core.",
   "type": "module",
-  "main": "./dist/index.js",
-  "module": "./dist/index.js",
-  "types": "./dist/index.d.ts",
+  "main": "./index.js",
+  "module": "./index.js",
+  "types": "./index.d.ts",
   "exports": {
     ".": {
-      "types": "./dist/index.d.ts",
-      "import": "./dist/index.js"
+      "types": "./index.d.ts",
+      "import": "./index.js"
     },
     "./plugins": {
-      "types": "./dist/plugins/index.d.ts",
-      "import": "./dist/plugins/index.js"
+      "types": "./plugins.d.ts",
+      "import": "./plugins.js"
+    },
+    "./plugins/types": {
+      "types": "./plugins/types.d.ts"
     },
     "./plugins/timer-ui": {
       "types": "./dist/plugins/timer-ui.d.ts",
@@ -29,30 +32,46 @@
     }
   },
   "sideEffects": [
-    "./dist/index.js"
+    "./index.js"
   ],
   "files": [
-    "dist",
-    "src",
+    "index.js",
+    "plugins.js",
+    "dist/vanilla.js",
+    "dist/plugins/timer-ui.js",
+    "dist/plugins/web-otp.js",
+    "dist/plugins/pm-guard.js",
+    "dist/plugins/timer-ui.d.ts",
+    "dist/plugins/web-otp.d.ts",
+    "dist/plugins/pm-guard.d.ts",
+    "dist/verino.min.js",
+    "index.d.ts",
+    "plugins.d.ts",
+    "plugins/types.d.ts",
     "README.md",
-    "LICENSE",
-    "CHANGELOG.md"
+    "LICENSE"
   ],
   "scripts": {
     "build": "tsup",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc -b"
   },
   "keywords": [
     "otp",
     "otp-input",
     "one-time-password",
     "one-time-code",
+    "verification-code",
     "pin-input",
+    "passcode",
+    "2fa",
+    "mfa",
+    "authentication",
+    "otp-field",
     "vanilla-otp",
     "sms-autofill",
     "web-otp",
-    "typescript",
-    "zero-dependencies"
+    "accessible-otp",
+    "typescript"
   ],
   "author": "Olawale Balo",
   "license": "MIT",
