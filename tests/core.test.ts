@@ -2016,29 +2016,26 @@ describe('createOTP — pasteTransformer error recovery', () => {
 describe('triggerHapticFeedback', () => {
   it('calls navigator.vibrate(10) when available', () => {
     const vibrate = jest.fn()
-    Object.defineProperty(globalThis, 'navigator', {
+    Object.defineProperty(global, 'navigator', {
       value: { vibrate },
       configurable: true,
-      writable: true,
     })
     triggerHapticFeedback()
     expect(vibrate).toHaveBeenCalledWith(10)
   })
 
   it('does not throw when navigator.vibrate is absent', () => {
-    Object.defineProperty(globalThis, 'navigator', {
+    Object.defineProperty(global, 'navigator', {
       value: {},
       configurable: true,
-      writable: true,
     })
     expect(() => triggerHapticFeedback()).not.toThrow()
   })
 
   it('does not throw when navigator is undefined', () => {
-    Object.defineProperty(globalThis, 'navigator', {
+    Object.defineProperty(global, 'navigator', {
       value: undefined,
       configurable: true,
-      writable: true,
     })
     expect(() => triggerHapticFeedback()).not.toThrow()
   })
@@ -2497,14 +2494,13 @@ describe('triggerSoundFeedback — onended and close rejection', () => {
 
 describe('triggerHapticFeedback — vibrate throws (catch branch)', () => {
   it('does not throw when navigator.vibrate throws an error', () => {
-    const orig = (globalThis as Record<string, unknown>).navigator
-    Object.defineProperty(globalThis, 'navigator', {
+    const orig = (global as Record<string, unknown>).navigator
+    Object.defineProperty(global, 'navigator', {
       value: { vibrate: () => { throw new Error('vibrate failed') } },
       configurable: true,
-      writable: true,
     })
     expect(() => triggerHapticFeedback()).not.toThrow()
-    Object.defineProperty(globalThis, 'navigator', { value: orig, configurable: true, writable: true })
+    Object.defineProperty(global, 'navigator', { value: orig, configurable: true })
   })
 })
 
