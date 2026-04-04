@@ -2014,12 +2014,23 @@ describe('createOTP — pasteTransformer error recovery', () => {
 // ─────────────────────────────────────────────────────────────────────────────
 
 describe('triggerHapticFeedback', () => {
+  let originalDescriptor: PropertyDescriptor | undefined
+
+  beforeEach(() => {
+    originalDescriptor = Object.getOwnPropertyDescriptor(global, 'navigator')
+  })
+
+  afterEach(() => {
+    if (originalDescriptor) {
+      Object.defineProperty(global, 'navigator', originalDescriptor)
+    }
+  })
+
   it('calls navigator.vibrate(10) when available', () => {
     const vibrate = jest.fn()
     Object.defineProperty(global, 'navigator', {
-      value: { vibrate },
+      get: () => ({ vibrate }),
       configurable: true,
-      writable: true,
     })
     triggerHapticFeedback()
     expect(vibrate).toHaveBeenCalledWith(10)
@@ -2027,18 +2038,16 @@ describe('triggerHapticFeedback', () => {
 
   it('does not throw when navigator.vibrate is absent', () => {
     Object.defineProperty(global, 'navigator', {
-      value: {},
+      get: () => ({}),
       configurable: true,
-      writable: true,
     })
     expect(() => triggerHapticFeedback()).not.toThrow()
   })
 
   it('does not throw when navigator is undefined', () => {
     Object.defineProperty(global, 'navigator', {
-      value: undefined,
+      get: () => undefined,
       configurable: true,
-      writable: true,
     })
     expect(() => triggerHapticFeedback()).not.toThrow()
   })
