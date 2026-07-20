@@ -22,6 +22,8 @@
       "@verino/core/toolkit/timer-policy":         ["packages/core/src/toolkit/timer-policy.ts"],
       "@verino/core/toolkit/feedback":             ["packages/core/src/toolkit/feedback.ts"],
       "@verino/core/toolkit/password-manager":     ["packages/core/src/toolkit/password-manager.ts"],
+      "@verino/core/toolkit/transport":            ["packages/core/src/toolkit/transport.ts"],
+      "@verino/core/toolkit/messages":             ["packages/core/src/toolkit/messages.ts"],
       "@verino/vanilla":       ["packages/vanilla/src/index.ts"],
       "@verino/react":         ["packages/react/src/index.tsx"],
       "@verino/vue":           ["packages/vue/src/index.ts"],

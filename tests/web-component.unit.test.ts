@@ -1244,6 +1244,34 @@ describe('Web OTP API', () => {
     document.body.removeChild(el)
   })
 
+  it('accepts an injected OTP transport without browser credentials', async () => {
+    const el = document.createElement('verino-input')
+    el.setAttribute('length', '4')
+    el.otpTransport = { receive: jest.fn().mockResolvedValue('8642') }
+    document.body.appendChild(el)
+    flushRAF()
+
+    await new Promise(resolve => setTimeout(resolve, 0))
+    expect(el.getCode()).toBe('8642')
+    document.body.removeChild(el)
+  })
+
+  it('can disable automatic code retrieval', async () => {
+    const get = jest.fn().mockResolvedValue({ code: '1234' })
+    Object.defineProperty(navigator, 'credentials', {
+      value: { get }, configurable: true, writable: true,
+    })
+    const el = document.createElement('verino-input')
+    el.otpTransport = false
+    document.body.appendChild(el)
+    flushRAF()
+
+    await Promise.resolve()
+    expect(get).not.toHaveBeenCalled()
+    expect(el.getCode()).toBe('')
+    document.body.removeChild(el)
+  })
+
   it('ignores a stale Web OTP resolution after rebuild', async () => {
     const resolvers: Array<(credential: { code: string } | null) => void> = []
 
@@ -1265,13 +1293,11 @@ describe('Web OTP API', () => {
     expect(resolvers).toHaveLength(2)
 
     resolvers[0]({ code: '1234' })
-    await Promise.resolve()
-    await Promise.resolve()
+    await new Promise(resolve => setTimeout(resolve, 0))
     expect(el.getCode()).toBe('')
 
     resolvers[1]({ code: 'ABCD' })
-    await Promise.resolve()
-    await Promise.resolve()
+    await new Promise(resolve => setTimeout(resolve, 0))
     expect(el.getCode()).toBe('ABCD')
 
     document.body.removeChild(el)
@@ -1314,6 +1340,16 @@ describe('live feedback attribute updates', () => {
     el.setError(true)
 
     expect(vibrateSpy).not.toHaveBeenCalled()
+  })
+
+  it('uses a custom feedback runtime assigned after mount', () => {
+    const el = makeEl({ length: '4' })
+    const haptic = jest.fn()
+
+    el.feedback = { haptic }
+    el.setError(true)
+
+    expect(haptic).toHaveBeenCalledTimes(1)
   })
 
   it('cancels queued RAF work after disconnect', () => {
@@ -1447,5 +1483,43 @@ describe('property setters: build() error recovery', () => {
 
     buildSpy.mockRestore()
     consoleSpy.mockRestore()
+  })
+})
+
+describe('accessible and localized built-in UI', () => {
+  beforeEach(() => { jest.useFakeTimers() })
+  afterEach(() => { jest.useRealTimers() })
+
+  it('localizes labels and exposes timer/resend state accessibly', () => {
+    const el = document.createElement('verino-input')
+    el.setAttribute('length', '4')
+    el.setAttribute('timer', '1')
+    el.setAttribute('auto-focus', 'false')
+    el.messages = {
+      groupLabel: (length) => `${length} digit token`,
+      inputLabel: () => 'Enter secure token',
+      expiresIn: 'Expires after',
+      resendPrompt: 'Need another?',
+      resendAction: 'Send again',
+      resendButtonLabel: 'Send another token',
+    }
+    document.body.appendChild(el)
+    const input = getHiddenInput(el)
+    const root = shadow(el).querySelector<HTMLElement>('.verino-wc-root')!
+    const timer = shadow(el).querySelector<HTMLElement>('.verino-wc-timer')!
+
+    expect(root.getAttribute('role')).toBe('group')
+    expect(root.getAttribute('aria-label')).toBe('4 digit token')
+    expect(input.getAttribute('aria-label')).toBe('Enter secure token')
+    expect(timer.getAttribute('aria-live')).toBe('off')
+    el.setError(true)
+    expect(input.getAttribute('aria-invalid')).toBe('true')
+
+    jest.advanceTimersByTime(1_000)
+    const resend = shadow(el).querySelector<HTMLElement>('.verino-wc-resend')!
+    expect(resend.getAttribute('role')).toBe('status')
+    expect(input.getAttribute('aria-describedby')).toBe(resend.id)
+    expect(resend.textContent).toContain('Need another?')
+    expect(resend.querySelector('button')?.textContent).toBe('Send again')
   })
 })

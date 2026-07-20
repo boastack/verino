@@ -40,6 +40,11 @@
  *   el.getCode() -> string
  *   el.getSlots() -> SlotEntry[]
  *   el.getInputProps(index) -> InputProps
+ *   el.timer -> TimerController
+ *   el.feedback = { haptic, sound } (JS property)
+ *   el.otpTransport = customTransport | false (JS property)
+ *   el.otpTransportTimeout = 300000       (JS property)
+ *   el.messages = { expiresIn: 'Expires in' } (JS property)
  *   el.pattern = /^[0-9A-F]$/         (JS property, not attribute)
  *   el.pasteTransformer = fn           (JS property)
  *   el.onComplete = code => {}         (JS property)
@@ -54,10 +59,12 @@ import {
   type OTPInstance,
   type SlotEntry,
   type InputProps,
+  type FeedbackRuntime,
+  type TimerController,
 } from '@verino/core'
 import { parseBooleanish, parseInputType, parseSeparatorAfter } from '@verino/core/filter'
 import { createOTP } from '@verino/core/machine'
-import { formatCountdown } from '@verino/core/timer'
+import { createTimer, formatCountdown } from '@verino/core/timer'
 import {
   applyPastedInput,
   applyTypedInput,
@@ -75,6 +82,17 @@ import { seedProgrammaticValue } from '@verino/core/toolkit/adapter-policy'
 import { createResendTimer } from '@verino/core/toolkit/timer-policy'
 import { subscribeFeedback } from '@verino/core/toolkit/feedback'
 import { watchForPasswordManagerBadge } from '@verino/core/toolkit/password-manager'
+import {
+  isWebOTPAvailable,
+  requestOTPCode,
+  webOTPTransport,
+  type OTPTransport,
+} from '@verino/core/toolkit/transport'
+import {
+  getOTPCodeUnit,
+  resolveOTPUIStrings,
+  type OTPUIStringOverrides,
+} from '@verino/core/toolkit/messages'
 
 // ─────────────────────────────────────────────────────────────────────────────
 // SHADOW DOM STYLES
@@ -103,7 +121,7 @@ const STYLES = `
     gap:         var(--verino-gap, 12px);
     align-items: center;
     position:    relative;
-    padding-top: 24px;
+    padding-top: var(--verino-content-padding-top, 24px);
   }
 
   .verino-wc-hidden {
@@ -127,7 +145,7 @@ const STYLES = `
     position:        relative;
     width:           var(--verino-size, 56px);
     height:          var(--verino-size, 56px);
-    border:          1px solid var(--verino-border-color, #E5E5E5);
+    border:          var(--verino-border-width, 1px) solid var(--verino-border-color, #DBDBDB);
     border-radius:   var(--verino-radius, 10px);
     font-size:       var(--verino-font-size, 24px);
     font-weight:     var(--verino-font-weight, 600);
@@ -135,34 +153,34 @@ const STYLES = `
     align-items:     center;
     justify-content: center;
     background:      var(--verino-bg, #FAFAFA);
-    color:           var(--verino-color, #0A0A0A);
+    color:           var(--verino-color, #0C0C0C);
     font-family:     var(--verino-slot-font, inherit);
     cursor:          text;
     user-select:     none;
-    transition:      border-color 150ms ease, box-shadow 150ms ease, background 150ms ease, opacity 150ms ease;
+    transition:      border-color var(--verino-motion-duration, 150ms) ease, box-shadow var(--verino-motion-duration, 150ms) ease, background var(--verino-motion-duration, 150ms) ease, opacity var(--verino-motion-duration, 150ms) ease;
   }
   .verino-wc-slot[data-active="true"][data-focus="true"] {
-    border-color: var(--verino-active-color, #3D3D3D);
-    box-shadow:   0 0 0 3px color-mix(in srgb, var(--verino-active-color, #3D3D3D) 10%, transparent);
+    border-color: var(--verino-active-color, #2A2A2A);
+    box-shadow:   var(--verino-active-ring, 0 0 0 3px rgba(42, 42, 42, .12));
     background:   var(--verino-bg-filled, #FFFFFF);
   }
   .verino-wc-slot[data-filled="true"]  { background: var(--verino-bg-filled, #FFFFFF); }
   .verino-wc-slot[data-invalid="true"] {
-    border-color: var(--verino-error-color, #FB2C36);
-    box-shadow:   0 0 0 3px color-mix(in srgb, var(--verino-error-color, #FB2C36) 12%, transparent);
+    border-color: var(--verino-error-color, #FF3846);
+    box-shadow:   var(--verino-error-ring, 0 0 0 3px rgba(255, 56, 70, .12));
   }
   .verino-wc-slot[data-success="true"] {
-    border-color: var(--verino-success-color, #00C950);
-    box-shadow:   0 0 0 3px color-mix(in srgb, var(--verino-success-color, #00C950) 12%, transparent);
+    border-color: var(--verino-success-color, #00C65B);
+    box-shadow:   var(--verino-success-ring, 0 0 0 3px rgba(0, 198, 91, .12));
   }
   .verino-wc-slot[data-disabled="true"] {
-    opacity:        0.45;
+    opacity:        var(--verino-disabled-opacity, .45);
     cursor:         not-allowed;
     pointer-events: none;
   }
   .verino-wc-slot[data-empty="true"] {
     font-size: var(--verino-placeholder-size, 16px);
-    color:     var(--verino-placeholder-color, #D3D3D3);
+    color:     var(--verino-placeholder-color, #888888);
   }
   .verino-wc-slot[data-masked="true"][data-filled="true"] {
     font-size: var(--verino-masked-size, 16px);
@@ -172,7 +190,7 @@ const STYLES = `
     display:         flex;
     align-items:     center;
     justify-content: center;
-    color:           var(--verino-separator-color, #A1A1A1);
+    color:           var(--verino-separator-color, #B2B2B2);
     font-size:       var(--verino-separator-size, 18px);
     font-weight:     400;
     user-select:     none;
@@ -182,11 +200,11 @@ const STYLES = `
 
   .verino-wc-caret {
     position:      absolute;
-    width:         2px;
-    height:        52%;
-    background:    var(--verino-caret-color, #3D3D3D);
-    border-radius: 1px;
-    animation:     wc-blink 1s step-start infinite;
+    width:         var(--verino-caret-width, 2px);
+    height:        var(--verino-caret-height, 52%);
+    background:    var(--verino-caret-color, #2A2A2A);
+    border-radius: var(--verino-caret-radius, 1px);
+    animation:     wc-blink var(--verino-caret-duration, 1s) step-start infinite;
     pointer-events: none;
     display:       none;
   }
@@ -195,64 +213,56 @@ const STYLES = `
   .verino-wc-timer {
     display:     flex;
     align-items: center;
-    gap:         8px;
-    font-size:   14px;
-    padding:     20px 0 0;
+    gap:         var(--verino-timer-gap, 8px);
+    font-size:   var(--verino-timer-font-size, 14px);
+    padding:     var(--verino-timer-spacing, 20px) 0 0;
   }
   .verino-wc-timer.is-hidden { display: none; }
   .verino-wc-timer-label {
-    color:     var(--verino-timer-color, #5C5C5C);
-    font-size: 14px;
+    color:     var(--verino-timer-color, #484848);
+    font-size: inherit;
   }
   .verino-wc-timer-badge {
     box-sizing:      border-box;
     display:         inline-flex;
     align-items:     center;
-    background:      color-mix(in srgb, var(--verino-error-color, #FB2C36) 10%, transparent);
-    color:           var(--verino-error-color, #FB2C36);
-    font-weight:     500;
-    font-size:       14px;
-    padding:         2px 10px;
-    border-radius:   99px;
-    height:          24px;
+    background:      var(--verino-timer-badge-bg, rgba(255, 56, 70, .10));
+    color:           var(--verino-timer-badge-color, var(--verino-error-color, #FF3846));
+    font-weight:     var(--verino-timer-badge-font-weight, 500);
+    font-size:       inherit;
+    padding:         var(--verino-pill-padding, 2px 10px);
+    border-radius:   var(--verino-pill-radius, 99px);
+    height:          var(--verino-timer-badge-height, 24px);
   }
 
   .verino-wc-resend {
     display:     none;
     align-items: center;
-    gap:         8px;
-    font-size:   14px;
-    color:       var(--verino-timer-color, #5C5C5C);
-    padding:     12px 0 0;
+    gap:         var(--verino-resend-gap, 8px);
+    font-size:   var(--verino-timer-font-size, 14px);
+    color:       var(--verino-timer-color, #484848);
+    padding:     var(--verino-resend-spacing, 12px) 0 0;
   }
   .verino-wc-resend.is-visible { display: flex; }
   .verino-wc-resend-btn {
     box-sizing:    border-box;
     display:       inline-flex;
     align-items:   center;
-    background:    #E8E8E8;
+    background:    var(--verino-resend-bg, #F4F4F4);
     border:        none;
-    padding:       2px 10px;
-    border-radius: 99px;
-    color:         #0A0A0A;
-    font-weight:   500;
-    font-size:     14px;
-    transition:    background 150ms ease;
+    padding:       var(--verino-pill-padding, 2px 10px);
+    border-radius: var(--verino-pill-radius, 99px);
+    color:         var(--verino-resend-color, #0C0C0C);
+    font-weight:   var(--verino-resend-font-weight, 500);
+    font-size:     inherit;
+    transition:    background var(--verino-motion-duration, 150ms) ease;
     cursor:        pointer;
-    height:        28px;
+    height:        var(--verino-resend-height, 24px);
     font-family:   inherit;
   }
-  .verino-wc-resend-btn:hover    { background: #E5E5E5; }
-  .verino-wc-resend-btn:disabled { color: #A1A1A1; cursor: not-allowed; background: #F5F5F5; }
+  .verino-wc-resend-btn:hover    { background: var(--verino-resend-hover-bg, #E6E6E6); }
+  .verino-wc-resend-btn:disabled { color: var(--verino-resend-disabled-color, #B2B2B2); cursor: not-allowed; background: var(--verino-resend-disabled-bg, #F4F4F4); }
 `
-
-// ─────────────────────────────────────────────────────────────────────────────
-// WEB OTP API TYPE
-// ─────────────────────────────────────────────────────────────────────────────
-
-// The spec adds OTPCredential to the Credential type but it is not yet in
-// TypeScript's standard DOM lib. Declare it locally to keep the build clean.
-interface OTPCredential extends Credential { code: string }
 
 export type VerinoCompleteEvent = CustomEvent<{ code: string }>
 export type VerinoChangeEvent = CustomEvent<{ code: string }>
@@ -286,7 +296,8 @@ class VerinoInput extends HTMLElement {
   private timerEl:        HTMLDivElement          | null = null
   private timerBadgeEl:   HTMLSpanElement         | null = null
   private resendEl:       HTMLDivElement          | null = null
-  private timer:    ReturnType<typeof createResendTimer> | null = null
+  private timerController: TimerController = createTimer({ totalSeconds: 0 })
+  private resendTimer: ReturnType<typeof createResendTimer> | null = null
   private otp:            OTPInstance | null = null
   private shadow:         ShadowRoot
 
@@ -296,7 +307,7 @@ class VerinoInput extends HTMLElement {
   private _isReadOnly  = false
 
   // Cleanup handles — cancelled/disconnected on rebuild and on disconnect.
-  private webOTPController:  AbortController | null = null
+  private cancelOTPTransportRequest: () => void = () => {}
   private disconnectPMWatch: () => void             = () => {}
   private unsubscribeFeedback: () => void           = () => {}
   private webOTPRequestId = 0
@@ -315,6 +326,10 @@ class VerinoInput extends HTMLElement {
   private _onFocus:          (() => void) | undefined = undefined
   private _onBlur:           (() => void) | undefined = undefined
   private _onInvalidChar:    ((char: string, index: number) => void) | undefined = undefined
+  private _feedback:         FeedbackRuntime | undefined = undefined
+  private _otpTransport:     OTPTransport | false | undefined = undefined
+  private _otpTransportTimeout = 5 * 60 * 1000
+  private _messages: OTPUIStringOverrides | undefined = undefined
 
   private static readonly REBUILD_ATTRIBUTES = new Set([
     'length',
@@ -367,6 +382,57 @@ class VerinoInput extends HTMLElement {
       console.warn('[verino] onInvalidChar must be a function, got:', typeof fn); return
     }
     this._onInvalidChar = fn
+  }
+
+  /** Optional replacement feedback effects for non-browser runtimes. */
+  set feedback(value: FeedbackRuntime | undefined) {
+    if (value !== undefined && (typeof value !== 'object' || value === null
+      || (value.haptic !== undefined && typeof value.haptic !== 'function')
+      || (value.sound !== undefined && typeof value.sound !== 'function'))) {
+      console.warn('[verino] feedback must contain optional haptic/sound functions'); return
+    }
+    this._feedback = value
+    if (this.shadow.children.length > 0) this.refreshFeedbackSubscription()
+  }
+
+  /** Custom automatic-code receiver. Set to `false` to disable Web OTP. */
+  set otpTransport(value: OTPTransport | false | undefined) {
+    if (value !== undefined && value !== false
+      && (typeof value !== 'object' || value === null || typeof value.receive !== 'function')) {
+      console.warn('[verino] otpTransport must expose receive({ signal }), be false, or be undefined'); return
+    }
+    this._otpTransport = value
+    if (this.shadow.children.length > 0) this.build()
+  }
+
+  get otpTransport(): OTPTransport | false | undefined {
+    return this._otpTransport
+  }
+
+  /** Maximum time in milliseconds to wait for the active OTP transport. */
+  set otpTransportTimeout(value: number) {
+    if (!Number.isFinite(value) || value <= 0) {
+      console.warn('[verino] otpTransportTimeout must be a positive finite number'); return
+    }
+    this._otpTransportTimeout = value
+    if (this.shadow.children.length > 0) this.build()
+  }
+
+  get otpTransportTimeout(): number {
+    return this._otpTransportTimeout
+  }
+
+  /** Localize every user-facing string rendered inside the shadow root. */
+  set messages(value: OTPUIStringOverrides | undefined) {
+    if (value !== undefined && (typeof value !== 'object' || value === null)) {
+      console.warn('[verino] messages must be an object or undefined'); return
+    }
+    this._messages = value
+    if (this.shadow.children.length > 0) this.build()
+  }
+
+  get messages(): OTPUIStringOverrides | undefined {
+    return this._messages
   }
 
   /** Optional stable prefix for request-scoped ids. Set as JS property or `id-base` attribute. */
@@ -445,7 +511,7 @@ class VerinoInput extends HTMLElement {
    */
   disconnectedCallback(): void {
     this.frameScheduler.cancelAll()
-    this.timer?.stop()
+    this.timerController.stop()
     this.cancelPendingWebOTP()
     this.disconnectPMWatch()
     this.unsubscribeFeedback()
@@ -566,11 +632,13 @@ class VerinoInput extends HTMLElement {
     const masked             = this._masked
     const inputName          = this._name
     const autoFocus          = this._autoFocus
+    const messages           = resolveOTPUIStrings(this._messages)
+    const codeUnit           = getOTPCodeUnit(type)
     this._isDisabled         = previousDisabled
     this._isReadOnly         = previousReadOnly
     this._isSuccess          = previousHasSuccess
 
-    this.timer?.stop()
+    this.timerController.stop()
     this.frameScheduler.cancelAll()
     this.cancelPendingWebOTP()
     this.disconnectPMWatch()
@@ -585,7 +653,8 @@ class VerinoInput extends HTMLElement {
     this.timerEl        = null
     this.timerBadgeEl   = null
     this.resendEl       = null
-    this.timer    = null
+    this.resendTimer = null
+    this.timerController = createTimer({ totalSeconds: 0 })
 
     // Styles
     const styleEl = document.createElement('style')
@@ -600,6 +669,8 @@ class VerinoInput extends HTMLElement {
     // Root
     const rootEl = document.createElement('div')
     rootEl.className = 'verino-wc-root'
+    rootEl.setAttribute('role', 'group')
+    rootEl.setAttribute('aria-label', messages.groupLabel(length, codeUnit))
 
     // Slot row
     const slotRowEl = document.createElement('div')
@@ -649,7 +720,7 @@ class VerinoInput extends HTMLElement {
     hiddenInput.maxLength      = length
     hiddenInput.disabled       = this._isDisabled
     hiddenInput.className      = 'verino-wc-hidden'
-    hiddenInput.setAttribute('aria-label',     `Enter your ${length}-${type === 'numeric' ? 'digit' : 'character'} code`)
+    hiddenInput.setAttribute('aria-label',     messages.inputLabel(length, codeUnit))
     hiddenInput.setAttribute('spellcheck',     'false')
     hiddenInput.setAttribute('autocorrect',    'off')
     hiddenInput.setAttribute('autocapitalize', 'off')
@@ -688,15 +759,19 @@ class VerinoInput extends HTMLElement {
       // Timer footer — "Code expires in [0:45]"
       const timerFooterEl = document.createElement('div')
       timerFooterEl.className = 'verino-wc-timer'
+      timerFooterEl.id = `${this.otp.getGroupId()}-timer`
+      timerFooterEl.setAttribute('role', 'timer')
+      timerFooterEl.setAttribute('aria-live', 'off')
       this.timerEl = timerFooterEl
 
       const timerLabel = document.createElement('span')
       timerLabel.className   = 'verino-wc-timer-label'
-      timerLabel.textContent = 'Code expires in'
+      timerLabel.textContent = messages.expiresIn
 
       const timerBadge = document.createElement('span')
       timerBadge.className   = 'verino-wc-timer-badge'
       timerBadge.textContent = formatCountdown(timerSecs)
+      timerFooterEl.setAttribute('aria-label', `${messages.expiresIn} ${formatCountdown(timerSecs)}`)
       this.timerBadgeEl = timerBadge
 
       timerFooterEl.appendChild(timerLabel)
@@ -706,21 +781,27 @@ class VerinoInput extends HTMLElement {
       // Resend row — "Didn't receive the code? [Resend]"
       const resendRowEl = document.createElement('div')
       resendRowEl.className = 'verino-wc-resend'
+      resendRowEl.id = `${this.otp.getGroupId()}-resend`
+      resendRowEl.setAttribute('role', 'status')
+      resendRowEl.setAttribute('aria-live', 'polite')
+      resendRowEl.setAttribute('aria-atomic', 'true')
       this.resendEl = resendRowEl
 
       const resendLabel = document.createElement('span')
-      resendLabel.textContent = 'Didn\u2019t receive the code?'
+      resendLabel.textContent = messages.resendPrompt
 
       const resendBtn = document.createElement('button')
       resendBtn.className   = 'verino-wc-resend-btn'
-      resendBtn.textContent = 'Resend'
+      resendBtn.textContent = messages.resendAction
       resendBtn.type        = 'button'
+      resendBtn.setAttribute('aria-label', messages.resendButtonLabel)
 
       resendRowEl.appendChild(resendLabel)
       resendRowEl.appendChild(resendBtn)
       outerEl.appendChild(resendRowEl)
+      hiddenInput.setAttribute('aria-describedby', timerFooterEl.id)
 
-      this.timer = createResendTimer({
+      this.resendTimer = createResendTimer({
         timerSeconds: timerSecs,
         resendCooldown,
         clearField: () => { this.clearField() },
@@ -728,21 +809,29 @@ class VerinoInput extends HTMLElement {
           if (this.resendEl) this.resendEl.classList.remove('is-visible')
           if (this.timerEl) this.timerEl.classList.remove('is-hidden')
           if (this.timerBadgeEl) this.timerBadgeEl.textContent = formatCountdown(remaining)
+          if (this.timerEl) {
+            this.timerEl.setAttribute('aria-label', `${messages.expiresIn} ${formatCountdown(remaining)}`)
+            hiddenInput.setAttribute('aria-describedby', this.timerEl.id)
+          }
         },
         showResend: () => {
           if (this.timerEl) this.timerEl.classList.add('is-hidden')
-          if (this.resendEl) this.resendEl.classList.add('is-visible')
+          if (this.resendEl) {
+            this.resendEl.classList.add('is-visible')
+            hiddenInput.setAttribute('aria-describedby', this.resendEl.id)
+          }
         },
         onExpire: () => {
           this.dispatchEvent(new CustomEvent<void>('expire', { bubbles: true, composed: true }))
         },
         onResend: () => { this._onResend?.() },
       })
-      this.timer.start()
+      this.timerController = this.resendTimer
+      this.timerController.start()
 
       // Resend button click — restart with resend cooldown
       resendBtn.addEventListener('click', () => {
-        this.timer?.resend()
+        this.resendTimer?.resend()
       })
     }
 
@@ -783,30 +872,28 @@ class VerinoInput extends HTMLElement {
 
     if (this._isDisabled) this.applyDisabledDOM(true)
 
-    // ── Web OTP API (SMS autofill) ──────────────────────────────────────────
-    // navigator.credentials.get() intercepts incoming OTP SMSes on Android
-    // Chrome without any user gesture. AbortController is stored so
-    // disconnectedCallback and rebuild can cancel the pending request.
-    if (typeof navigator !== 'undefined' && 'credentials' in navigator) {
+    // ── Automatic OTP transport ─────────────────────────────────────────────
+    // Uses browser Web OTP by default, or an injected transport in native/test
+    // environments. Rebuild and disconnect cancel any pending request.
+    if (this._otpTransport !== false
+      && (this._otpTransport !== undefined || isWebOTPAvailable())) {
       const requestId = ++this.webOTPRequestId
-      const controller = new AbortController()
-      this.webOTPController = controller
-      const webOTPTimeoutId = setTimeout(() => controller.abort(), 5 * 60 * 1000)
-      ;(navigator.credentials.get as (opts: object) => Promise<OTPCredential | null>)({
-        otp:    { transport: ['sms'] },
-        signal: controller.signal,
-      }).then((credential) => {
-        clearTimeout(webOTPTimeoutId)
-        if (requestId === this.webOTPRequestId) this.webOTPController = null
+      const request = requestOTPCode({
+        transport: this._otpTransport ?? webOTPTransport,
+        timeoutMs: this._otpTransportTimeout,
+      })
+      this.cancelOTPTransportRequest = request.cancel
+      request.promise.then((code) => {
+        if (requestId === this.webOTPRequestId) this.cancelOTPTransportRequest = () => {}
         if (
-          controller.signal.aborted ||
+          request.signal.aborted ||
           !this.isConnected ||
           requestId !== this.webOTPRequestId ||
-          !credential?.code ||
+          !code ||
           !this.otp ||
           !this.hiddenInput
         ) return
-        const result = applyTypedInput(this.otp, credential.code, {
+        const result = applyTypedInput(this.otp, code, {
           length,
           type,
           pattern: this._pattern,
@@ -815,9 +902,8 @@ class VerinoInput extends HTMLElement {
         syncInputValue(this.hiddenInput, result.value, result.nextSelection)
         this.syncSlotsToDOM()
       }).catch(() => {
-        clearTimeout(webOTPTimeoutId)
-        if (requestId === this.webOTPRequestId) this.webOTPController = null
-        /* aborted on rebuild/disconnect or not supported */
+        if (requestId === this.webOTPRequestId) this.cancelOTPTransportRequest = () => {}
+        /* Preserve the Web Component's silent autofill failure behavior. */
       })
     }
 
@@ -904,6 +990,7 @@ class VerinoInput extends HTMLElement {
     // resets selectionStart/End in some browsers, clobbering the cursor.
     const newValue = slotValues.join('')
     if (this.hiddenInput.value !== newValue) this.hiddenInput.value = newValue
+    this.hiddenInput.setAttribute('aria-invalid', boolAttr(hasError))
 
     this.toggleAttribute('data-complete', isComplete)
     this.toggleAttribute('data-invalid',  hasError)
@@ -929,13 +1016,14 @@ class VerinoInput extends HTMLElement {
     this.unsubscribeFeedback = subscribeFeedback(this.otp, {
       haptic: this._haptic,
       sound:  this._sound,
+      feedback: this._feedback,
     })
   }
 
   private cancelPendingWebOTP(): void {
     this.webOTPRequestId += 1
-    this.webOTPController?.abort()
-    this.webOTPController = null
+    this.cancelOTPTransportRequest()
+    this.cancelOTPTransportRequest = () => {}
   }
 
   private clearField(): void {
@@ -1038,16 +1126,19 @@ class VerinoInput extends HTMLElement {
 
   // ── Public DOM API ──────────────────────────────────────────────────────────
 
+  /** Live countdown controller for the configured timer/resend policy. */
+  get timer(): TimerController { return this.timerController }
+
   /** Clear all slots, reset the timer display, and re-focus the hidden input. */
   reset(): void {
     this.clearField()
-    this.timer?.restartMain()
+    this.resendTimer?.restartMain()
   }
 
   /** Reset the field and fire `onResend`. Restarts the timer with resend cooldown when a timer is active. */
   resend(): void {
-    if (this.timer) {
-      this.timer.resend()
+    if (this.resendTimer) {
+      this.resendTimer.resend()
     } else {
       this.clearField()
       this._onResend?.()
@@ -1069,7 +1160,7 @@ class VerinoInput extends HTMLElement {
     this._isSuccess = isSuccess
     if (isSuccess) {
       this.otp?.setError(false)
-      this.timer?.stop()
+      this.timerController.stop()
       // Hide timer and resend via class-based approach so reset() can restore them.
       // Inline styles would persist across reset() calls and permanently suppress the UI.
       if (this.timerEl)  this.timerEl.classList.add('is-hidden')

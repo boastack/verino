@@ -10,6 +10,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Drift-resistant, observable timer controllers across every adapter, with independent expiry and resend-cooldown clocks.
+- Opt-in deadline-only timer persistence; OTP values are never serialized.
+- Injectable haptic/sound effects and cancellable OTP transports while browser Web OTP remains the default.
+- Localizable built-in labels, timer, and resend copy in Vanilla, Alpine, and Web Component.
+- Accessible timer/resend semantics and complete built-in design-token coverage.
+- Added explicit OTP responsibility boundaries, transport requirements, and server-side verification guidance in `SECURITY.md`.
+
+### Changed
+
+- Adopted Creed colors across built-in DOM renderers, examples,
+  and documentation, including `#00C65B` success, `#FF3846` invalid,
+  `#DBDBDB` resting borders, and consistent `.12` state-ring opacity.
+
+### Fixed
+
+- Package typechecks now run without emitting files, so validation cannot overwrite clean `tsup` release artifacts in `dist`.
+
 ---
 
 ## [1.0.0] - 2026-04-01

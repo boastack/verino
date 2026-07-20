@@ -30,6 +30,7 @@ import {
   type FeedbackOptions,
   type FieldBehaviorOptions,
   type ResendUIOptions,
+  type TimerController,
   type TimerUIOptions,
 } from '@verino/core'
 import { parseBooleanish, parseInputType, parseSeparatorAfter } from '@verino/core/filter'
@@ -47,6 +48,12 @@ import {
 } from '@verino/core/toolkit/controller'
 import { seedProgrammaticValue } from '@verino/core/toolkit/adapter-policy'
 import { subscribeFeedback } from '@verino/core/toolkit/feedback'
+import type { OTPTransport } from '@verino/core/toolkit/transport'
+import {
+  getOTPCodeUnit,
+  resolveOTPUIStrings,
+  type OTPUIStringOverrides,
+} from '@verino/core/toolkit/messages'
 import { timerUIPlugin } from './plugins/timer-ui.js'
 import { webOTPPlugin }  from './plugins/web-otp.js'
 import { pmGuardPlugin } from './plugins/pm-guard.js'
@@ -83,6 +90,8 @@ export type VerinoInstance = {
   getCode:      () => string
   /** Programmatically move focus to a slot index (focuses the hidden input). */
   focus:        (slotIndex: number) => void
+  /** Live countdown controller for the configured timer/resend policy. */
+  timer:        TimerController
   /** Remove all event listeners and stop the timer. */
   destroy:      () => void
 }
@@ -107,17 +116,17 @@ const INJECTED_STYLE_ID = 'verino-styles'
  * | `--verino-font-size`      | `24px`    | Digit font size                  |
  * | `--verino-bg`             | `#FAFAFA` | Slot background (empty)          |
  * | `--verino-bg-filled`      | `#FFFFFF` | Slot background (filled)         |
- * | `--verino-color`          | `#0A0A0A` | Digit text colour                |
- * | `--verino-border-color`   | `#E5E5E5` | Default slot border              |
- * | `--verino-active-color`   | `#3D3D3D` | Active slot border + ring        |
- * | `--verino-error-color`    | `#FB2C36` | Error border, ring + badge       |
- * | `--verino-success-color`  | `#00C950` | Success border + ring            |
- * | `--verino-timer-color`    | `#5C5C5C` | Timer label text colour          |
- * | `--verino-caret-color`    | `#3D3D3D` | Fake caret colour                |
- * | `--verino-separator-color`    | `#A1A1A1` | Separator text colour              |
+ * | `--verino-color`          | `#0C0C0C` | Digit text colour                |
+ * | `--verino-border-color`   | `#DBDBDB` | Default slot border              |
+ * | `--verino-active-color`   | `#2A2A2A` | Active slot border + ring        |
+ * | `--verino-error-color`    | `#FF3846` | Error border, ring + badge       |
+ * | `--verino-success-color`  | `#00C65B` | Success border + ring            |
+ * | `--verino-timer-color`    | `#484848` | Timer label text colour          |
+ * | `--verino-caret-color`    | `#2A2A2A` | Fake caret colour                |
+ * | `--verino-separator-color`    | `#B2B2B2` | Separator text colour              |
  * | `--verino-separator-size`     | `18px`    | Separator font size                |
  * | `--verino-placeholder-size`   | `16px`    | Placeholder char font size         |
- * | `--verino-placeholder-color`  | `#D3D3D3` | Placeholder char colour            |
+ * | `--verino-placeholder-color`  | `#888888` | Placeholder char colour            |
  * | `--verino-masked-size`        | `16px`    | Mask character font size           |
  */
 function injectStylesOnce(): void {
@@ -129,26 +138,26 @@ function injectStylesOnce(): void {
   styleEl.textContent = [
     '.verino-element{position:relative;display:inline-block;line-height:1}',
     '.verino-hidden-input{position:absolute;inset:0;width:100%;height:100%;opacity:0;border:none;outline:none;background:transparent;color:transparent;caret-color:transparent;z-index:1;cursor:text;font-size:1px}',
-    '.verino-content{display:inline-flex;gap:var(--verino-gap,12px);align-items:center;padding:24px 0 0;position:relative}',
-    '.verino-slot{position:relative;width:var(--verino-size,56px);height:var(--verino-size,56px);border:1px solid var(--verino-border-color,#E5E5E5);border-radius:var(--verino-radius,10px);font-size:var(--verino-font-size,24px);font-weight:var(--verino-font-weight,600);display:flex;align-items:center;justify-content:center;background:var(--verino-bg,#FAFAFA);color:var(--verino-color,#0A0A0A);transition:border-color 150ms ease,box-shadow 150ms ease,background 150ms ease;user-select:none;-webkit-user-select:none;cursor:text;font-family:inherit}',
-    '.verino-slot[data-active="true"][data-focus="true"]{border-color:var(--verino-active-color,#3D3D3D);box-shadow:0 0 0 3px color-mix(in srgb,var(--verino-active-color,#3D3D3D) 10%,transparent);background:var(--verino-bg-filled,#FFFFFF)}',
+    '.verino-content{display:inline-flex;gap:var(--verino-gap,12px);align-items:center;padding:var(--verino-content-padding-top,24px) 0 0;position:relative}',
+    '.verino-slot{position:relative;width:var(--verino-size,56px);height:var(--verino-size,56px);border:var(--verino-border-width,1px) solid var(--verino-border-color,#DBDBDB);border-radius:var(--verino-radius,10px);font-size:var(--verino-font-size,24px);font-weight:var(--verino-font-weight,600);display:flex;align-items:center;justify-content:center;background:var(--verino-bg,#FAFAFA);color:var(--verino-color,#0C0C0C);transition:border-color var(--verino-motion-duration,150ms) ease,box-shadow var(--verino-motion-duration,150ms) ease,background var(--verino-motion-duration,150ms) ease;user-select:none;-webkit-user-select:none;cursor:text;font-family:var(--verino-slot-font,inherit)}',
+    '.verino-slot[data-active="true"][data-focus="true"]{border-color:var(--verino-active-color,#2A2A2A);box-shadow:var(--verino-active-ring,0 0 0 3px rgba(42,42,42,.12));background:var(--verino-bg-filled,#FFFFFF)}',
     '.verino-slot[data-filled="true"]{background:var(--verino-bg-filled,#FFFFFF)}',
-    '.verino-slot[data-invalid="true"]{border-color:var(--verino-error-color,#FB2C36);box-shadow:0 0 0 3px color-mix(in srgb,var(--verino-error-color,#FB2C36) 12%,transparent)}',
-    '.verino-slot[data-success="true"]{border-color:var(--verino-success-color,#00C950);box-shadow:0 0 0 3px color-mix(in srgb,var(--verino-success-color,#00C950) 12%,transparent)}',
-    '.verino-slot[data-disabled="true"]{opacity:0.45;cursor:not-allowed;pointer-events:none}',
-    '.verino-caret{position:absolute;width:2px;height:52%;background:var(--verino-caret-color,#3D3D3D);border-radius:1px;animation:verino-blink 1s step-start infinite;pointer-events:none}',
+    '.verino-slot[data-invalid="true"]{border-color:var(--verino-error-color,#FF3846);box-shadow:var(--verino-error-ring,0 0 0 3px rgba(255,56,70,.12))}',
+    '.verino-slot[data-success="true"]{border-color:var(--verino-success-color,#00C65B);box-shadow:var(--verino-success-ring,0 0 0 3px rgba(0,198,91,.12))}',
+    '.verino-slot[data-disabled="true"]{opacity:var(--verino-disabled-opacity,.45);cursor:not-allowed;pointer-events:none}',
+    '.verino-caret{position:absolute;width:var(--verino-caret-width,2px);height:var(--verino-caret-height,52%);background:var(--verino-caret-color,#2A2A2A);border-radius:var(--verino-caret-radius,1px);animation:verino-blink var(--verino-caret-duration,1s) step-start infinite;pointer-events:none}',
     '@keyframes verino-blink{0%,100%{opacity:1}50%{opacity:0}}',
-    '.verino-separator{display:flex;align-items:center;justify-content:center;color:var(--verino-separator-color,#A1A1A1);font-size:var(--verino-separator-size,18px);font-weight:400;user-select:none;flex-shrink:0;}',
-    '.verino-slot[data-empty="true"]{font-size:var(--verino-placeholder-size,16px);color:var(--verino-placeholder-color,#D3D3D3)}',
+    '.verino-separator{display:flex;align-items:center;justify-content:center;color:var(--verino-separator-color,#B2B2B2);font-size:var(--verino-separator-size,18px);font-weight:400;user-select:none;flex-shrink:0;}',
+    '.verino-slot[data-empty="true"]{font-size:var(--verino-placeholder-size,16px);color:var(--verino-placeholder-color,#888888)}',
     '.verino-slot[data-masked="true"][data-filled="true"]{font-size:var(--verino-masked-size,16px)}',
-    '.verino-timer{display:flex;align-items:center;gap:8px;font-size:14px;padding:20px 0 0}',
-    '.verino-timer-label{color:var(--verino-timer-color,#5C5C5C);font-size:14px}',
-    '.verino-timer-badge{display:inline-flex;align-items:center;background:color-mix(in srgb,var(--verino-error-color,#FB2C36) 10%,transparent);color:var(--verino-error-color,#FB2C36);font-weight:500;font-size:14px;padding:2px 10px;border-radius:99px;height:24px}',
-    '.verino-resend{display:none;align-items:center;gap:8px;font-size:14px;color:var(--verino-timer-color,#5C5C5C);padding:20px 0 0}',
+    '.verino-timer{display:flex;align-items:center;gap:var(--verino-timer-gap,8px);font-size:var(--verino-timer-font-size,14px);padding:var(--verino-timer-spacing,20px) 0 0}',
+    '.verino-timer-label{color:var(--verino-timer-color,#484848);font-size:inherit}',
+    '.verino-timer-badge{display:inline-flex;align-items:center;background:var(--verino-timer-badge-bg,rgba(255,56,70,.10));color:var(--verino-timer-badge-color,var(--verino-error-color,#FF3846));font-weight:var(--verino-timer-badge-font-weight,500);font-size:inherit;padding:var(--verino-pill-padding,2px 10px);border-radius:var(--verino-pill-radius,99px);height:var(--verino-timer-badge-height,24px)}',
+    '.verino-resend{display:none;align-items:center;gap:var(--verino-resend-gap,8px);font-size:var(--verino-timer-font-size,14px);color:var(--verino-timer-color,#484848);padding:var(--verino-resend-spacing,20px) 0 0}',
     '.verino-resend.is-visible{display:flex}',
-    '.verino-resend-btn{display:inline-flex;align-items:center;background:#E8E8E8;border:none;padding:2px 10px;border-radius:99px;color:#0A0A0A;font-weight:500;font-size:14px;transition:background 150ms ease;cursor:pointer;height:24px}',
-    '.verino-resend-btn:hover{background:#E5E5E5}',
-    '.verino-resend-btn:disabled{color:#A1A1A1;cursor:not-allowed;background:#F5F5F5}',
+    '.verino-resend-btn{display:inline-flex;align-items:center;background:var(--verino-resend-bg,#F4F4F4);border:none;padding:var(--verino-pill-padding,2px 10px);border-radius:var(--verino-pill-radius,99px);color:var(--verino-resend-color,#0C0C0C);font-weight:var(--verino-resend-font-weight,500);font-size:inherit;transition:background var(--verino-motion-duration,150ms) ease;cursor:pointer;height:var(--verino-resend-height,24px);font-family:inherit}',
+    '.verino-resend-btn:hover{background:var(--verino-resend-hover-bg,#E6E6E6)}',
+    '.verino-resend-btn:disabled{color:var(--verino-resend-disabled-color,#B2B2B2);cursor:not-allowed;background:var(--verino-resend-disabled-bg,#F4F4F4)}',
     '.verino-sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border-width:0}',
   ].join('')
   document.head.appendChild(styleEl)
@@ -207,6 +216,15 @@ export type VanillaOnlyOptions =
    * Default: `'●'` (U+25CF BLACK CIRCLE).
    */
   maskChar?: string
+  /**
+   * Custom code receiver. Omit to use browser Web OTP, or set to `false` to
+   * disable automatic code retrieval. The entered code is never persisted.
+   */
+  otpTransport?: OTPTransport | false
+  /** Maximum time to wait for an automatic code. Default: 5 minutes. */
+  otpTransportTimeout?: number
+  /** Localize every user-facing string rendered by the built-in DOM. */
+  messages?: OTPUIStringOverrides
 }
 
 /**
@@ -295,6 +313,10 @@ function mountOnWrapper(
   const onExpire        = options.onExpire
   const pattern         = options.pattern
   const defaultValue    = options.defaultValue ?? ''
+  const otpTransport    = options.otpTransport
+  const otpTransportTimeout = options.otpTransportTimeout ?? 5 * 60 * 1000
+  const messages = resolveOTPUIStrings(options.messages)
+  const codeUnit = getOTPCodeUnit(inputType)
 
   const autoFocus      = options.autoFocus !== false         // default true
   const inputName      = options.name
@@ -339,6 +361,7 @@ function mountOnWrapper(
   const unsubFeedback = subscribeFeedback(otpCore, {
     haptic: hapticEnabled,
     sound: soundEnabled,
+    feedback: options.feedback,
   })
 
   // ── Build DOM ────────────────────────────────────────────────────────────
@@ -357,7 +380,7 @@ function mountOnWrapper(
   const groupLabelEl = document.createElement('span')
   groupLabelEl.id        = groupLabelId
   groupLabelEl.className = 'verino-sr-only'
-  groupLabelEl.textContent = `${slotCount}-${inputType === 'numeric' ? 'digit' : 'character'} verification code`
+  groupLabelEl.textContent = messages.groupLabel(slotCount, codeUnit)
   rootEl.appendChild(groupLabelEl)
 
   const slotRowEl = document.createElement('div')
@@ -410,7 +433,7 @@ function mountOnWrapper(
   hiddenInputEl.maxLength    = slotCount
   hiddenInputEl.className    = 'verino-hidden-input'
   if (inputName) hiddenInputEl.name = inputName
-  hiddenInputEl.setAttribute('aria-label', `Enter your ${slotCount}-${inputType === 'numeric' ? 'digit' : 'character'} code`)
+  hiddenInputEl.setAttribute('aria-label', messages.inputLabel(slotCount, codeUnit))
   hiddenInputEl.setAttribute('spellcheck', 'false')
   hiddenInputEl.setAttribute('autocorrect', 'off')
   hiddenInputEl.setAttribute('autocapitalize', 'off')
@@ -484,6 +507,7 @@ function mountOnWrapper(
     // resets selectionStart/End in some browsers, clobbering the cursor.
     const newValue = slotValues.join('')
     if (hiddenInputEl.value !== newValue) hiddenInputEl.value = newValue
+    hiddenInputEl.setAttribute('aria-invalid', String(hasError))
 
     // Expose component state as data attributes on wrapper for CSS/Tailwind targeting
     wrapperEl.toggleAttribute('data-complete', isComplete)
@@ -508,6 +532,9 @@ function mountOnWrapper(
     onResend,
     onTickCallback,
     onExpire,
+    otpTransport,
+    otpTransportTimeout,
+    messages,
     clearField,
     syncSlots: syncSlotsToDOM,
   }
@@ -710,7 +737,8 @@ function mountOnWrapper(
     otpCore.destroy()
   }
 
-  const instance = { reset, resend, setError, setSuccess, setDisabled, setReadOnly, getCode, focus, destroy }
+  const timer = wrapperEl.__verinoTimerController!
+  const instance = { reset, resend, setError, setSuccess, setDisabled, setReadOnly, getCode, focus, timer, destroy }
   wrapperEl.__verinoInstance = instance
   return instance
 }

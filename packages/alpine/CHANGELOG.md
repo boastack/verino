@@ -7,6 +7,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [Unreleased]
+
+### Added
+
+- `el._verino.timer` exposes the live countdown controller, including pause/resume,
+  snapshots, deadline updates, and subscriptions.
+- `feedback` accepts custom haptic and sound effects while preserving the existing
+  `haptic` and `sound` enable flags.
+- `messages` localizes accessible labels, timer copy, and resend copy.
+- Built-in timer/resend ARIA state and additional `--verino-*` design tokens.
+
+### Changed
+
+- Adopted Creed colors and aligned focus, invalid, and success
+  rings to `.12` opacity. Every value remains overridable through `--verino-*` tokens.
+
 ## [2.0.0] - 2026-04-04
 
 ### Breaking Changes

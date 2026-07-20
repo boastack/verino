@@ -38,12 +38,23 @@ export const timerUIPlugin: VerinoPlugin = {
 
   install(ctx: VerinoPluginContext): () => void {
     const {
-      otp, wrapperEl, timerSeconds, resendCooldown,
-      onResend, onTickCallback, onExpire, clearField,
+      otp, wrapperEl, hiddenInputEl, timerSeconds, resendCooldown,
+      onResend, onTickCallback, onExpire, clearField, messages,
     } = ctx
 
-    // No timer configured — nothing to do.
-    if (timerSeconds <= 0) return () => {}
+    // Always expose a controller, even when the visual timer is disabled. This
+    // keeps the adapter API shape stable for integrations that bind controls
+    // before knowing whether a timer was configured.
+    if (timerSeconds <= 0) {
+      const inactiveTimer = createTimer({ totalSeconds: 0 })
+      wrapperEl.__verinoTimerController = inactiveTimer
+      return () => {
+        inactiveTimer.stop()
+        if (wrapperEl.__verinoTimerController === inactiveTimer) {
+          wrapperEl.__verinoTimerController = null
+        }
+      }
+    }
 
     // Custom-tick mode: caller drives their own countdown display via onTick.
     // Fire the timer but skip building any DOM — the caller renders the UI.
@@ -56,12 +67,19 @@ export const timerUIPlugin: VerinoPlugin = {
         onExpire: onExpire,
       })
       customCountdown.start()
+      wrapperEl.__verinoTimerController = customCountdown
 
       const unsubReset = otp.subscribe((_state, event) => {
         if (event.type === 'RESET') customCountdown.restart()
       })
 
-      return () => { customCountdown.stop(); unsubReset() }
+      return () => {
+        customCountdown.stop()
+        unsubReset()
+        if (wrapperEl.__verinoTimerController === customCountdown) {
+          wrapperEl.__verinoTimerController = null
+        }
+      }
     }
 
     // ── Build DOM ──────────────────────────────────────────────────────────
@@ -74,14 +92,18 @@ export const timerUIPlugin: VerinoPlugin = {
 
     const footerEl = document.createElement('div')
     footerEl.className = 'verino-timer'
+    footerEl.id = `${otp.getGroupId()}-timer`
+    footerEl.setAttribute('role', 'timer')
+    footerEl.setAttribute('aria-live', 'off')
 
     const expiresLabel = document.createElement('span')
     expiresLabel.className   = 'verino-timer-label'
-    expiresLabel.textContent = 'Code expires in'
+    expiresLabel.textContent = messages.expiresIn
 
     const badgeEl = document.createElement('span')
     badgeEl.className   = 'verino-timer-badge'
     badgeEl.textContent = formatCountdown(timerSeconds)
+    footerEl.setAttribute('aria-label', `${messages.expiresIn} ${formatCountdown(timerSeconds)}`)
 
     footerEl.appendChild(expiresLabel)
     footerEl.appendChild(badgeEl)
@@ -89,14 +111,19 @@ export const timerUIPlugin: VerinoPlugin = {
 
     const resendRowEl = document.createElement('div')
     resendRowEl.className = 'verino-resend'
+    resendRowEl.id = `${otp.getGroupId()}-resend`
+    resendRowEl.setAttribute('role', 'status')
+    resendRowEl.setAttribute('aria-live', 'polite')
+    resendRowEl.setAttribute('aria-atomic', 'true')
 
     const didntReceiveLabel = document.createElement('span')
-    didntReceiveLabel.textContent = 'Didn\u2019t receive the code?'
+    didntReceiveLabel.textContent = messages.resendPrompt
 
     const resendBtn = document.createElement('button')
     resendBtn.className   = 'verino-resend-btn'
-    resendBtn.textContent = 'Resend'
+    resendBtn.textContent = messages.resendAction
     resendBtn.type        = 'button'
+    resendBtn.setAttribute('aria-label', messages.resendButtonLabel)
 
     resendRowEl.appendChild(didntReceiveLabel)
     resendRowEl.appendChild(resendBtn)
@@ -105,18 +132,22 @@ export const timerUIPlugin: VerinoPlugin = {
     // Store on wrapper so the next mount can clean these up.
     wrapperEl.__verinoFooterEl    = footerEl
     wrapperEl.__verinoResendRowEl = resendRowEl
+    hiddenInputEl.setAttribute('aria-describedby', footerEl.id)
 
     // ── Helpers ────────────────────────────────────────────────────────────
 
     function showResend(): void {
       footerEl.style.display = 'none'
       resendRowEl.classList.add('is-visible')
+      hiddenInputEl.setAttribute('aria-describedby', resendRowEl.id)
     }
 
     function showTimer(remaining: number): void {
       resendRowEl.classList.remove('is-visible')
       footerEl.style.display = 'flex'
       badgeEl.textContent = formatCountdown(remaining)
+      footerEl.setAttribute('aria-label', `${messages.expiresIn} ${formatCountdown(remaining)}`)
+      hiddenInputEl.setAttribute('aria-describedby', footerEl.id)
     }
 
     const resendTimer = createResendTimer({
@@ -129,6 +160,7 @@ export const timerUIPlugin: VerinoPlugin = {
       onResend,
     })
     resendTimer.start()
+    wrapperEl.__verinoTimerController = resendTimer
 
     // ── Resend button ──────────────────────────────────────────────────────
 
@@ -153,8 +185,12 @@ export const timerUIPlugin: VerinoPlugin = {
       unsubReset()
       footerEl.remove()
       resendRowEl.remove()
+      hiddenInputEl.removeAttribute('aria-describedby')
       wrapperEl.__verinoFooterEl    = null
       wrapperEl.__verinoResendRowEl = null
+      if (wrapperEl.__verinoTimerController === resendTimer) {
+        wrapperEl.__verinoTimerController = null
+      }
     }
   },
 }

@@ -20,6 +20,7 @@ export {
 export {
   createResendTimer,
 } from './timer-policy.js'
+export type { ResendTimer, ResendTimerOptions } from './timer-policy.js'
 export {
   applyExternalValue,
   applyPastedInput,
@@ -47,3 +48,31 @@ export {
   isPasswordManagerActive,
   watchForPasswordManagerBadge,
 } from './password-manager.js'
+export { createTimerPersistence } from './storage.js'
+export type {
+  KeyValueStorage,
+  TimerPersistence,
+  TimerPersistenceOptions,
+} from './storage.js'
+export {
+  isExpectedOTPTransportError,
+  isWebOTPAvailable,
+  requestOTPCode,
+  webOTPTransport,
+} from './transport.js'
+export {
+  defaultOTPUIStrings,
+  getOTPCodeUnit,
+  resolveOTPUIStrings,
+} from './messages.js'
+export type {
+  OTPCodeUnit,
+  OTPUIStringOverrides,
+  OTPUIStrings,
+} from './messages.js'
+export type {
+  OTPTransport,
+  OTPTransportContext,
+  OTPTransportRequest,
+  OTPTransportRequestOptions,
+} from './transport.js'

@@ -29,7 +29,19 @@ yarn-*.log*
 
 # Local temp files
 .tmp-*
+*.tmp
+
+# Environment
+.env
+.env.*
+!.env.example
+
+# Generic caches and logs
+.cache/
+*.log
 
 # Editor
 .vscode/
 .idea/
+*.swp
+*.swo

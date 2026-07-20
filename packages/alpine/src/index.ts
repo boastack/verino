@@ -29,6 +29,7 @@ import {
   type SlotEntry,
   type InputProps,
   type ResendUIOptions,
+  type TimerController,
   type TimerUIOptions,
 } from '@verino/core'
 import { parseBooleanish, parseInputType, parseSeparatorAfter } from '@verino/core/filter'
@@ -54,6 +55,11 @@ import {
   createResendTimer,
 } from '@verino/core/toolkit/timer-policy'
 import { subscribeFeedback } from '@verino/core/toolkit/feedback'
+import {
+  getOTPCodeUnit,
+  resolveOTPUIStrings,
+  type OTPUIStringOverrides,
+} from '@verino/core/toolkit/messages'
 
 /** Shape of the data object Alpine passes to every directive handler. */
 type AlpineDirectiveData = {
@@ -124,6 +130,8 @@ type AlpineOTPOptions =
    * @example maskChar: '*'
    */
   maskChar?:       string
+  /** Localize every user-facing string rendered by the directive. */
+  messages?:       OTPUIStringOverrides
 }
 
 type AlpineVerinoAPI = {
@@ -138,6 +146,7 @@ type AlpineVerinoAPI = {
   setDisabled:  (value: boolean) => void
   setReadOnly:  (value: boolean) => void
   focus:        (slotIndex: number) => void
+  timer:        TimerController
 }
 
 type AlpineVerinoElement = HTMLElement & {
@@ -189,6 +198,13 @@ function asVoidHandler(value: unknown): (() => void) | undefined {
   return typeof value === 'function' ? (value as () => void) : undefined
 }
 
+function asFeedbackRuntime(value: unknown): AlpineOTPOptions['feedback'] | undefined {
+  if (!isPlainObject(value)) return undefined
+  const haptic = asVoidHandler(value.haptic)
+  const sound = asVoidHandler(value.sound)
+  return haptic || sound ? { haptic, sound } : undefined
+}
+
 function normalizeAlpineOptions(input: unknown): AlpineOTPOptions {
   if (!isPlainObject(input)) return {}
 
@@ -210,6 +226,7 @@ function normalizeAlpineOptions(input: unknown): AlpineOTPOptions {
     onBlur:           asVoidHandler(input.onBlur),
     haptic:           parseBooleanish(input.haptic, true),
     sound:            parseBooleanish(input.sound, false),
+    feedback:         asFeedbackRuntime(input.feedback),
     autoFocus:        parseBooleanish(input.autoFocus, true),
     name:             typeof input.name === 'string' ? input.name : undefined,
     placeholder:      typeof input.placeholder === 'string' ? input.placeholder : undefined,
@@ -221,6 +238,7 @@ function normalizeAlpineOptions(input: unknown): AlpineOTPOptions {
     resendAfter:      parseInteger(input.resendAfter, 30, 0),
     masked:           parseBooleanish(input.masked, false),
     maskChar:         typeof input.maskChar === 'string' ? input.maskChar : undefined,
+    messages:         isPlainObject(input.messages) ? input.messages as OTPUIStringOverrides : undefined,
   }
 }
 
@@ -281,6 +299,12 @@ function alpineOptionsEqual(a: AlpineOTPOptions | null, b: AlpineOTPOptions): bo
     a.resendAfter === b.resendAfter &&
     a.masked === b.masked &&
     a.maskChar === b.maskChar &&
+    a.messages?.groupLabel === b.messages?.groupLabel &&
+    a.messages?.inputLabel === b.messages?.inputLabel &&
+    a.messages?.expiresIn === b.messages?.expiresIn &&
+    a.messages?.resendPrompt === b.messages?.resendPrompt &&
+    a.messages?.resendAction === b.messages?.resendAction &&
+    a.messages?.resendButtonLabel === b.messages?.resendButtonLabel &&
     separatorAfterEqual(a.separatorAfter, b.separatorAfter)
   )
 }
@@ -355,6 +379,8 @@ export const VerinoAlpine = (Alpine: AlpinePlugin): void => {
         defaultValue       = '',
         readOnly:          readOnlyOpt = false,
       } = options
+      const messages = resolveOTPUIStrings(options.messages)
+      const codeUnit = getOTPCodeUnit(type)
 
       const separatorAfterPositions: number[] = Array.isArray(rawSepAfter) ? rawSepAfter : [rawSepAfter]
       const callbackRefs: AlpineCallbackRefs = {}
@@ -376,7 +402,7 @@ export const VerinoAlpine = (Alpine: AlpinePlugin): void => {
       })
       let liveHaptic = haptic
       let liveSound = sound
-      let unsubFeedback = subscribeFeedback(otp, { haptic: liveHaptic, sound: liveSound })
+      let unsubFeedback = subscribeFeedback(otp, { haptic: liveHaptic, sound: liveSound, feedback: options.feedback })
 
       let isDisabled   = initialDisabled
       let isReadOnly   = readOnlyOpt
@@ -386,7 +412,7 @@ export const VerinoAlpine = (Alpine: AlpinePlugin): void => {
         unsubFeedback()
         liveHaptic = nextHaptic
         liveSound = nextSound
-        unsubFeedback = subscribeFeedback(otp, { haptic: liveHaptic, sound: liveSound })
+        unsubFeedback = subscribeFeedback(otp, { haptic: liveHaptic, sound: liveSound, feedback: options.feedback })
       }
 
       function setDisabledState(value: boolean): void {
@@ -408,7 +434,9 @@ export const VerinoAlpine = (Alpine: AlpinePlugin): void => {
       }
 
       while (wrapperEl.firstChild) wrapperEl.removeChild(wrapperEl.firstChild)
-      wrapperEl.style.cssText = 'position:relative;display:inline-flex;gap:var(--verino-gap,12px);align-items:center;flex-wrap:wrap'
+      wrapperEl.style.cssText = 'position:relative;display:inline-flex;gap:var(--verino-gap,12px);align-items:center;flex-wrap:wrap;padding-top:var(--verino-content-padding-top,0px)'
+      wrapperEl.setAttribute('role', 'group')
+      wrapperEl.setAttribute('aria-label', messages.groupLabel(length, codeUnit))
 
       const slotEls:  HTMLDivElement[] = []
       const caretEls: HTMLDivElement[] = []
@@ -418,7 +446,7 @@ export const VerinoAlpine = (Alpine: AlpinePlugin): void => {
         slotEl.style.cssText = [
           `width:var(--verino-size,56px)`,
           `height:var(--verino-size,56px)`,
-          `border:1px solid var(--verino-border-color,#E5E5E5)`,
+          `border:var(--verino-border-width,1px) solid var(--verino-border-color,#DBDBDB)`,
           `border-radius:var(--verino-radius,10px)`,
           `font-size:var(--verino-font-size,24px)`,
           `font-weight:var(--verino-font-weight,600)`,
@@ -426,11 +454,11 @@ export const VerinoAlpine = (Alpine: AlpinePlugin): void => {
           `align-items:center`,
           `justify-content:center`,
           `background:var(--verino-bg,#FAFAFA)`,
-          `color:var(--verino-color,#0A0A0A)`,
+          `color:var(--verino-color,#0C0C0C)`,
           `position:relative`,
           `cursor:text`,
-          `transition:border-color 150ms ease,box-shadow 150ms ease`,
-          `font-family:inherit`,
+          `transition:border-color var(--verino-motion-duration,150ms) ease,box-shadow var(--verino-motion-duration,150ms) ease`,
+          `font-family:var(--verino-slot-font,inherit)`,
           `user-select:none`,
         ].join(';')
         slotEl.setAttribute('aria-hidden',   'true')
@@ -449,7 +477,7 @@ export const VerinoAlpine = (Alpine: AlpinePlugin): void => {
         slotEl.setAttribute('data-readonly', 'false')
 
         const caretEl = document.createElement('div')
-        caretEl.style.cssText = 'position:absolute;width:2px;height:52%;background:var(--verino-caret-color,#3D3D3D);border-radius:1px;animation:verino-alpine-blink 1s step-start infinite;pointer-events:none;display:none'
+        caretEl.style.cssText = 'position:absolute;width:var(--verino-caret-width,2px);height:var(--verino-caret-height,52%);background:var(--verino-caret-color,#2A2A2A);border-radius:var(--verino-caret-radius,1px);animation:verino-alpine-blink var(--verino-caret-duration,1s) step-start infinite;pointer-events:none;display:none'
         slotEl.appendChild(caretEl)
         caretEls.push(caretEl)
 
@@ -463,7 +491,7 @@ export const VerinoAlpine = (Alpine: AlpinePlugin): void => {
             `display:flex`,
             `align-items:center`,
             `justify-content:center`,
-            `color:var(--verino-separator-color,#A1A1A1)`,
+            `color:var(--verino-separator-color,#B2B2B2)`,
             `font-size:var(--verino-separator-size,18px)`,
             `font-weight:400`,
             `user-select:none`,
@@ -479,14 +507,14 @@ export const VerinoAlpine = (Alpine: AlpinePlugin): void => {
         s.id = 'verino-alpine-styles'
         s.textContent = [
           '@keyframes verino-alpine-blink{0%,100%{opacity:1}50%{opacity:0}}',
-          '.verino-timer{display:flex;align-items:center;gap:8px;font-size:14px;padding:20px 0 0}',
-          '.verino-timer-label{color:var(--verino-timer-color,#5C5C5C);font-size:14px}',
-          '.verino-timer-badge{display:inline-flex;align-items:center;background:color-mix(in srgb,var(--verino-error-color,#FB2C36) 10%,transparent);color:var(--verino-error-color,#FB2C36);font-weight:500;font-size:14px;padding:2px 10px;border-radius:99px;height:24px}',
-          '.verino-resend{display:none;align-items:center;gap:8px;font-size:14px;color:var(--verino-timer-color,#5C5C5C);padding:20px 0 0}',
+          '.verino-timer{display:flex;align-items:center;gap:var(--verino-timer-gap,8px);font-size:var(--verino-timer-font-size,14px);padding:var(--verino-timer-spacing,20px) 0 0}',
+          '.verino-timer-label{color:var(--verino-timer-color,#484848);font-size:inherit}',
+          '.verino-timer-badge{display:inline-flex;align-items:center;background:var(--verino-timer-badge-bg,rgba(255,56,70,.10));color:var(--verino-timer-badge-color,var(--verino-error-color,#FF3846));font-weight:var(--verino-timer-badge-font-weight,500);font-size:inherit;padding:var(--verino-pill-padding,2px 10px);border-radius:var(--verino-pill-radius,99px);height:var(--verino-timer-badge-height,24px)}',
+          '.verino-resend{display:none;align-items:center;gap:var(--verino-resend-gap,8px);font-size:var(--verino-timer-font-size,14px);color:var(--verino-timer-color,#484848);padding:var(--verino-resend-spacing,20px) 0 0}',
           '.verino-resend.is-visible{display:flex}',
-          '.verino-resend-btn{display:inline-flex;align-items:center;background:#E8E8E8;border:none;padding:2px 10px;border-radius:99px;color:#0A0A0A;font-weight:500;font-size:14px;transition:background 150ms ease;cursor:pointer;height:24px}',
-          '.verino-resend-btn:hover{background:#E5E5E5}',
-          '.verino-resend-btn:disabled{color:#A1A1A1;cursor:not-allowed;background:#F5F5F5}',
+          '.verino-resend-btn{display:inline-flex;align-items:center;background:var(--verino-resend-bg,#F4F4F4);border:none;padding:var(--verino-pill-padding,2px 10px);border-radius:var(--verino-pill-radius,99px);color:var(--verino-resend-color,#0C0C0C);font-weight:var(--verino-resend-font-weight,500);font-size:inherit;transition:background var(--verino-motion-duration,150ms) ease;cursor:pointer;height:var(--verino-resend-height,24px);font-family:inherit}',
+          '.verino-resend-btn:hover{background:var(--verino-resend-hover-bg,#E6E6E6)}',
+          '.verino-resend-btn:disabled{color:var(--verino-resend-disabled-color,#B2B2B2);cursor:not-allowed;background:var(--verino-resend-disabled-bg,#F4F4F4)}',
         ].join('')
         document.head.appendChild(s)
       }
@@ -497,7 +525,7 @@ export const VerinoAlpine = (Alpine: AlpinePlugin): void => {
       hiddenInputEl.autocomplete   = 'one-time-code'
       hiddenInputEl.maxLength      = length
       hiddenInputEl.disabled       = isDisabled
-      hiddenInputEl.setAttribute('aria-label',     `Enter your ${length}-${type === 'numeric' ? 'digit' : 'character'} code`)
+      hiddenInputEl.setAttribute('aria-label',     messages.inputLabel(length, codeUnit))
       hiddenInputEl.setAttribute('spellcheck',     'false')
       hiddenInputEl.setAttribute('autocorrect',    'off')
       hiddenInputEl.setAttribute('autocapitalize', 'off')
@@ -536,6 +564,7 @@ export const VerinoAlpine = (Alpine: AlpinePlugin): void => {
       let resendActionBtn:    HTMLButtonElement | null = null
       let mainTimer:    ReturnType<typeof createTimer> | null = null
       let builtInTimer: ReturnType<typeof createResendTimer> | null = null
+      let timerController: TimerController = createTimer({ totalSeconds: 0 })
       let builtInFooterEl:    HTMLDivElement    | null = null
       let builtInResendRowEl: HTMLDivElement    | null = null
 
@@ -559,43 +588,43 @@ export const VerinoAlpine = (Alpine: AlpinePlugin): void => {
             ? (masked ? 'var(--verino-masked-size,16px)' : 'var(--verino-font-size,24px)')
             : 'var(--verino-placeholder-size,16px)'
           slotEl.style.color = isFilled
-            ? 'var(--verino-color,#0A0A0A)'
-            : 'var(--verino-placeholder-color,#D3D3D3)'
+            ? 'var(--verino-color,#0C0C0C)'
+            : 'var(--verino-placeholder-color,#888888)'
 
-          const activeColor  = 'var(--verino-active-color,#3D3D3D)'
-          const errorColor   = 'var(--verino-error-color,#FB2C36)'
-          const successColor = 'var(--verino-success-color,#00C950)'
+          const activeColor  = 'var(--verino-active-color,#2A2A2A)'
+          const errorColor   = 'var(--verino-error-color,#FF3846)'
+          const successColor = 'var(--verino-success-color,#00C65B)'
 
           if (isDisabled) {
-            slotEl.style.opacity       = '0.45'
+            slotEl.style.opacity       = 'var(--verino-disabled-opacity,.45)'
             slotEl.style.cursor        = 'not-allowed'
             slotEl.style.pointerEvents = 'none'
-            slotEl.style.borderColor   = 'var(--verino-border-color,#E5E5E5)'
+            slotEl.style.borderColor   = 'var(--verino-border-color,#DBDBDB)'
             slotEl.style.boxShadow     = 'none'
           } else if (hasError) {
             slotEl.style.opacity       = ''
             slotEl.style.cursor        = 'text'
             slotEl.style.pointerEvents = ''
             slotEl.style.borderColor   = errorColor
-            slotEl.style.boxShadow     = `0 0 0 3px color-mix(in srgb,${errorColor} 12%,transparent)`
+            slotEl.style.boxShadow     = 'var(--verino-error-ring,0 0 0 3px rgba(255,56,70,.12))'
           } else if (successState) {
             slotEl.style.opacity       = ''
             slotEl.style.cursor        = 'text'
             slotEl.style.pointerEvents = ''
             slotEl.style.borderColor   = successColor
-            slotEl.style.boxShadow     = `0 0 0 3px color-mix(in srgb,${successColor} 12%,transparent)`
+            slotEl.style.boxShadow     = 'var(--verino-success-ring,0 0 0 3px rgba(0,198,91,.12))'
           } else if (isActive) {
             slotEl.style.opacity       = ''
             slotEl.style.cursor        = 'text'
             slotEl.style.pointerEvents = ''
             slotEl.style.borderColor   = activeColor
-            slotEl.style.boxShadow     = `0 0 0 3px color-mix(in srgb,${activeColor} 10%,transparent)`
+            slotEl.style.boxShadow     = 'var(--verino-active-ring,0 0 0 3px rgba(42,42,42,.12))'
             slotEl.style.background    = 'var(--verino-bg-filled,#FFFFFF)'
           } else {
             slotEl.style.opacity       = ''
             slotEl.style.cursor        = 'text'
             slotEl.style.pointerEvents = ''
-            slotEl.style.borderColor   = 'var(--verino-border-color,#E5E5E5)'
+            slotEl.style.borderColor   = 'var(--verino-border-color,#DBDBDB)'
             slotEl.style.boxShadow     = 'none'
             slotEl.style.background    = isFilled ? 'var(--verino-bg-filled,#FFFFFF)' : 'var(--verino-bg,#FAFAFA)'
           }
@@ -616,6 +645,7 @@ export const VerinoAlpine = (Alpine: AlpinePlugin): void => {
 
         const newValue = otp.state.slotValues.join('')
         if (hiddenInputEl.value !== newValue) hiddenInputEl.value = newValue
+        hiddenInputEl.setAttribute('aria-invalid', boolAttr(hasError))
 
         wrapperEl.toggleAttribute('data-complete', otp.state.isComplete)
         wrapperEl.toggleAttribute('data-invalid',  otp.state.hasError)
@@ -636,14 +666,18 @@ export const VerinoAlpine = (Alpine: AlpinePlugin): void => {
         if (shouldUseBuiltInFooter) {
           builtInFooterEl = document.createElement('div')
           builtInFooterEl.className = 'verino-timer'
+          builtInFooterEl.id = `${otp.getGroupId()}-timer`
+          builtInFooterEl.setAttribute('role', 'timer')
+          builtInFooterEl.setAttribute('aria-live', 'off')
 
           const expiresLabel = document.createElement('span')
           expiresLabel.className   = 'verino-timer-label'
-          expiresLabel.textContent = 'Code expires in'
+          expiresLabel.textContent = messages.expiresIn
 
           timerBadgeEl = document.createElement('span')
           timerBadgeEl.className   = 'verino-timer-badge'
           timerBadgeEl.textContent = formatCountdown(timerSecs)
+          builtInFooterEl.setAttribute('aria-label', `${messages.expiresIn} ${formatCountdown(timerSecs)}`)
 
           builtInFooterEl.appendChild(expiresLabel)
           builtInFooterEl.appendChild(timerBadgeEl)
@@ -651,18 +685,24 @@ export const VerinoAlpine = (Alpine: AlpinePlugin): void => {
 
           builtInResendRowEl = document.createElement('div')
           builtInResendRowEl.className = 'verino-resend'
+          builtInResendRowEl.id = `${otp.getGroupId()}-resend`
+          builtInResendRowEl.setAttribute('role', 'status')
+          builtInResendRowEl.setAttribute('aria-live', 'polite')
+          builtInResendRowEl.setAttribute('aria-atomic', 'true')
 
           const didntReceiveLabel = document.createElement('span')
-          didntReceiveLabel.textContent = 'Didn\u2019t receive the code?'
+          didntReceiveLabel.textContent = messages.resendPrompt
 
           resendActionBtn = document.createElement('button')
           resendActionBtn.className   = 'verino-resend-btn'
-          resendActionBtn.textContent = 'Resend'
+          resendActionBtn.textContent = messages.resendAction
           resendActionBtn.type        = 'button'
+          resendActionBtn.setAttribute('aria-label', messages.resendButtonLabel)
 
           builtInResendRowEl.appendChild(didntReceiveLabel)
           builtInResendRowEl.appendChild(resendActionBtn)
           builtInFooterEl.insertAdjacentElement('afterend', builtInResendRowEl)
+          hiddenInputEl.setAttribute('aria-describedby', builtInFooterEl.id)
         }
 
         if (shouldUseBuiltInFooter && resendActionBtn) {
@@ -674,14 +714,20 @@ export const VerinoAlpine = (Alpine: AlpinePlugin): void => {
               if (builtInResendRowEl) builtInResendRowEl.classList.remove('is-visible')
               if (builtInFooterEl) builtInFooterEl.style.display = 'flex'
               if (timerBadgeEl) timerBadgeEl.textContent = formatCountdown(remaining)
+              if (builtInFooterEl) {
+                builtInFooterEl.setAttribute('aria-label', `${messages.expiresIn} ${formatCountdown(remaining)}`)
+                hiddenInputEl.setAttribute('aria-describedby', builtInFooterEl.id)
+              }
             },
             showResend: () => {
               if (builtInFooterEl) builtInFooterEl.style.display = 'none'
               if (builtInResendRowEl) builtInResendRowEl.classList.add('is-visible')
+              if (builtInResendRowEl) hiddenInputEl.setAttribute('aria-describedby', builtInResendRowEl.id)
             },
             onExpire: () => { callbackRefs.onExpire?.() },
             onResend: () => { callbackRefs.onResend?.() },
           })
+          timerController = builtInTimer
           builtInTimer.start()
           resendActionBtn.addEventListener('click', () => {
             builtInTimer?.resend()
@@ -698,6 +744,7 @@ export const VerinoAlpine = (Alpine: AlpinePlugin): void => {
               callbackRefs.onExpire?.()
             },
           })
+          timerController = mainTimer
           mainTimer.start()
         }
       }
@@ -798,8 +845,7 @@ export const VerinoAlpine = (Alpine: AlpinePlugin): void => {
         hiddenInputEl.removeEventListener('focus',   onFocus)
         hiddenInputEl.removeEventListener('blur',    onBlur)
         hiddenInputEl.removeEventListener('click',   onClickHandler)
-        mainTimer?.stop()
-        builtInTimer?.stop()
+        timerController.stop()
         builtInFooterEl?.remove()
         builtInResendRowEl?.remove()
         unsubFeedback()
@@ -861,8 +907,7 @@ export const VerinoAlpine = (Alpine: AlpinePlugin): void => {
           successState = isSuccess
           otp.setSuccess(isSuccess)
           if (isSuccess) {
-            mainTimer?.stop()
-            builtInTimer?.stop()
+            timerController.stop()
             if (builtInFooterEl)    builtInFooterEl.style.display = 'none'
             if (builtInResendRowEl) builtInResendRowEl.style.display = 'none'
             wrapperEl.dispatchEvent(new CustomEvent('verino:success', { bubbles: true }))
@@ -871,6 +916,7 @@ export const VerinoAlpine = (Alpine: AlpinePlugin): void => {
         },
         setDisabled: (value: boolean) => { setDisabledState(value) },
         setReadOnly: (value: boolean) => { setReadOnlyState(value) },
+        timer: timerController,
         focus: (slotIndex: number) => {
           if (isDisabled) return
           focusOTPInput(otp, hiddenInputEl, slotIndex)

@@ -239,19 +239,19 @@ Set on the wrapper element as boolean presence attributes (no value):
 
 ```css
 /* Slot-level — scope to your field with an id or class prefix */
-[data-active="true"][data-focus="true"] { border-color: #3D3D3D; }
+[data-active="true"][data-focus="true"] { border-color: #2A2A2A; }
 [data-filled="true"]                    { background:   #FFFFFF; }
 [data-empty="true"]                     { background:   #FAFAFA; }
-[data-invalid="true"]                   { border-color: #FB2C36; }
-[data-success="true"]                   { border-color: #00C950; }
+[data-invalid="true"]                   { border-color: #FF3846; }
+[data-success="true"]                   { border-color: #00C65B; }
 [data-disabled="true"]                  { opacity: 0.45; pointer-events: none; }
 [data-readonly="true"]                  { cursor: default; }
 [data-masked="true"]                    { letter-spacing: 0.15em; }
-[data-complete="true"]                  { border-color: #00C950; }
+[data-complete="true"]                  { border-color: #00C65B; }
 
 /* Wrapper-level (boolean presence selectors) */
-.verino-wrapper[data-complete]  { outline: 2px solid #00C950; }
-.verino-wrapper[data-invalid]   { outline: 2px solid #FB2C36; }
+.verino-wrapper[data-complete]  { outline: 2px solid #00C65B; }
+.verino-wrapper[data-invalid]   { outline: 2px solid #FF3846; }
 .verino-wrapper[data-disabled]  { opacity: 0.6; }
 
 /* Connected pill layout */
@@ -295,17 +295,17 @@ Style the field using `--verino-*` CSS custom properties on the wrapper element:
   /* Colors */
   --verino-bg:            #FAFAFA;
   --verino-bg-filled:     #FFFFFF;
-  --verino-color:         #0A0A0A;
-  --verino-border-color:  #E5E5E5;
-  --verino-active-color:  #3D3D3D;
-  --verino-error-color:   #FB2C36;
-  --verino-success-color: #00C950;
-  --verino-caret-color:   #3D3D3D;
+  --verino-color:         #0C0C0C;
+  --verino-border-color:  #DBDBDB;
+  --verino-active-color:  #2A2A2A;
+  --verino-error-color:   #FF3846;
+  --verino-success-color: #00C65B;
+  --verino-caret-color:   #2A2A2A;
 
   /* Placeholder, separator & mask */
-  --verino-placeholder-color: #D3D3D3;
+  --verino-placeholder-color: #888888;
   --verino-placeholder-size:  16px;
-  --verino-separator-color:   #A1A1A1;
+  --verino-separator-color:   #B2B2B2;
   --verino-separator-size:    18px;
   --verino-masked-size:       16px;
 }
@@ -316,7 +316,9 @@ Style the field using `--verino-*` CSS custom properties on the wrapper element:
 ## Accessibility
 
 - **Single ARIA-labelled input** — the hidden input carries `aria-label="Enter your N-digit code"` (or `N-character code` for non-numeric types). Screen readers announce one field, not multiple slots.
-- **All visual elements are `aria-hidden`** — slots, separators, caret, and timer UI are removed from the accessibility tree.
+- **Visual slots stay hidden from assistive technology** — the real input remains the single editing control.
+- **Purposeful timer announcements** — ticking uses `role="timer"` with live updates off; expiry exposes one polite resend status.
+- **State wiring** — `aria-invalid` and `aria-describedby` follow validation and timer/resend state.
 - **`inputMode`** — set to `"numeric"` or `"text"` based on `type`, triggering the correct mobile keyboard.
 - **`autocomplete="one-time-code"`** — enables native SMS autofill on iOS and Android.
 - **Anti-interference** — `spellcheck="false"`, `autocorrect="off"`, and `autocapitalize="off"` prevent unwanted browser input behavior.
@@ -352,11 +354,15 @@ All `OTPOptions` from `@verino/core`, plus:
 | `maskChar` | `string` | `'●'` | Glyph used in masked mode |
 | `onChange` | `(code: string) => void` | — | Fires on every input change |
 | `resendAfter` | `number` | `30` | Resend button cooldown in seconds |
+| `otpTransport` | `OTPTransport \| false` | Web OTP | Custom automatic-code receiver, or disable retrieval |
+| `otpTransportTimeout` | `number` | `300000` | Automatic-code timeout in milliseconds |
+| `messages` | `Partial<OTPUIStrings>` | English | Built-in labels, timer, and resend copy |
 
 ### `VerinoInstance` methods
 
 | Method | Description |
 |---|---|
+| `timer` | Live `TimerController` (`pause`, `resume`, snapshots, deadline updates, and subscriptions) |
 | `getCode()` | Return the current assembled value |
 | `reset()` | Clear all slots, restart timer, re-focus |
 | `resend()` | Reset + fire `onResend` callback |

@@ -172,6 +172,9 @@ el.onResend         = () => sendCode()
 el.onFocus          = () => showHelp()
 el.onBlur           = () => hideHelp()
 el.onInvalidChar    = (char, index) => shake(index)
+el.otpTransport     = customTransport // or false to disable automatic retrieval
+el.otpTransportTimeout = 60_000
+el.messages         = { expiresIn: 'Expires in' }
 ```
 
 ### Async verification
@@ -225,9 +228,9 @@ Set on `<verino-input>` itself as boolean presence attributes (no value) — tar
 
 ```css
 /* Host element attributes — target from outside */
-verino-input[data-complete] { outline: 2px solid #00C950; }
-verino-input[data-invalid]  { outline: 2px solid #FB2C36; }
-verino-input[data-success]  { outline: 2px solid #00C950; }
+verino-input[data-complete] { outline: 2px solid #00C65B; }
+verino-input[data-invalid]  { outline: 2px solid #FF3846; }
+verino-input[data-success]  { outline: 2px solid #00C65B; }
 verino-input[data-disabled] { opacity: 0.6; }
 verino-input[data-readonly] { cursor: default; }
 ```
@@ -255,15 +258,15 @@ Inside the shadow root, slot elements receive string-value attributes (`"true"` 
 
 ```css
 /* Applied inside the shadow root via the built-in shadow stylesheet */
-.verino-wc-slot[data-active="true"][data-focus="true"] { border-color: #3D3D3D; }
+.verino-wc-slot[data-active="true"][data-focus="true"] { border-color: #2A2A2A; }
 .verino-wc-slot[data-filled="true"]                    { background:   #FFFFFF; }
 .verino-wc-slot[data-empty="true"]                     { background:   #FAFAFA; }
-.verino-wc-slot[data-invalid="true"]                   { border-color: #FB2C36; }
-.verino-wc-slot[data-success="true"]                   { border-color: #00C950; }
+.verino-wc-slot[data-invalid="true"]                   { border-color: #FF3846; }
+.verino-wc-slot[data-success="true"]                   { border-color: #00C65B; }
 .verino-wc-slot[data-disabled="true"]                  { opacity: 0.45; pointer-events: none; }
 .verino-wc-slot[data-readonly="true"]                  { cursor: default; }
 .verino-wc-slot[data-masked="true"]                    { letter-spacing: 0.15em; }
-.verino-wc-slot[data-complete="true"]                  { border-color: #00C950; }
+.verino-wc-slot[data-complete="true"]                  { border-color: #00C65B; }
 
 /* Connected pill layout */
 .verino-wc-slot[data-first="true"]                              { border-radius: 8px 0 0 8px; }
@@ -306,18 +309,18 @@ verino-input {
   /* Colors */
   --verino-bg:            #FAFAFA;
   --verino-bg-filled:     #FFFFFF;
-  --verino-color:         #0A0A0A;
-  --verino-border-color:  #E5E5E5;
-  --verino-active-color:  #3D3D3D;
-  --verino-error-color:   #FB2C36;
-  --verino-success-color: #00C950;
-  --verino-caret-color:   #3D3D3D;
-  --verino-timer-color:   #5C5C5C;
+  --verino-color:         #0C0C0C;
+  --verino-border-color:  #DBDBDB;
+  --verino-active-color:  #2A2A2A;
+  --verino-error-color:   #FF3846;
+  --verino-success-color: #00C65B;
+  --verino-caret-color:   #2A2A2A;
+  --verino-timer-color:   #484848;
 
   /* Placeholder, separator & mask */
-  --verino-placeholder-color: #D3D3D3;
+  --verino-placeholder-color: #888888;
   --verino-placeholder-size:  16px;
-  --verino-separator-color:   #A1A1A1;
+  --verino-separator-color:   #B2B2B2;
   --verino-separator-size:    18px;
   --verino-masked-size:       16px;
   --verino-slot-font:         inherit;
@@ -329,7 +332,9 @@ verino-input {
 ## Accessibility
 
 - **Single ARIA-labelled input** — the hidden input carries `aria-label="Enter your N-digit code"` (or `N-character code` for non-numeric types). Screen readers announce one field, not multiple slots.
-- **All visual elements are `aria-hidden`** — slots, separators, caret, and timer UI are removed from the accessibility tree.
+- **Visual slots stay hidden from assistive technology** — the real input remains the single editing control.
+- **Purposeful timer announcements** — ticking uses `role="timer"` with live updates off; expiry exposes one polite resend status.
+- **State wiring** — `aria-invalid` and `aria-describedby` follow validation and timer/resend state.
 - **`inputMode`** — set to `"numeric"` or `"text"` based on `type`, triggering the correct mobile keyboard.
 - **`autocomplete="one-time-code"`** — enables native SMS autofill on iOS and Android.
 - **Anti-interference** — `spellcheck="false"`, `autocorrect="off"`, and `autocapitalize="off"` prevent unwanted browser input behavior.
@@ -368,6 +373,7 @@ class VerinoInput extends HTMLElement {
   setDisabled(v: boolean):        void
   setReadOnly(v: boolean):        void
   get hasSuccess():               boolean
+  get timer():                    TimerController
 
   getCode():                      string
   getSlots():                     SlotEntry[]

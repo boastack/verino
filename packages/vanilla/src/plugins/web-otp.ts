@@ -16,28 +16,12 @@
  */
 
 import { filterString } from '@verino/core/filter'
+import {
+  isWebOTPAvailable,
+  requestOTPCode,
+  webOTPTransport,
+} from '@verino/core/toolkit/transport'
 import type { VerinoPlugin, VerinoPluginContext } from './types.js'
-
-/** Maximum wait for an SMS OTP — matches the typical validity window. */
-const WEB_OTP_TIMEOUT_MS = 5 * 60 * 1000
-
-// The Web OTP spec adds OTPCredential to the Credential type but it is not
-// yet in TypeScript's standard DOM lib. Declare it locally.
-interface OTPCredential extends Credential { code: string }
-
-function isExpectedWebOTPError(err: unknown): boolean {
-  const name = (err as { name?: string })?.name
-  const message = (err as { message?: string })?.message?.toLowerCase() ?? ''
-
-  if (name === 'AbortError') return true
-  if (message === 'aborted') return true
-  // InvalidStateError from navigator.credentials.get (OTP transport) has exactly
-  // two spec-defined causes: backend unavailable and retrieval timed out. Both are
-  // expected — suppress all InvalidStateError from this API.
-  if (name === 'InvalidStateError') return true
-
-  return false
-}
 
 /**
  * Web OTP API (SMS autofill) plugin.
@@ -54,28 +38,35 @@ export const webOTPPlugin: VerinoPlugin = {
   name: 'web-otp',
 
   install(ctx: VerinoPluginContext): () => void {
-    const { otp, hiddenInputEl, slotCount, inputType, pattern, syncSlots } = ctx
+    const {
+      otp,
+      hiddenInputEl,
+      slotCount,
+      inputType,
+      pattern,
+      syncSlots,
+      otpTransport,
+      otpTransportTimeout,
+    } = ctx
 
-    if (typeof navigator === 'undefined' || !('credentials' in navigator)) {
+    if (otpTransport === false || (otpTransport === undefined && !isWebOTPAvailable())) {
       return () => {}
     }
 
-    const controller = new AbortController()
-    const timeoutId  = setTimeout(() => controller.abort(), WEB_OTP_TIMEOUT_MS)
+    const request = requestOTPCode({
+      transport: otpTransport ?? webOTPTransport,
+      timeoutMs: otpTransportTimeout,
+    })
 
     // Guard against the promise resolving after destroy() — the component may
     // have unmounted before the SMS arrives. Any otp/DOM access after destroy
     // would throw or produce stale side-effects.
     let destroyed = false
 
-    ;(navigator.credentials.get as (opts: object) => Promise<OTPCredential | null>)({
-      otp:    { transport: ['sms'] },
-      signal: controller.signal,
-    }).then((credential) => {
-      clearTimeout(timeoutId)
-      if (destroyed || !credential?.code) return
+    request.promise.then((code) => {
+      if (destroyed || !code) return
 
-      const valid = filterString(credential.code, inputType, pattern).slice(0, slotCount)
+      const valid = filterString(code, inputType, pattern).slice(0, slotCount)
       if (!valid) return
 
       otp.reset()
@@ -87,18 +78,12 @@ export const webOTPPlugin: VerinoPlugin = {
       otp.move(nextCursor)
       syncSlots()
     }).catch((err: unknown) => {
-      clearTimeout(timeoutId)
-      // AbortError is expected on destroy() or timeout. Some browsers also
-      // reject with InvalidStateError when the OTP backend is unavailable.
-      if (!isExpectedWebOTPError(err)) {
-        console.warn('[verino] web-otp: unexpected error', err)
-      }
+      console.warn('[verino] web-otp transport: unexpected error', err)
     })
 
     return () => {
       destroyed = true
-      clearTimeout(timeoutId)
-      controller.abort()
+      request.cancel()
     }
   },
 }

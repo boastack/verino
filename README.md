@@ -353,6 +353,10 @@ Verino is the only OTP library built on a single core that supports all major we
 
 See [CONTRIBUTING.md](./.github/CONTRIBUTING.md) for guidelines.
 
+Related documentation: [security model](./SECURITY.md),
+[migration guide](./docs/MIGRATION.md), and
+[design-token reference](./docs/DESIGN_TOKENS.md).
+
 ```bash
 # Clone and install
 git clone https://github.com/boastack/verino.git
@@ -385,7 +389,7 @@ Verino continues to evolve with these upcoming enhancements:
 - SolidJS adapter
 - React Native adapter
 - Storybook playground with live components
-- Accessibility enhancements
+- Additional assistive technology testing fixtures
 - Performance refinements
 
 [Open or upvote a feature request →](https://github.com/boastack/verino/issues/new?template=feature_request.yml)

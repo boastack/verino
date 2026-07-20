@@ -9,7 +9,7 @@
  * response to emitted core events.
  */
 
-import type { OTPEvent, OTPStateSnapshot, StateListener } from '../types.js'
+import type { FeedbackRuntime, OTPEvent, OTPStateSnapshot, StateListener } from '../types.js'
 
 /**
  * Trigger a short 10ms haptic pulse via `navigator.vibrate`.
@@ -75,16 +75,18 @@ type OTPSubscribable = {
  */
 export function subscribeFeedback(
   otp: OTPSubscribable,
-  options: { haptic?: boolean; sound?: boolean } = {},
+  options: { haptic?: boolean; sound?: boolean; feedback?: FeedbackRuntime } = {},
 ): () => void {
-  const { haptic = true, sound = false } = options
+  const { haptic = true, sound = false, feedback } = options
+  const hapticEffect = feedback?.haptic ?? triggerHapticFeedback
+  const soundEffect = feedback?.sound ?? triggerSoundFeedback
 
   return otp.subscribe((_state: OTPStateSnapshot, event: OTPEvent) => {
     if (event.type === 'COMPLETE') {
-      if (haptic) triggerHapticFeedback()
-      if (sound) triggerSoundFeedback()
+      if (haptic) hapticEffect()
+      if (sound) soundEffect()
     } else if (event.type === 'ERROR' && event.hasError) {
-      if (haptic) triggerHapticFeedback()
+      if (haptic) hapticEffect()
     }
   })
 }

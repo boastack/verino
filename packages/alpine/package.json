@@ -23,7 +23,7 @@
   "sideEffects": false,
   "scripts": {
     "build": "tsup",
-    "typecheck": "tsc -b"
+    "typecheck": "tsc --noEmit --composite false --incremental false"
   },
   "dependencies": {
     "@verino/core": "workspace:*"

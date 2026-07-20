@@ -53,7 +53,7 @@
   ],
   "scripts": {
     "build": "tsup",
-    "typecheck": "tsc -b"
+    "typecheck": "tsc --noEmit --composite false --incremental false"
   },
   "keywords": [
     "otp",

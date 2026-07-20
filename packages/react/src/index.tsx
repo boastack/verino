@@ -34,6 +34,7 @@ import {
   type FocusDataAttrs,
   type SlotEntry,
   type TimerUIOptions,
+  type TimerController,
   type ResendUIOptions,
   type WrapperDataAttrs,
 } from '@verino/core'
@@ -168,6 +169,8 @@ export type UseOTPResult = {
   isDisabled:       boolean
   /** Remaining timer seconds (live countdown). 0 when no timer or expired. */
   timerSeconds:     number
+  /** Imperative controller for pausing, resuming, inspecting, or subscribing to the timer. */
+  timer:            TimerController
   /** True while the hidden input has browser focus. */
   isFocused:        boolean
   /** Returns the current joined code string. */
@@ -303,6 +306,7 @@ export function useOTP(options: ReactOTPOptions = {}): UseOTPResult {
     onExpire,
     haptic           = true,
     sound            = false,
+    feedback,
     pattern,
     pasteTransformer,
     onInvalidChar,
@@ -410,9 +414,9 @@ export function useOTP(options: ReactOTPOptions = {}): UseOTPResult {
   }, [frameScheduler, otp])
 
   useEffect(() => {
-    const unsubFeedback = subscribeFeedback(otp, { haptic, sound })
+    const unsubFeedback = subscribeFeedback(otp, { haptic, sound, feedback })
     return () => { unsubFeedback() }
-  }, [haptic, sound, otp])
+  }, [haptic, sound, feedback, otp])
 
   useEffect(() => {
     setState(otp.getSnapshot())
@@ -759,6 +763,7 @@ export function useOTP(options: ReactOTPOptions = {}): UseOTPResult {
     hasSuccess:      state.hasSuccess,
     isDisabled:      state.isDisabled,
     timerSeconds,
+    timer:           timerController,
     isFocused,
     getCode,
     getSlots,

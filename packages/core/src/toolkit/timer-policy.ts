@@ -6,17 +6,20 @@
  * the resend-aware `createResendTimer` below.
  */
 import { createTimer } from '../timer.js'
+import type { TimerController, TimerListener, TimerSnapshot } from '../types.js'
 
 /**
  * Lifecycle for resend-aware timer UIs that swap between countdown and resend
  * affordances.
  */
-export type ResendTimer = {
-  start: () => void
+export type ResendTimer = TimerController & {
+  /** The OTP validity countdown. Remains available after expiry. */
+  expiryTimer: TimerController
+  /** The resend throttling countdown. Starts only after `resend()`. */
+  cooldownTimer: TimerController
   restartMain: () => void
   handleExternalReset: () => void
   resend: () => void
-  stop: () => void
 }
 
 /**
@@ -50,16 +53,19 @@ export function createResendTimer(options: ResendTimerOptions): ResendTimer {
   } = options
 
   if (timerSeconds <= 0) {
+    const expiryTimer = createTimer({ totalSeconds: 0 })
+    const cooldownTimer = createTimer({ totalSeconds: Math.max(0, resendCooldown) })
     return {
-      start: noop,
+      ...expiryTimer,
+      expiryTimer,
+      cooldownTimer,
       restartMain: noop,
       handleExternalReset: noop,
       resend: () => { clearField(); onResend?.() },
-      stop: noop,
     }
   }
 
-  const mainCountdown = createTimer({
+  const expiryTimer = createTimer({
     totalSeconds: timerSeconds,
     emitInitialTickOnStart: true,
     emitInitialTickOnRestart: true,
@@ -70,23 +76,44 @@ export function createResendTimer(options: ResendTimerOptions): ResendTimer {
     },
   })
 
-  let resendCountdown: ReturnType<typeof createTimer> | null = null
-  let suppressNextExternalReset = false
+  const cooldownTimer = createTimer({
+    totalSeconds: Math.max(0, resendCooldown),
+    emitInitialTickOnStart: true,
+    onTick: showTimer,
+    onExpire: showResend,
+  })
 
-  function stopCooldown(): void {
-    resendCountdown?.stop()
-    resendCountdown = null
+  let suppressNextExternalReset = false
+  let activeCountdown: TimerController = expiryTimer
+  const listeners = new Set<TimerListener>()
+  let unsubscribeActive = activeCountdown.subscribe(forwardSnapshot)
+
+  function forwardSnapshot(snapshot: TimerSnapshot): void {
+    listeners.forEach(listener => listener(snapshot))
+  }
+
+  function setActiveCountdown(next: TimerController, emitSnapshot = true): void {
+    if (activeCountdown === next) return
+    unsubscribeActive()
+    activeCountdown = next
+    unsubscribeActive = activeCountdown.subscribe(forwardSnapshot)
+    if (emitSnapshot) forwardSnapshot(activeCountdown.getSnapshot())
+  }
+
+  function stopCooldown(emitSnapshot = false): void {
+    if (activeCountdown === cooldownTimer) setActiveCountdown(expiryTimer, emitSnapshot)
+    cooldownTimer.stop()
   }
 
   function restartMain(): void {
     suppressNextExternalReset = false
     stopCooldown()
-    mainCountdown.restart()
+    expiryTimer.restart()
   }
 
   return {
     start(): void {
-      mainCountdown.start()
+      activeCountdown.start()
     },
     restartMain,
     handleExternalReset(): void {
@@ -100,19 +127,44 @@ export function createResendTimer(options: ResendTimerOptions): ResendTimer {
       suppressNextExternalReset = true
       clearField()
       stopCooldown()
-      resendCountdown = createTimer({
-        totalSeconds: resendCooldown,
-        emitInitialTickOnStart: true,
-        onTick: showTimer,
-        onExpire: showResend,
-      })
-      resendCountdown.start()
+      setActiveCountdown(cooldownTimer)
+      cooldownTimer.restart()
       onResend?.()
     },
     stop(): void {
       suppressNextExternalReset = false
-      mainCountdown.stop()
-      stopCooldown()
+      expiryTimer.stop()
+      stopCooldown(true)
     },
+    pause(): void {
+      activeCountdown.pause()
+    },
+    resume(): void {
+      activeCountdown.resume()
+    },
+    reset(): void {
+      activeCountdown.reset()
+    },
+    restart(): void {
+      activeCountdown.restart()
+    },
+    getRemaining(): number {
+      return activeCountdown.getRemaining()
+    },
+    getExpiresAt(): number | null {
+      return activeCountdown.getExpiresAt()
+    },
+    getSnapshot(): TimerSnapshot {
+      return activeCountdown.getSnapshot()
+    },
+    setExpiresAt(expiresAt: number): void {
+      activeCountdown.setExpiresAt(expiresAt)
+    },
+    subscribe(listener: TimerListener): () => void {
+      listeners.add(listener)
+      return () => { listeners.delete(listener) }
+    },
+    expiryTimer,
+    cooldownTimer,
   }
 }

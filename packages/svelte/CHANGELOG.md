@@ -7,6 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [Unreleased]
+
+### Added
+
+- `UseOTPResult.timer` exposes the live countdown controller while preserving the
+  existing reactive `timerSeconds` store.
+- `feedback` accepts custom haptic and sound effects while preserving the existing
+  `haptic` and `sound` enable flags.
+
+### Changed
+
+- Updated styling examples to use Creed colors. The Svelte adapter
+  remains headless and ships no built-in visual styles.
+
 ## [2.0.0] - 2026-04-04
 
 ### Breaking Changes

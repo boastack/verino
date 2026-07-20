@@ -4,8 +4,11 @@ import type {
   FeedbackOptions,
   FieldBehaviorOptions,
   ResendUIOptions,
+  TimerController,
   TimerUIOptions,
 } from '@verino/core'
+import type { OTPTransport } from '@verino/core/toolkit/transport'
+import type { OTPUIStringOverrides } from '@verino/core/toolkit/messages'
 import type {
   VerinoPlugin,
   VerinoPluginContext,
@@ -21,6 +24,7 @@ export type VerinoInstance = {
   setReadOnly: (isReadOnly: boolean) => void
   getCode: () => string
   focus: (slotIndex: number) => void
+  timer: TimerController
   destroy: () => void
 }
 
@@ -35,6 +39,9 @@ export type VanillaOnlyOptions =
     separator?: string
     masked?: boolean
     maskChar?: string
+    otpTransport?: OTPTransport | false
+    otpTransportTimeout?: number
+    messages?: OTPUIStringOverrides
   }
 
 export declare function initOTP(target: HTMLElement, options?: VanillaOnlyOptions): [VerinoInstance]

@@ -9,7 +9,9 @@
  *   install(ctx) → cleanup
  */
 
-import type { InputType, OTPInstance } from '@verino/core'
+import type { InputType, OTPInstance, TimerController } from '@verino/core'
+import type { OTPTransport } from '@verino/core/toolkit/transport'
+import type { OTPUIStrings } from '@verino/core/toolkit/messages'
 
 // ─────────────────────────────────────────────────────────────────────────────
 // WRAPPER AUGMENTATION
@@ -24,6 +26,7 @@ import type { InputType, OTPInstance } from '@verino/core'
 export type VerinoWrapper = HTMLElement & {
   __verinoFooterEl?:    HTMLDivElement | null
   __verinoResendRowEl?: HTMLDivElement | null
+  __verinoTimerController?: TimerController | null
   __verinoInstance?:    { destroy(): void } | null
 }
 
@@ -62,6 +65,12 @@ export type VerinoPluginContext = {
   onTickCallback?: (remaining: number) => void
   /** Called when the countdown reaches zero. */
   onExpire?:      () => void
+  /** Custom OTP receiver, `false` to disable, or undefined for browser Web OTP. */
+  otpTransport?: OTPTransport | false
+  /** Maximum time to wait for the OTP transport. */
+  otpTransportTimeout: number
+  /** Resolved user-facing strings for built-in DOM. */
+  messages: OTPUIStrings
   /** Clear the current code and visual field state without managing plugin timers. */
   clearField:     () => void
   /** Force a full DOM sync from OTP core state → slot divs. */

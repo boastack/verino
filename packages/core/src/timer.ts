@@ -5,7 +5,7 @@
  * developers who want to drive their own timer UI.
  */
 
-import type { TimerOptions, TimerControls } from './types.js'
+import type { TimerClock, TimerController, TimerOptions, TimerListener, TimerSnapshot } from './types.js'
 
 /**
  * Create a 1-second countdown timer.
@@ -30,42 +30,106 @@ import type { TimerOptions, TimerControls } from './types.js'
  * t.stop()
  * ```
  */
-export function createTimer(options: TimerOptions): TimerControls {
+export function createTimer(options: TimerOptions): TimerController {
   const {
     totalSeconds,
+    expiresAt: initialExpiresAt,
     onTick,
     onExpire,
     emitInitialTickOnStart   = false,
     emitInitialTickOnRestart = emitInitialTickOnStart,
+    clock: clockOptions,
   } = options
 
-  let remainingSeconds = totalSeconds
-  let intervalId: ReturnType<typeof setInterval> | null = null
+  const clock: TimerClock = {
+    now: clockOptions?.now ?? (() => Date.now()),
+    setInterval: clockOptions?.setInterval ?? ((callback, delayMs) => setInterval(callback, delayMs)),
+    clearInterval: clockOptions?.clearInterval ?? ((id) => clearInterval(id as ReturnType<typeof setInterval>)),
+  }
 
-  /** Stop the running interval. No-op if already stopped. */
-  function stop(): void {
+  if (initialExpiresAt !== undefined && !Number.isFinite(initialExpiresAt)) {
+    throw new RangeError('expiresAt must be a finite Unix timestamp in milliseconds.')
+  }
+
+  const deadlineDuration = initialExpiresAt === undefined
+    ? null
+    : Math.max(0, Math.ceil((initialExpiresAt - clock.now()) / 1000))
+  const resetDuration = totalSeconds ?? deadlineDuration ?? 0
+
+  let remainingSeconds = deadlineDuration ?? resetDuration
+  let deadlineMs: number | null = null
+  let pendingDeadlineMs: number | null = initialExpiresAt ?? null
+  let intervalId: unknown = null
+  const listeners = new Set<TimerListener>()
+
+  function getSnapshot(): TimerSnapshot {
+    syncRemainingToDeadline()
+    return Object.freeze({
+      remainingSeconds,
+      expiresAt: deadlineMs ?? pendingDeadlineMs,
+      isRunning: intervalId !== null,
+      isExpired: remainingSeconds <= 0,
+    })
+  }
+
+  function notify(): void {
+    const snapshot = getSnapshot()
+    listeners.forEach(listener => listener(snapshot))
+  }
+
+  /** Clear the running interval without changing the current deadline. */
+  function clearRunningInterval(): void {
     if (intervalId !== null) {
-      clearInterval(intervalId)
+      clock.clearInterval(intervalId)
       intervalId = null
     }
   }
 
-  /** Stop the interval and restore `remainingSeconds` to `totalSeconds`. Does not restart. */
-  function reset(): void {
-    stop()
-    remainingSeconds = totalSeconds
+  /** Derive remaining whole seconds from the active deadline. */
+  function syncRemainingToDeadline(): number {
+    const effectiveDeadline = deadlineMs ?? pendingDeadlineMs
+    if (effectiveDeadline !== null) {
+      remainingSeconds = Math.max(0, Math.ceil((effectiveDeadline - clock.now()) / 1000))
+    }
+    return remainingSeconds
   }
 
-  /** Begin the interval without touching `remainingSeconds` or stopping first. */
-  function beginInterval(): void {
-    intervalId = setInterval(() => {
-      remainingSeconds -= 1
-      onTick?.(remainingSeconds)
+  /** Stop and pause the running countdown. No-op if already stopped. */
+  function stop(): void {
+    syncRemainingToDeadline()
+    clearRunningInterval()
+    deadlineMs = null
+    pendingDeadlineMs = null
+    notify()
+  }
+
+  /** Stop the interval and restore `remainingSeconds` to `totalSeconds`. Does not restart. */
+  function reset(): void {
+    clearRunningInterval()
+    deadlineMs = null
+    pendingDeadlineMs = null
+    remainingSeconds = resetDuration
+    notify()
+  }
+
+  /** Begin the interval using an absolute deadline to avoid accumulated drift. */
+  function beginInterval(emitLifecycle = true): void {
+    deadlineMs = deadlineMs ?? pendingDeadlineMs ?? (clock.now() + remainingSeconds * 1000)
+    pendingDeadlineMs = null
+    intervalId = clock.setInterval(() => {
+      const previousRemaining = remainingSeconds
+      syncRemainingToDeadline()
+      if (remainingSeconds !== previousRemaining) onTick?.(remainingSeconds)
       if (remainingSeconds <= 0) {
-        stop()
+        clearRunningInterval()
+        deadlineMs = null
+        notify()
         onExpire?.()
+      } else if (remainingSeconds !== previousRemaining) {
+        notify()
       }
     }, 1000)
+    if (emitLifecycle) notify()
   }
 
   /**
@@ -75,21 +139,81 @@ export function createTimer(options: TimerOptions): TimerControls {
    * before the first interval tick.
    */
   function start(): void {
-    stop()
-    if (totalSeconds <= 0) { onExpire?.(); return }
-    if (emitInitialTickOnStart) onTick?.(totalSeconds)
+    if (intervalId !== null) {
+      syncRemainingToDeadline()
+      clearRunningInterval()
+      deadlineMs = null
+    }
+    if (pendingDeadlineMs !== null) syncRemainingToDeadline()
+    if (remainingSeconds <= 0) {
+      pendingDeadlineMs = null
+      notify()
+      onExpire?.()
+      return
+    }
+    if (emitInitialTickOnStart) onTick?.(remainingSeconds)
     beginInterval()
   }
 
   /** Reset to `totalSeconds` and immediately start ticking. */
   function restart(): void {
-    reset()
-    if (totalSeconds <= 0) { onExpire?.(); return }
-    if (emitInitialTickOnRestart) onTick?.(totalSeconds)
+    clearRunningInterval()
+    deadlineMs = null
+    pendingDeadlineMs = null
+    remainingSeconds = resetDuration
+    if (remainingSeconds <= 0) {
+      notify()
+      onExpire?.()
+      return
+    }
+    if (emitInitialTickOnRestart) onTick?.(remainingSeconds)
     beginInterval()
   }
 
-  return { start, stop, reset, restart }
+  function setExpiresAt(expiresAt: number): void {
+    if (!Number.isFinite(expiresAt)) {
+      throw new RangeError('expiresAt must be a finite Unix timestamp in milliseconds.')
+    }
+    const wasRunning = intervalId !== null
+    clearRunningInterval()
+    deadlineMs = wasRunning ? expiresAt : null
+    pendingDeadlineMs = wasRunning ? null : expiresAt
+    syncRemainingToDeadline()
+    if (!wasRunning && pendingDeadlineMs !== null) {
+      remainingSeconds = Math.max(0, Math.ceil((pendingDeadlineMs - clock.now()) / 1000))
+    }
+    if (remainingSeconds <= 0) {
+      deadlineMs = null
+      pendingDeadlineMs = null
+      onTick?.(remainingSeconds)
+      notify()
+      onExpire?.()
+      return
+    }
+
+    onTick?.(remainingSeconds)
+    if (wasRunning) beginInterval(false)
+    notify()
+  }
+
+  function subscribe(listener: TimerListener): () => void {
+    listeners.add(listener)
+    return () => { listeners.delete(listener) }
+  }
+
+  return {
+    start,
+    stop,
+    reset,
+    restart,
+    pause: stop,
+    resume: start,
+    getRemaining: () => getSnapshot().remainingSeconds,
+    getExpiresAt: () => getSnapshot().expiresAt,
+    getSnapshot,
+    setExpiresAt,
+    subscribe,
+  }
 }
 
 /**

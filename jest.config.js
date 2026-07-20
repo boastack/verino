@@ -14,6 +14,8 @@ export default {
     '^@verino/core/toolkit/timer-policy$':         '<rootDir>/packages/core/src/toolkit/timer-policy.ts',
     '^@verino/core/toolkit/feedback$':             '<rootDir>/packages/core/src/toolkit/feedback.ts',
     '^@verino/core/toolkit/password-manager$':     '<rootDir>/packages/core/src/toolkit/password-manager.ts',
+    '^@verino/core/toolkit/transport$':            '<rootDir>/packages/core/src/toolkit/transport.ts',
+    '^@verino/core/toolkit/messages$':             '<rootDir>/packages/core/src/toolkit/messages.ts',
     '^@verino/vanilla$':        '<rootDir>/packages/vanilla/src/index.ts',
     '^@verino/react$':          '<rootDir>/packages/react/src/index.tsx',
     '^@verino/vue$':            '<rootDir>/packages/vue/src/index.ts',

@@ -1642,6 +1642,220 @@ describe('createTimer — additional edge cases', () => {
       jest.advanceTimersByTime(3000)
     }).not.toThrow()
   })
+
+  it('start() is idempotent and never creates competing countdowns', () => {
+    const onTick = jest.fn()
+    const onExpire = jest.fn()
+    const t = createTimer({ totalSeconds: 3, onTick, onExpire })
+
+    t.start()
+    jest.advanceTimersByTime(1000)
+    t.start()
+    jest.advanceTimersByTime(2000)
+
+    expect(onTick.mock.calls.map(([remaining]) => remaining)).toEqual([2, 1, 0])
+    expect(onExpire).toHaveBeenCalledTimes(1)
+  })
+
+  it('stop() pauses and start() resumes from the remaining duration', () => {
+    const onTick = jest.fn()
+    const t = createTimer({ totalSeconds: 4, onTick })
+
+    t.start()
+    jest.advanceTimersByTime(2000)
+    t.stop()
+    jest.advanceTimersByTime(5000)
+    t.start()
+    jest.advanceTimersByTime(2000)
+
+    expect(onTick.mock.calls.map(([remaining]) => remaining)).toEqual([3, 2, 1, 0])
+  })
+
+  it('reset() restores the duration without restarting the timer', () => {
+    const onTick = jest.fn()
+    const t = createTimer({ totalSeconds: 2, onTick })
+
+    t.start()
+    jest.advanceTimersByTime(1000)
+    t.reset()
+    jest.advanceTimersByTime(5000)
+
+    expect(onTick).toHaveBeenCalledTimes(1)
+    expect(onTick).toHaveBeenLastCalledWith(1)
+  })
+
+  it('restart() emits the configured initial tick before decrementing', () => {
+    const onTick = jest.fn()
+    const t = createTimer({
+      totalSeconds: 2,
+      onTick,
+      emitInitialTickOnRestart: true,
+    })
+
+    t.restart()
+    expect(onTick).toHaveBeenLastCalledWith(2)
+    jest.advanceTimersByTime(2000)
+
+    expect(onTick.mock.calls.map(([remaining]) => remaining)).toEqual([2, 1, 0])
+  })
+
+  it.each([0, -1])('expires synchronously for a non-positive duration (%s)', (totalSeconds) => {
+    const onTick = jest.fn()
+    const onExpire = jest.fn()
+    const t = createTimer({ totalSeconds, onTick, onExpire, emitInitialTickOnStart: true })
+
+    t.start()
+
+    expect(onTick).not.toHaveBeenCalled()
+    expect(onExpire).toHaveBeenCalledTimes(1)
+    expect(jest.getTimerCount()).toBe(0)
+  })
+
+  it('derives remaining time from a deadline when an interval callback is delayed', () => {
+    let now = 0
+    const nowSpy = jest.spyOn(Date, 'now').mockImplementation(() => now)
+    const onTick = jest.fn()
+    const onExpire = jest.fn()
+    const t = createTimer({ totalSeconds: 3, onTick, onExpire })
+
+    t.start()
+
+    // Simulate a throttled or suspended environment where only one interval
+    // callback runs after 2.5 seconds of wall-clock time.
+    now = 2500
+    jest.advanceTimersByTime(1000)
+    expect(onTick).toHaveBeenLastCalledWith(1)
+
+    now = 3500
+    jest.advanceTimersByTime(1000)
+    expect(onTick).toHaveBeenLastCalledWith(0)
+    expect(onExpire).toHaveBeenCalledTimes(1)
+
+    nowSpy.mockRestore()
+  })
+
+  it('supports an injected clock and scheduler without using global time APIs', () => {
+    let now = 1_000
+    const callbacks = new Set<() => void>()
+    const onTick = jest.fn()
+    const onExpire = jest.fn()
+    const clock = {
+      now: () => now,
+      setInterval: (callback: () => void) => { callbacks.add(callback); return callback },
+      clearInterval: (id: unknown) => { callbacks.delete(id as () => void) },
+    }
+    const t = createTimer({ totalSeconds: 3, clock, onTick, onExpire })
+
+    t.start()
+    expect(t.getExpiresAt()).toBe(4_000)
+
+    now = 2_500
+    callbacks.forEach(callback => callback())
+    expect(t.getRemaining()).toBe(2)
+
+    now = 4_000
+    callbacks.forEach(callback => callback())
+    expect(t.getSnapshot()).toMatchObject({ remainingSeconds: 0, isExpired: true, isRunning: false })
+    expect(onExpire).toHaveBeenCalledTimes(1)
+  })
+
+  it('accepts an absolute expiry without requiring totalSeconds', () => {
+    jest.setSystemTime(10_000)
+    const onTick = jest.fn()
+    const t = createTimer({
+      expiresAt: 70_000,
+      emitInitialTickOnStart: true,
+      onTick,
+    })
+
+    expect(t.getRemaining()).toBe(60)
+    expect(t.getExpiresAt()).toBe(70_000)
+
+    jest.setSystemTime(20_000)
+    t.start()
+
+    expect(onTick).toHaveBeenLastCalledWith(50)
+    expect(t.getSnapshot()).toMatchObject({
+      remainingSeconds: 50,
+      expiresAt: 70_000,
+      isRunning: true,
+      isExpired: false,
+    })
+  })
+
+  it('keeps pause/resume aliases and timer snapshots in sync', () => {
+    jest.setSystemTime(0)
+    const t = createTimer({ totalSeconds: 3 })
+
+    t.start()
+    jest.advanceTimersByTime(1000)
+    t.pause()
+
+    expect(t.getSnapshot()).toMatchObject({
+      remainingSeconds: 2,
+      expiresAt: null,
+      isRunning: false,
+      isExpired: false,
+    })
+
+    jest.advanceTimersByTime(5000)
+    expect(t.getRemaining()).toBe(2)
+
+    t.resume()
+    expect(t.getExpiresAt()).toBe(Date.now() + 2000)
+    jest.advanceTimersByTime(2000)
+    expect(t.getSnapshot()).toMatchObject({
+      remainingSeconds: 0,
+      expiresAt: null,
+      isRunning: false,
+      isExpired: true,
+    })
+  })
+
+  it('rebases a running timer with setExpiresAt()', () => {
+    jest.setSystemTime(0)
+    const onTick = jest.fn()
+    const onExpire = jest.fn()
+    const t = createTimer({ totalSeconds: 60, onTick, onExpire })
+
+    t.start()
+    t.setExpiresAt(10_000)
+
+    expect(t.getRemaining()).toBe(10)
+    expect(t.getExpiresAt()).toBe(10_000)
+    expect(onTick).toHaveBeenLastCalledWith(10)
+
+    jest.advanceTimersByTime(10_000)
+    expect(t.getRemaining()).toBe(0)
+    expect(onExpire).toHaveBeenCalledTimes(1)
+  })
+
+  it('publishes lifecycle and tick snapshots to subscribers', () => {
+    jest.setSystemTime(0)
+    const snapshots: Array<{ remainingSeconds: number; isRunning: boolean }> = []
+    const t = createTimer({ totalSeconds: 3 })
+    const unsubscribe = t.subscribe(({ remainingSeconds, isRunning }) => {
+      snapshots.push({ remainingSeconds, isRunning })
+    })
+
+    t.start()
+    jest.advanceTimersByTime(1000)
+    t.pause()
+    unsubscribe()
+    t.resume()
+
+    expect(snapshots).toEqual([
+      { remainingSeconds: 3, isRunning: true },
+      { remainingSeconds: 2, isRunning: true },
+      { remainingSeconds: 2, isRunning: false },
+    ])
+  })
+
+  it('rejects non-finite absolute expiry timestamps', () => {
+    expect(() => createTimer({ expiresAt: Number.NaN })).toThrow(RangeError)
+    const t = createTimer({ totalSeconds: 10 })
+    expect(() => t.setExpiresAt(Number.POSITIVE_INFINITY)).toThrow(RangeError)
+  })
 })
 
 
@@ -1848,6 +2062,28 @@ describe('subscribeFeedback', () => {
       writable: true,
       value: originalAudioContext,
     })
+  })
+
+  it('uses injected feedback effects instead of browser APIs', () => {
+    let listener: (state: unknown, event: { type: string; hasError?: boolean }) => void = () => {}
+    const haptic = jest.fn()
+    const sound = jest.fn()
+
+    subscribeFeedback(
+      {
+        subscribe(callback) {
+          listener = callback as typeof listener
+          return () => {}
+        },
+      },
+      { sound: true, feedback: { haptic, sound } },
+    )
+
+    listener({}, { type: 'ERROR', hasError: true })
+    listener({}, { type: 'COMPLETE' })
+
+    expect(haptic).toHaveBeenCalledTimes(2)
+    expect(sound).toHaveBeenCalledTimes(1)
   })
 })
 

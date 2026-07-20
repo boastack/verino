@@ -21,6 +21,9 @@
       "@verino/core/toolkit/timer-policy": "../packages/core/dist/toolkit/timer-policy.js",
       "@verino/core/toolkit/feedback": "../packages/core/dist/toolkit/feedback.js",
       "@verino/core/toolkit/password-manager": "../packages/core/dist/toolkit/password-manager.js",
+      "@verino/core/toolkit/storage": "../packages/core/dist/toolkit/storage.js",
+      "@verino/core/toolkit/transport": "../packages/core/dist/toolkit/transport.js",
+      "@verino/core/toolkit/messages": "../packages/core/dist/toolkit/messages.js",
       "@verino/web-component": "../packages/web-component/dist/index.js"
     }
   }
@@ -35,11 +38,11 @@
     }
 
     body {
-      color: #0A0A0A;
+      color: #0C0C0C;
       font-size: 14px;
       font-family: 'Geist', sans-serif;
       line-height: 1.5;
-      background: #F5F5F5;
+      background: #F4F4F4;
     }
 
     .main-wrapper {
@@ -52,7 +55,7 @@
 
     .card {
       background: #FFFFFF;
-      border: 1px solid #E5E5E5;
+      border: 1px solid #DBDBDB;
       border-radius: 12px;
       padding: 32px;
       width: 100%;
@@ -72,14 +75,14 @@
 
     .subtitle {
       font-size: 16px;
-      color: #5C5C5C;
+      color: #484848;
       line-height: 1.5;
       text-align: center;
       margin-bottom: 8px;
     }
 
     .subtitle strong {
-      color: #0A0A0A;
+      color: #0C0C0C;
       font-weight: 500;
     }
 
@@ -89,14 +92,14 @@
       --verino-gap:            12px;
       --verino-radius:         10px;
       --verino-font-size:      24px;
-      --verino-color:          #0A0A0A;
+      --verino-color:          #0C0C0C;
       --verino-bg:             #FAFAFA;
       --verino-bg-filled:      #FFFFFF;
-      --verino-border-color:   #E5E5E5;
-      --verino-active-color:   #3D3D3D;
-      --verino-error-color:    #FB2C36;
-      --verino-success-color:  #00C950;
-      --verino-placeholder-color: #D3D3D3;
+      --verino-border-color:   #DBDBDB;
+      --verino-active-color:   #2A2A2A;
+      --verino-error-color:    #FF3846;
+      --verino-success-color:  #00C65B;
+      --verino-placeholder-color: #888888;
       --verino-slot-font: 'Geist Mono', monospace;
     }
 
@@ -108,7 +111,7 @@
       font-size: 14px;
       font-weight: 500;
       transition: all 150ms ease;
-      border: 1px solid #0A0A0A;
+      border: 1px solid #0C0C0C;
       cursor: pointer;
     }
 
@@ -118,8 +121,8 @@
 
     .btn-primary {
       color: #FFFFFF;
-      background: #0A0A0A;
-      border-color: #0A0A0A;
+      background: #0C0C0C;
+      border-color: #0C0C0C;
     }
 
     .btn-primary:hover {
@@ -128,13 +131,13 @@
     }
 
     .btn-secondary {
-      color: #0A0A0A;
+      color: #0C0C0C;
       background: transparent;
-      border-color: #D3D3D3;
+      border-color: #DBDBDB;
     }
 
     .btn-secondary:hover {
-      border-color: #A1A1A1;
+      border-color: #B2B2B2;
     }
 
     .usage {
@@ -146,9 +149,9 @@
     }
 
     .badge {
-      background: #F5F5F5;
-      border: 1px solid #E5E5E5;
-      color: #0A0A0A;
+      background: #F4F4F4;
+      border: 1px solid #DBDBDB;
+      color: #0C0C0C;
       font-size: 12px;
       font-family: 'Geist', sans-serif;
       padding: 4px 12px;
@@ -158,8 +161,8 @@
 
     .badge.active {
       color: #FFFFFF;
-      background: #0A0A0A;
-      border-color: #0A0A0A;
+      background: #0C0C0C;
+      border-color: #0C0C0C;
     }
 
     .status {
@@ -169,8 +172,8 @@
       text-align: center;
     }
 
-    .status.error   { color: #FB2C36; }
-    .status.success { color: #00C950; }
+    .status.error   { color: #FF3846; }
+    .status.success { color: #00C65B; }
 
     @media (max-width: 768px) {
       verino-input {

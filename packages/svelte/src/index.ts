@@ -15,6 +15,7 @@ import {
   type InputProps,
   type OTPStateSnapshot,
   type TimerUIOptions,
+  type TimerController,
   type ResendUIOptions,
   type WrapperDataAttrs,
 } from '@verino/core'
@@ -119,6 +120,8 @@ export type UseOTPResult = {
   activeSlot:     Readable<number>
   /** Remaining timer seconds store. */
   timerSeconds:   Writable<number>
+  /** Imperative controller for pausing, resuming, inspecting, or subscribing to the timer. */
+  timer:          TimerController
   /** Whether the field is currently disabled. */
   isDisabled:     Writable<boolean>
   /** Whether the field is currently read-only. Blocks mutations, preserves navigation. */
@@ -237,6 +240,7 @@ export function useOTP(options: SvelteOTPOptions = {}): UseOTPResult {
     onExpire,
     haptic             = true,
     sound              = false,
+    feedback,
     pattern,
     pasteTransformer,
     onInvalidChar,
@@ -275,7 +279,7 @@ export function useOTP(options: SvelteOTPOptions = {}): UseOTPResult {
     readOnly: readOnlyOpt,
   })
 
-  const unsubFeedback = subscribeFeedback(otp, { haptic, sound })
+  const unsubFeedback = subscribeFeedback(otp, { haptic, sound, feedback })
 
   // ── Stores ─────────────────────────────────────────────────────────────────
   const store               = writable<OTPStateSnapshot>(otp.getSnapshot())
@@ -588,6 +592,7 @@ export function useOTP(options: SvelteOTPOptions = {}): UseOTPResult {
     hasSuccess,
     activeSlot,
     timerSeconds:   timerStore,
+    timer:          timerController,
     isDisabled:     isDisabledStore,
     isReadOnly:     isReadOnlyStore,
     separatorAfter: separatorAfterStore,

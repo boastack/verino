@@ -163,15 +163,15 @@ export default function OTPForm() {
         @keyframes blink { 0%,100%{opacity:1} 50%{opacity:0} }
 
         .otp-row  { position:relative; display:inline-flex; gap:8px; align-items:center }
-        .sep      { color:#A1A1A1; font-size:18px; padding:0 2px; user-select:none }
+        .sep      { color:#B2B2B2; font-size:18px; padding:0 2px; user-select:none }
 
         /* ── Slot base ── */
         .slot {
           position:relative; width:56px; height:56px;
           display:flex; align-items:center; justify-content:center;
-          border:1.5px solid #E5E5E5; border-radius:10px;
+          border:1.5px solid #DBDBDB; border-radius:10px;
           font-size:24px; font-weight:600; font-family:ui-monospace,monospace;
-          background:#FAFAFA; color:#0A0A0A;
+          background:#FAFAFA; color:#0C0C0C;
           transition:border-color 150ms ease, box-shadow 150ms ease;
           user-select:none; cursor:text;
         }
@@ -179,20 +179,20 @@ export default function OTPForm() {
         /* ── data-* driven states ── */
         /* data-active = logical cursor; data-focus = hidden input has browser focus */
         .slot[data-active="true"][data-focus="true"] {
-          border-color:#3D3D3D;
-          box-shadow:0 0 0 3px rgba(61,61,61,.10);
+          border-color:#2A2A2A;
+          box-shadow:0 0 0 3px rgba(42,42,42,.12);
         }
         .slot[data-filled="true"]   { background:#FFFFFF }
         .slot[data-complete="true"] {
-          border-color:#00C950;
-          box-shadow:0 0 0 3px rgba(0,201,80,.12);
+          border-color:#00C65B;
+          box-shadow:0 0 0 3px rgba(0,198,91,.12);
         }
         .slot[data-invalid="true"]  {
-          border-color:#FB2C36;
-          box-shadow:0 0 0 3px rgba(251,44,54,.12);
+          border-color:#FF3846;
+          box-shadow:0 0 0 3px rgba(255,56,70,.12);
         }
         .slot[data-disabled="true"] { opacity:.45; pointer-events:none }
-        .slot[data-readonly="true"] { background:#F5F5F5 }
+        .slot[data-readonly="true"] { background:#F4F4F4 }
 
         /* ── First / last radius ── */
         .slot[data-first="true"] { border-radius:10px 6px 6px 10px }
@@ -201,25 +201,25 @@ export default function OTPForm() {
         /* ── Caret ── */
         .caret {
           position:absolute; width:2px; height:52%;
-          background:#3D3D3D; border-radius:1px;
+          background:#2A2A2A; border-radius:1px;
           animation:blink 1s step-start infinite;
         }
 
         /* ── Utilities ── */
         .form    { font-family:sans-serif; padding:32px; max-width:480px }
         .timer   { margin-top:8px; font-size:13px; color:#757575 }
-        .expiring{ color:#FB2C36 }
+        .expiring{ color:#FF3846 }
         .msg     { margin-top:8px; font-size:13px }
-        .error   { color:#FB2C36 }
-        .success { color:#00C950 }
+        .error   { color:#FF3846 }
+        .success { color:#00C65B }
         .controls{ display:flex; gap:8px; margin-top:20px }
         .controls button {
           padding:8px 16px; border-radius:8px;
-          border:1px solid #E5E5E5; cursor:pointer; font-family:inherit;
+          border:1px solid #DBDBDB; cursor:pointer; font-family:inherit;
         }
         .debug {
           margin-top:20px; font-size:12px; color:#757575;
-          background:#F5F5F5; padding:12px; border-radius:8px;
+          background:#F4F4F4; padding:12px; border-radius:8px;
         }
       `}</style>
     </div>

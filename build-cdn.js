@@ -44,6 +44,9 @@ const alias = {
   '@verino/core/toolkit/timer-policy':      path.resolve('packages/core/src/toolkit/timer-policy.ts'),
   '@verino/core/toolkit/feedback':          path.resolve('packages/core/src/toolkit/feedback.ts'),
   '@verino/core/toolkit/password-manager':  path.resolve('packages/core/src/toolkit/password-manager.ts'),
+  '@verino/core/toolkit/storage':           path.resolve('packages/core/src/toolkit/storage.ts'),
+  '@verino/core/toolkit/transport':         path.resolve('packages/core/src/toolkit/transport.ts'),
+  '@verino/core/toolkit/messages':          path.resolve('packages/core/src/toolkit/messages.ts'),
 }
 
 const shared = {

@@ -3,6 +3,9 @@
 import {
   createFrameScheduler,
   createResendTimer,
+  createTimerPersistence,
+  isExpectedOTPTransportError,
+  requestOTPCode,
   migrateProgrammaticValue,
   PASSWORD_MANAGER_BADGE_OFFSET_PX,
   seedProgrammaticValue,
@@ -293,6 +296,215 @@ describe('@verino/core/toolkit timer policy', () => {
     // A later external reset should restart the main timer.
     resendTimer.handleExternalReset()
     expect(showTimer).toHaveBeenNthCalledWith(7, 3)
+  })
+
+  it('keeps controller controls and subscriptions attached across the resend cooldown', () => {
+    const resendTimer = createResendTimer({
+      timerSeconds: 3,
+      resendCooldown: 2,
+      showTimer: jest.fn(),
+      showResend: jest.fn(),
+      clearField: jest.fn(),
+    })
+    const listener = jest.fn()
+    const unsubscribe = resendTimer.subscribe(listener)
+
+    resendTimer.start()
+    expect(resendTimer.getSnapshot()).toMatchObject({
+      remainingSeconds: 3,
+      isRunning: true,
+      isExpired: false,
+    })
+
+    resendTimer.resend()
+    expect(resendTimer.getSnapshot()).toMatchObject({
+      remainingSeconds: 2,
+      isRunning: true,
+      isExpired: false,
+    })
+
+    resendTimer.pause()
+    expect(resendTimer.getSnapshot()).toMatchObject({ remainingSeconds: 2, isRunning: false })
+    resendTimer.resume()
+    expect(resendTimer.getSnapshot().isRunning).toBe(true)
+
+    jest.advanceTimersByTime(2000)
+    expect(resendTimer.getSnapshot()).toMatchObject({
+      remainingSeconds: 0,
+      isRunning: false,
+      isExpired: true,
+    })
+    expect(listener).toHaveBeenCalled()
+
+    unsubscribe()
+    resendTimer.stop()
+  })
+
+  it('exposes independent expiry and cooldown clocks without coupling their lifecycle', () => {
+    const resendTimer = createResendTimer({
+      timerSeconds: 3,
+      resendCooldown: 2,
+      showTimer: jest.fn(),
+      showResend: jest.fn(),
+      clearField: jest.fn(),
+    })
+
+    expect(resendTimer.expiryTimer.getRemaining()).toBe(3)
+    expect(resendTimer.cooldownTimer.getRemaining()).toBe(2)
+    expect(resendTimer.cooldownTimer.getSnapshot().isRunning).toBe(false)
+
+    resendTimer.start()
+    jest.advanceTimersByTime(3000)
+    expect(resendTimer.expiryTimer.getSnapshot()).toMatchObject({
+      remainingSeconds: 0,
+      isExpired: true,
+      isRunning: false,
+    })
+    expect(resendTimer.cooldownTimer.getRemaining()).toBe(2)
+
+    resendTimer.resend()
+    expect(resendTimer.cooldownTimer.getSnapshot().isRunning).toBe(true)
+    expect(resendTimer.expiryTimer.getSnapshot().isExpired).toBe(true)
+
+    resendTimer.restartMain()
+    expect(resendTimer.expiryTimer.getSnapshot()).toMatchObject({
+      remainingSeconds: 3,
+      isRunning: true,
+      isExpired: false,
+    })
+    expect(resendTimer.cooldownTimer.getSnapshot().isRunning).toBe(false)
+  })
+})
+
+describe('@verino/core/toolkit timer persistence', () => {
+  beforeEach(() => {
+    jest.useFakeTimers()
+    jest.setSystemTime(1_000)
+  })
+
+  afterEach(() => {
+    jest.useRealTimers()
+  })
+
+  function createStorage() {
+    const values = new Map<string, string>()
+    return {
+      values,
+      storage: {
+        getItem: (key: string) => values.get(key) ?? null,
+        setItem: (key: string, value: string) => { values.set(key, value) },
+        removeItem: (key: string) => { values.delete(key) },
+      },
+    }
+  }
+
+  it('persists only versioned expiry metadata and clears it on expiry', () => {
+    const { storage, values } = createStorage()
+    const persistence = createTimerPersistence({ storage, key: 'otp-expiry' })
+    const timer = createTimer({ totalSeconds: 3 })
+    const unsubscribe = persistence.bind(timer)
+
+    timer.start()
+    const stored = JSON.parse(values.get('otp-expiry')!) as Record<string, unknown>
+    expect(stored).toEqual({ version: 1, expiresAt: 4_000 })
+    expect(Object.keys(stored)).toEqual(['version', 'expiresAt'])
+
+    jest.advanceTimersByTime(3_000)
+    expect(values.has('otp-expiry')).toBe(false)
+    unsubscribe()
+  })
+
+  it('restores valid deadlines and rejects expired, corrupt, or excessive entries', () => {
+    const { storage, values } = createStorage()
+    const persistence = createTimerPersistence({ storage, key: 'otp-expiry', maxAgeMs: 10_000 })
+
+    persistence.saveExpiresAt(5_000)
+    expect(persistence.loadExpiresAt()).toBe(5_000)
+
+    values.set('otp-expiry', JSON.stringify({ version: 1, expiresAt: 500 }))
+    expect(persistence.loadExpiresAt()).toBeNull()
+
+    values.set('otp-expiry', '{bad json')
+    expect(persistence.loadExpiresAt()).toBeNull()
+
+    values.set('otp-expiry', JSON.stringify({ version: 1, expiresAt: 50_000 }))
+    expect(persistence.loadExpiresAt()).toBeNull()
+  })
+
+  it('fails closed when storage is unavailable', () => {
+    const storage = {
+      getItem: () => { throw new Error('denied') },
+      setItem: () => { throw new Error('denied') },
+      removeItem: () => { throw new Error('denied') },
+    }
+    const persistence = createTimerPersistence({ storage, key: 'otp-expiry' })
+
+    expect(persistence.loadExpiresAt()).toBeNull()
+    expect(() => persistence.saveExpiresAt(5_000)).not.toThrow()
+    expect(() => persistence.clear()).not.toThrow()
+  })
+
+  it('rejects unsafe persistence configuration', () => {
+    const { storage } = createStorage()
+    expect(() => createTimerPersistence({ storage, key: ' ' })).toThrow(TypeError)
+    expect(() => createTimerPersistence({ storage, key: 'otp', maxAgeMs: 0 })).toThrow(RangeError)
+  })
+})
+
+describe('@verino/core/toolkit OTP transport', () => {
+  afterEach(() => {
+    jest.useRealTimers()
+  })
+
+  it('receives a code from an injected transport', async () => {
+    const receive = jest.fn().mockResolvedValue('654321')
+    const request = requestOTPCode({ transport: { receive }, timeoutMs: 1_000 })
+
+    await expect(request.promise).resolves.toBe('654321')
+    expect(receive).toHaveBeenCalledWith({ signal: request.signal })
+  })
+
+  it('cancels an injected transport and resolves null', async () => {
+    let receivedSignal: AbortSignal | undefined
+    const request = requestOTPCode({
+      transport: {
+        receive: ({ signal }) => {
+          receivedSignal = signal
+          return new Promise(() => {})
+        },
+      },
+      timeoutMs: 1_000,
+    })
+
+    await Promise.resolve()
+    request.cancel()
+
+    await expect(request.promise).resolves.toBeNull()
+    expect(receivedSignal?.aborted).toBe(true)
+  })
+
+  it('times out even when a custom transport does not observe its signal', async () => {
+    jest.useFakeTimers()
+    const request = requestOTPCode({
+      transport: { receive: () => new Promise(() => {}) },
+      timeoutMs: 250,
+    })
+
+    jest.advanceTimersByTime(250)
+    await expect(request.promise).resolves.toBeNull()
+    expect(request.signal.aborted).toBe(true)
+  })
+
+  it('classifies only expected cancellation and availability errors', () => {
+    expect(isExpectedOTPTransportError({ name: 'AbortError' })).toBe(true)
+    expect(isExpectedOTPTransportError({ name: 'InvalidStateError' })).toBe(true)
+    expect(isExpectedOTPTransportError(new Error('aborted'))).toBe(true)
+    expect(isExpectedOTPTransportError(new Error('network failed'))).toBe(false)
+  })
+
+  it('rejects invalid request timeouts', () => {
+    expect(() => requestOTPCode({ timeoutMs: 0 })).toThrow(TypeError)
+    expect(() => requestOTPCode({ timeoutMs: Number.NaN })).toThrow(TypeError)
   })
 })
 

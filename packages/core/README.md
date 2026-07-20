@@ -32,7 +32,7 @@
 
 - **Typed event system.** Every mutation emits a **discriminated union** `OTPEvent` alongside the updated state snapshot. Fourteen event types (`INPUT`, `DELETE`, `CLEAR`, `PASTE`, `COMPLETE`, `INVALID_CHAR`, `FOCUS`, `BLUR`, `RESET`, `MOVE`, `ERROR`, `SUCCESS`, `DISABLED`, `READONLY`) each carry only the payload relevant to that specific action. No catch-all event objects, no guessing at shape.
 
-- **Timer engine.** `createTimer({ totalSeconds, onTick, onExpire })` runs a tick-based countdown independent of any framework scheduler. Adapters start and stop it in their mount/unmount lifecycle. The core state machine itself has no timers, it only stores the initial `timerSeconds` config value. Live countdown is always driven by `onTick`.
+- **Timer engine.** `createTimer({ totalSeconds, expiresAt, onTick, onExpire })` runs a wall-clock deadline countdown independent of any framework scheduler. Adapters start and stop it in their mount/unmount lifecycle. The core state machine itself has no timers, it only stores the initial `timerSeconds` config value. Live countdown is always driven by `onTick` or the timer snapshot subscription.
 
 - **Programmatic state control.** `setError`, `setSuccess`, `setDisabled`, `setReadOnly`, `reset`, and `focus` are all first-class machine actions that go through the same event pipeline. Calling `setError(true)` emits an `ERROR` event and clears success state atomically.
 
@@ -286,18 +286,18 @@ These are set on the containing element, not individual slots. Target them with 
 
 ```css
 /* Slot-level — use string value selectors */
-[data-active="true"][data-focus="true"] { border-color: #3D3D3D; }
+[data-active="true"][data-focus="true"] { border-color: #2A2A2A; }
 [data-filled="true"]                    { background:   #FFFFFF; }
 [data-empty="true"]                     { background:   #FAFAFA; }
-[data-invalid="true"]                   { border-color: #FB2C36; }
-[data-success="true"]                   { border-color: #00C950; }
+[data-invalid="true"]                   { border-color: #FF3846; }
+[data-success="true"]                   { border-color: #00C65B; }
 [data-disabled="true"]                  { opacity: 0.45; pointer-events: none; }
 [data-readonly="true"]                  { cursor: default; }
-[data-complete="true"]                  { border-color: #00C950; }
+[data-complete="true"]                  { border-color: #00C65B; }
 
 /* Wrapper-level (boolean presence selectors) */
-.verino-wrapper[data-invalid]  { outline: 2px solid #FB2C36; }
-.verino-wrapper[data-success]  { outline: 2px solid #00C950; }
+.verino-wrapper[data-invalid]  { outline: 2px solid #FF3846; }
+.verino-wrapper[data-success]  { outline: 2px solid #00C65B; }
 .verino-wrapper[data-disabled] { opacity: 0.6; }
 
 /* Connected pill layout */
@@ -313,7 +313,7 @@ These are set on the containing element, not individual slots. Target them with 
 
 ```ts
 import { createTimer, formatCountdown }                from '@verino/core'
-import { triggerHapticFeedback, triggerSoundFeedback } from '@verino/core/toolkit'
+import { subscribeFeedback, triggerHapticFeedback, triggerSoundFeedback } from '@verino/core/toolkit'
 
 // Timer engine used internally by all adapters
 const timer = createTimer({
@@ -325,10 +325,82 @@ timer.start()
 timer.stop()
 timer.reset()    // stop + restore to totalSeconds (does not restart)
 timer.restart()  // reset + immediately start again
+timer.pause()    // explicit alias for stop()
+timer.resume()   // explicit alias for start()
+
+// Deadline-based timers remain accurate after delayed callbacks or tab sleep.
+const deadlineTimer = createTimer({
+  expiresAt: Date.now() + 60_000,
+  onExpire: () => console.log('expired'),
+})
+deadlineTimer.start()
+deadlineTimer.getRemaining()
+deadlineTimer.getExpiresAt()
+deadlineTimer.getSnapshot()
+deadlineTimer.setExpiresAt(Date.now() + 30_000)
+const unsubscribe = deadlineTimer.subscribe((snapshot) => {
+  console.log(snapshot.remainingSeconds, snapshot.isRunning)
+})
+unsubscribe()
+
+// Inject a clock/scheduler for deterministic tests or non-browser runtimes.
+let virtualNow = 0
+const callbacks = new Set<() => void>()
+const clock = {
+  now: () => virtualNow,
+  setInterval: (callback: () => void) => { callbacks.add(callback); return callback },
+  clearInterval: (id: unknown) => { callbacks.delete(id as () => void) },
+}
+const deterministicTimer = createTimer({ totalSeconds: 10, clock })
+
+// Resend-aware policies keep expiry and resend throttling independent.
+import { createResendTimer } from '@verino/core/toolkit'
+const resendPolicy = createResendTimer({
+  timerSeconds: 60,
+  resendCooldown: 30,
+  showTimer: (remaining) => console.log('active countdown', remaining),
+  showResend: () => console.log('resend available'),
+  clearField: () => {},
+})
+resendPolicy.expiryTimer   // OTP validity clock
+resendPolicy.cooldownTimer // resend throttling clock
+resendPolicy.start()
+resendPolicy.resend()      // starts only cooldownTimer
+
+// Opt-in deadline persistence. OTP digits are never serialized.
+import { createTimerPersistence } from '@verino/core/toolkit'
+const persistence = createTimerPersistence({
+  storage: sessionStorage,
+  key: 'checkout-otp-expiry',
+  maxAgeMs: 5 * 60_000,
+})
+const restoredExpiry = persistence.loadExpiresAt()
+const persistentTimer = createTimer({
+  totalSeconds: 60,
+  ...(restoredExpiry === null ? {} : { expiresAt: restoredExpiry }),
+})
+const stopPersisting = persistence.bind(persistentTimer)
+persistentTimer.start()
+
+// Cancellable automatic-code transport. Browser Web OTP is the default.
+import { requestOTPCode } from '@verino/core/toolkit/transport'
+const request = requestOTPCode({
+  transport: { receive: ({ signal }) => nativeBridge.waitForCode({ signal }) },
+  timeoutMs: 60_000,
+})
+const receivedCode = await request.promise
 
 // Feedback helpers — call on COMPLETE or ERROR events
 triggerHapticFeedback()  // navigator.vibrate([10])
 triggerSoundFeedback()   // plays a short audio tone via AudioContext
+
+// Replace browser effects when embedding in native shells or tests.
+subscribeFeedback(otp, {
+  feedback: {
+    haptic: () => nativeBridge.impact(),
+    sound:  () => nativeBridge.play('otp-complete'),
+  },
+})
 ```
 
 ---

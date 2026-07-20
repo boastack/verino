@@ -258,7 +258,7 @@ export type InputProps = {
    * `"true"` when this slot is at the logical cursor position
    * (i.e. `state.activeSlot === index`). Always reflects the cursor, even when
    * the field does not have browser focus.
-   * CSS: [data-active="true"] { border-color: #3D3D3D }
+   * CSS: [data-active="true"] { border-color: #2A2A2A }
    * Note: adapters that track browser focus should combine this with their own
    * focus state — e.g. `[data-active="true"][data-focus="true"]` — and inject
    * `data-focus` themselves since the pure core has no DOM access.
@@ -300,7 +300,7 @@ export type InputProps = {
   readonly 'data-disabled': BooleanDataAttr
   /**
    * `"true"` when the field is read-only — value visible but not editable.
-   * CSS: [data-readonly="true"] { background: #f5f5f5 }
+   * CSS: [data-readonly="true"] { background: #F4F4F4 }
    */
   readonly 'data-readonly': BooleanDataAttr
   /**
@@ -395,10 +395,29 @@ export type StateListener = (state: OTPStateSnapshot, event: OTPEvent) => void
 // TIMER
 // ─────────────────────────────────────────────────────────────────────────────
 
+/** Injectable wall clock and scheduler used by `createTimer`. */
+export type TimerClock = {
+  /** Wall-clock source used for deadline calculations. */
+  now: () => number
+  /** Schedule the timer's periodic reconciliation callback. */
+  setInterval: (callback: () => void, delayMs: number) => unknown
+  /** Cancel a callback returned by `setInterval`. */
+  clearInterval: (id: unknown) => void
+}
+
 /** Options for the standalone `createTimer` utility. */
 export type TimerOptions = {
-  /** Total countdown duration in seconds. */
-  totalSeconds:   number
+  /**
+   * Total countdown duration in seconds.
+   * Optional when `expiresAt` is provided. Default: `0`.
+   */
+  totalSeconds?:  number
+  /**
+   * Absolute Unix timestamp in milliseconds when the countdown expires.
+   * When provided, it takes precedence for the first `start()` and allows a
+   * timer to resume accurately after navigation, refresh, or tab suspension.
+   */
+  expiresAt?:     number
   /** Called every second with the remaining seconds. */
   onTick?:        (remainingSeconds: number) => void
   /** Called when the countdown reaches zero. */
@@ -414,9 +433,29 @@ export type TimerOptions = {
    * Defaults to the value of `emitInitialTickOnStart` when omitted.
    */
   emitInitialTickOnRestart?: boolean
+  /** Optional clock/scheduler injection for deterministic tests and non-DOM runtimes. */
+  clock?: TimerClock
 }
 
-/** Controls returned by `createTimer`. */
+/** Immutable state returned by the standalone timer controls. */
+export type TimerSnapshot = {
+  /** Remaining whole seconds, rounded up for display. */
+  readonly remainingSeconds: number
+  /** Active absolute expiry timestamp, or `null` while paused/reset. */
+  readonly expiresAt: number | null
+  /** True while the countdown scheduler is running. */
+  readonly isRunning: boolean
+  /** True when no time remains. */
+  readonly isExpired: boolean
+}
+
+/** Listener invoked whenever the standalone timer changes state. */
+export type TimerListener = (snapshot: TimerSnapshot) => void
+
+/**
+ * Original timer control contract retained for backwards-compatible consumer
+ * mocks and adapter abstractions.
+ */
 export type TimerControls = {
   /** Start the countdown. */
   start:   () => void
@@ -428,12 +467,38 @@ export type TimerControls = {
   restart: () => void
 }
 
+/** Additive timer controls returned by `createTimer()`. */
+export type TimerController = TimerControls & {
+  /** Alias for `stop()` with explicit pause semantics. */
+  pause:   () => void
+  /** Alias for `start()` with explicit resume semantics. */
+  resume:  () => void
+  /** Current remaining whole seconds. */
+  getRemaining: () => number
+  /** Active absolute expiry timestamp, or `null` while paused/reset. */
+  getExpiresAt: () => number | null
+  /** Read an immutable timer state snapshot. */
+  getSnapshot: () => TimerSnapshot
+  /** Rebase the timer onto an absolute Unix timestamp in milliseconds. */
+  setExpiresAt: (expiresAt: number) => void
+  /** Subscribe to timer ticks and lifecycle changes. Returns an unsubscribe function. */
+  subscribe: (listener: TimerListener) => () => void
+}
+
+/** Injectable feedback effects for non-browser runtimes and custom UI layers. */
+export type FeedbackRuntime = {
+  haptic?: () => void
+  sound?:  () => void
+}
+
 /** Adapter-side feedback controls powered by the toolkit layer. */
 export type FeedbackOptions = {
   /** Trigger haptic feedback (via `navigator.vibrate`) on completion and error. */
   haptic?: boolean
   /** Play a short tone (via Web Audio API) on completion. */
   sound?:  boolean
+  /** Replace the browser haptic/audio implementations without changing event wiring. */
+  feedback?: FeedbackRuntime
 }
 
 /** Adapter-side countdown callbacks. The pure core does not run timers. */

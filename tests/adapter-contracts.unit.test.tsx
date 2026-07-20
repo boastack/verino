@@ -14,6 +14,7 @@ import type { SvelteOTPOptions } from '@verino/svelte'
 import { VerinoAlpine } from '@verino/alpine'
 import { initOTP } from '@verino/vanilla'
 import { VerinoInput } from '@verino/web-component'
+import type { TimerController } from '@verino/core'
 
 let rafQueue: FrameRequestCallback[] = []
 
@@ -40,6 +41,7 @@ afterEach(() => {
 
 type ContractHarness = {
   getCode: () => string
+  getTimer: () => TimerController
   typeValue: (value: string) => Promise<void>
   cleanup: () => Promise<void> | void
   onComplete: jest.Mock
@@ -51,9 +53,11 @@ type ControlledHarness = ContractHarness & {
 
 function mountReact(options: Partial<ReactOTPOptions> = {}): ContractHarness {
   const onComplete = jest.fn()
+  let timer!: TimerController
 
   function Fixture(props: Partial<ReactOTPOptions>) {
     const otp = useReactOTP({ length: 4, autoFocus: false, ...props, onComplete })
+    timer = otp.timer
     return (
       <div>
         <input data-testid="react-input" {...otp.hiddenInputProps} autoFocus={false} />
@@ -69,6 +73,7 @@ function mountReact(options: Partial<ReactOTPOptions> = {}): ContractHarness {
   return {
     onComplete,
     getCode: () => code.textContent ?? '',
+    getTimer: () => timer,
     async typeValue(value: string) {
       act(() => {
         fireEvent.change(input, { target: { value } })
@@ -81,11 +86,13 @@ function mountReact(options: Partial<ReactOTPOptions> = {}): ContractHarness {
 function mountControlledReact(initialValue = ''): ControlledHarness {
   const onComplete = jest.fn()
   let setExternalValue!: React.Dispatch<React.SetStateAction<string>>
+  let timer!: TimerController
 
   function Fixture() {
     const [value, setValue] = useState(initialValue)
     setExternalValue = setValue
     const otp = useReactOTP({ length: 4, autoFocus: false, value, onChange: setValue, onComplete })
+    timer = otp.timer
     return (
       <div>
         <input data-testid="react-input" {...otp.hiddenInputProps} autoFocus={false} />
@@ -101,6 +108,7 @@ function mountControlledReact(initialValue = ''): ControlledHarness {
   return {
     onComplete,
     getCode: () => code.textContent ?? '',
+    getTimer: () => timer,
     async setExternalValue(value: string) {
       act(() => { setExternalValue(value) })
     },
@@ -136,6 +144,7 @@ async function mountVue(options: Partial<VueOTPOptions> = {}): Promise<ContractH
   return {
     onComplete,
     getCode: () => otpResult.getCode(),
+    getTimer: () => otpResult.timer,
     async typeValue(value: string) {
       input.value = value
       const event = new Event('input')
@@ -175,6 +184,7 @@ async function mountControlledVue(initialValue = ''): Promise<ControlledHarness>
   return {
     onComplete,
     getCode: () => otpResult.getCode(),
+    getTimer: () => otpResult.timer,
     async setExternalValue(value: string) {
       controlledValue.value = value
       await nextTick()
@@ -204,6 +214,7 @@ function mountSvelte(options: Partial<SvelteOTPOptions> = {}): ContractHarness {
   return {
     onComplete,
     getCode: () => otp.getCode(),
+    getTimer: () => otp.timer,
     async typeValue(value: string) {
       input.value = value
       input.dispatchEvent(new Event('input', { bubbles: true }))
@@ -226,6 +237,7 @@ function mountControlledSvelte(initialValue = ''): ControlledHarness {
   return {
     onComplete,
     getCode: () => otp.getCode(),
+    getTimer: () => otp.timer,
     async setExternalValue(value: string) {
       controlledValue.set(value)
     },
@@ -262,12 +274,13 @@ function mountAlpine(options: Record<string, unknown> = {}): ContractHarness {
     },
   )
 
-  const api = (wrapper as unknown as HTMLElement & { _verino: { getCode(): string } })._verino
+  const api = (wrapper as unknown as HTMLElement & { _verino: { getCode(): string; timer: TimerController } })._verino
   const input = wrapper.querySelector('input') as HTMLInputElement
 
   return {
     onComplete,
     getCode: () => api.getCode(),
+    getTimer: () => api.timer,
     async typeValue(value: string) {
       input.value = value
       input.dispatchEvent(new Event('input', { bubbles: true }))
@@ -289,6 +302,7 @@ function mountVanilla(options: Parameters<typeof initOTP>[1] = {}): ContractHarn
   return {
     onComplete,
     getCode: () => instance.getCode(),
+    getTimer: () => instance.timer,
     async typeValue(value: string) {
       input.value = value
       input.dispatchEvent(new Event('input', { bubbles: true }))
@@ -300,13 +314,14 @@ function mountVanilla(options: Parameters<typeof initOTP>[1] = {}): ContractHarn
   }
 }
 
-function mountWebComponent(options: { defaultValue?: string; readOnly?: boolean } = {}): ContractHarness {
+function mountWebComponent(options: { defaultValue?: string; readOnly?: boolean; timer?: number } = {}): ContractHarness {
   const onComplete = jest.fn()
   const el = new VerinoInput()
   el.setAttribute('length', '4')
   el.setAttribute('auto-focus', 'false')
   if (options.defaultValue) el.setAttribute('default-value', options.defaultValue)
   if (options.readOnly) el.setAttribute('readonly', '')
+  if (options.timer !== undefined) el.setAttribute('timer', String(options.timer))
   el.onComplete = onComplete
   document.body.appendChild(el)
   const input = el.shadowRoot!.querySelector('.verino-wc-hidden') as HTMLInputElement
@@ -314,6 +329,7 @@ function mountWebComponent(options: { defaultValue?: string; readOnly?: boolean 
   return {
     onComplete,
     getCode: () => el.getCode(),
+    getTimer: () => el.timer,
     async typeValue(value: string) {
       input.value = value
       input.dispatchEvent(new Event('input', { bubbles: true }))
@@ -348,6 +364,15 @@ const controlledCases: Array<[string, () => Promise<ControlledHarness> | Control
   ['Svelte', () => mountControlledSvelte('')],
 ]
 
+const timerCases: Array<[string, () => Promise<ContractHarness> | ContractHarness]> = [
+  ['React', () => mountReact({ timer: 30 })],
+  ['Vue', () => mountVue({ timer: 30 })],
+  ['Svelte', () => mountSvelte({ timer: 30 })],
+  ['Alpine', () => mountAlpine({ timer: 30 })],
+  ['Vanilla', () => mountVanilla({ timer: 30 })],
+  ['Web Component', () => mountWebComponent({ timer: 30 })],
+]
+
 describe('shared adapter contract — defaultValue', () => {
   it.each(defaultValueCases)('%s pre-fills without triggering onComplete', async (_name, mount) => {
     const harness = await mount()
@@ -380,6 +405,29 @@ describe('shared adapter contract — live external value control', () => {
       await harness.setExternalValue('1234')
       expect(harness.getCode()).toBe('1234')
       expect(harness.onComplete).not.toHaveBeenCalled()
+    } finally {
+      await harness.cleanup()
+    }
+  })
+})
+
+describe('shared adapter contract — timer controller', () => {
+  it.each(timerCases)('%s exposes the live countdown controller', async (_name, mount) => {
+    const harness = await mount()
+    try {
+      const timer = harness.getTimer()
+      expect(timer.getRemaining()).toBe(30)
+
+      const listener = jest.fn()
+      const unsubscribe = timer.subscribe(listener)
+      act(() => { timer.pause() })
+      expect(timer.getSnapshot().isRunning).toBe(false)
+      expect(listener).toHaveBeenCalled()
+
+      act(() => { timer.resume() })
+      expect(timer.getSnapshot().isRunning).toBe(true)
+      act(() => { timer.stop() })
+      unsubscribe()
     } finally {
       await harness.cleanup()
     }

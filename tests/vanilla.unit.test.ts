@@ -1258,6 +1258,29 @@ describe('Web OTP API', () => {
     expect(abortSpy).toHaveBeenCalledTimes(1)
     restore()
   })
+
+  it('accepts an injected OTP transport without browser credentials', async () => {
+    const wrapper = makeWrapper()
+    initOTP(wrapper, {
+      length: 6,
+      autoFocus: false,
+      otpTransport: { receive: jest.fn().mockResolvedValue('246810') },
+    })
+
+    await new Promise(resolve => setTimeout(resolve, 0))
+    expect(wrapper.querySelector<HTMLInputElement>('.verino-hidden-input')?.value).toBe('246810')
+  })
+
+  it('can disable automatic code retrieval', async () => {
+    const get = jest.fn().mockResolvedValue({ code: '123456' })
+    const restore = mockCredentials(get)
+    const wrapper = makeWrapper()
+    initOTP(wrapper, { length: 6, autoFocus: false, otpTransport: false })
+
+    await new Promise(resolve => setTimeout(resolve, 0))
+    expect(get).not.toHaveBeenCalled()
+    restore()
+  })
 })
 
 
@@ -2380,5 +2403,53 @@ describe('Web OTP — AbortError does not trigger console.warn', () => {
 
     Reflect.deleteProperty(navigator, 'credentials')
     warnSpy.mockRestore()
+  })
+})
+
+describe('accessible and localized built-in UI', () => {
+  beforeEach(() => { jest.useFakeTimers() })
+  afterEach(() => { jest.useRealTimers() })
+
+  it('wires invalid state and timer/resend descriptions without a live ticking region', () => {
+    const wrapper = makeWrapper()
+    const [instance] = initOTP(wrapper, { length: 6, timer: 1, autoFocus: false })
+    const input = getHiddenInput(wrapper)
+    const timer = document.querySelector<HTMLElement>('.verino-timer')!
+    const resend = document.querySelector<HTMLElement>('.verino-resend')!
+
+    expect(timer.getAttribute('role')).toBe('timer')
+    expect(timer.getAttribute('aria-live')).toBe('off')
+    expect(input.getAttribute('aria-describedby')).toBe(timer.id)
+    instance.setError(true)
+    expect(input.getAttribute('aria-invalid')).toBe('true')
+
+    jest.advanceTimersByTime(1_000)
+    expect(resend.getAttribute('role')).toBe('status')
+    expect(resend.getAttribute('aria-live')).toBe('polite')
+    expect(input.getAttribute('aria-describedby')).toBe(resend.id)
+    instance.destroy()
+  })
+
+  it('localizes labels, timer text, and resend controls', () => {
+    const wrapper = makeWrapper()
+    initOTP(wrapper, {
+      length: 4, timer: 1, autoFocus: false,
+      messages: {
+        groupLabel: (length, unit) => `${length} ${unit} token`,
+        inputLabel: () => 'Saisissez le code',
+        expiresIn: 'Expire dans',
+        resendPrompt: 'Code non reçu ?',
+        resendAction: 'Renvoyer',
+        resendButtonLabel: 'Renvoyer le code',
+      },
+    })
+
+    expect(wrapper.querySelector('.verino-sr-only')?.textContent).toBe('4 digit token')
+    expect(getHiddenInput(wrapper).getAttribute('aria-label')).toBe('Saisissez le code')
+    expect(document.querySelector('.verino-timer-label')?.textContent).toBe('Expire dans')
+    jest.advanceTimersByTime(1_000)
+    const button = document.querySelector<HTMLButtonElement>('.verino-resend-btn')!
+    expect(button.textContent).toBe('Renvoyer')
+    expect(button.getAttribute('aria-label')).toBe('Renvoyer le code')
   })
 })

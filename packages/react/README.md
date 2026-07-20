@@ -263,14 +263,14 @@ Set on the wrapper element as boolean presence attributes (no value):
 
 ```css
 /* Slot-level — scope to your field with an id or class prefix */
-.slot[data-active="true"][data-focus="true"] { border-color: #3D3D3D; }
+.slot[data-active="true"][data-focus="true"] { border-color: #2A2A2A; }
 .slot[data-filled="true"]                    { background:   #FFFFFF; }
 .slot[data-empty="true"]                     { background:   #FAFAFA; }
-.slot[data-invalid="true"]                   { border-color: #FB2C36; }
-.slot[data-success="true"]                   { border-color: #00C950; }
+.slot[data-invalid="true"]                   { border-color: #FF3846; }
+.slot[data-success="true"]                   { border-color: #00C65B; }
 .slot[data-disabled="true"]                  { opacity: 0.45; pointer-events: none; }
 .slot[data-readonly="true"]                  { cursor: default; }
-.slot[data-complete="true"]                  { border-color: #00C950; }
+.slot[data-complete="true"]                  { border-color: #00C65B; }
 
 /* Connected pill layout */
 .slot[data-first="true"]                              { border-radius: 8px 0 0 8px; }
@@ -306,17 +306,17 @@ Style the field using `--verino-*` CSS custom properties on the wrapper element:
   /* Colors */
   --verino-bg:            #FAFAFA;
   --verino-bg-filled:     #FFFFFF;
-  --verino-color:         #0A0A0A;
-  --verino-border-color:  #E5E5E5;
-  --verino-active-color:  #3D3D3D;
-  --verino-error-color:   #FB2C36;
-  --verino-success-color: #00C950;
-  --verino-caret-color:   #3D3D3D;
+  --verino-color:         #0C0C0C;
+  --verino-border-color:  #DBDBDB;
+  --verino-active-color:  #2A2A2A;
+  --verino-error-color:   #FF3846;
+  --verino-success-color: #00C65B;
+  --verino-caret-color:   #2A2A2A;
 
   /* Placeholder, separator & mask */
-  --verino-placeholder-color: #D3D3D3;
+  --verino-placeholder-color: #888888;
   --verino-placeholder-size:  16px;
-  --verino-separator-color:   #A1A1A1;
+  --verino-separator-color:   #B2B2B2;
   --verino-separator-size:    18px;
   --verino-masked-size:       16px;
 }
@@ -374,6 +374,7 @@ type UseOTPResult = {
   isDisabled:     boolean
   isFocused:      boolean
   timerSeconds:   number           // live countdown; 0 when expired or no timer
+  timer:          TimerController  // imperative timer controls and snapshots
   separatorAfter: number | number[]
   separator:      string
 

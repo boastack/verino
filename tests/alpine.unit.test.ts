@@ -1307,3 +1307,38 @@ describe('reactive Alpine options', () => {
     expect(focusSpy).not.toHaveBeenCalled()
   })
 })
+
+describe('accessible and localized built-in UI', () => {
+  beforeEach(() => { jest.useFakeTimers() })
+  afterEach(() => { jest.useRealTimers() })
+
+  it('exposes localized labels and live resend status', () => {
+    const { wrapper, api } = mountAlpine({
+      length: 4, timer: 1, autoFocus: false,
+      messages: {
+        groupLabel: (length: number) => `${length} digit token`,
+        inputLabel: () => 'Enter secure token',
+        expiresIn: 'Expires after',
+        resendPrompt: 'Need another?',
+        resendAction: 'Send again',
+        resendButtonLabel: 'Send another token',
+      },
+    })
+    const input = wrapper.querySelector('input')!
+    const timer = document.querySelector<HTMLElement>('.verino-timer')!
+
+    expect(wrapper.getAttribute('role')).toBe('group')
+    expect(wrapper.getAttribute('aria-label')).toBe('4 digit token')
+    expect(input.getAttribute('aria-label')).toBe('Enter secure token')
+    expect(timer.getAttribute('aria-live')).toBe('off')
+    api.setError(true)
+    expect(input.getAttribute('aria-invalid')).toBe('true')
+
+    jest.advanceTimersByTime(1_000)
+    const resend = document.querySelector<HTMLElement>('.verino-resend')!
+    expect(resend.getAttribute('role')).toBe('status')
+    expect(input.getAttribute('aria-describedby')).toBe(resend.id)
+    expect(resend.textContent).toContain('Need another?')
+    expect(resend.querySelector('button')?.textContent).toBe('Send again')
+  })
+})

@@ -24,6 +24,7 @@ import {
   type SlotEntry,
   type InputProps,
   type TimerUIOptions,
+  type TimerController,
   type ResendUIOptions,
   type WrapperDataAttrs,
 } from '@verino/core'
@@ -154,6 +155,8 @@ export type UseOTPResult = {
   isDisabled:       Ref<boolean>
   /** Remaining timer seconds. */
   timerSeconds:     Ref<number>
+  /** Imperative controller for pausing, resuming, inspecting, or subscribing to the timer. */
+  timer:            TimerController
   /** True while the hidden input has browser focus. */
   isFocused:        Ref<boolean>
   /** The separator slot index/indices for template rendering. */
@@ -269,6 +272,7 @@ export function useOTP(options: VueOTPOptions = {}): UseOTPResult {
     onExpire,
     haptic             = true,
     sound              = false,
+    feedback,
     pattern,
     pasteTransformer,
     onInvalidChar,
@@ -304,7 +308,7 @@ export function useOTP(options: VueOTPOptions = {}): UseOTPResult {
     readOnly: readOnlyOpt,
   })
 
-  const unsubFeedback = subscribeFeedback(otp, { haptic, sound })
+  const unsubFeedback = subscribeFeedback(otp, { haptic, sound, feedback })
 
   // ── Reactive state ─────────────────────────────────────────────────────────
   const slotValues   = ref<readonly string[]>(Array(length).fill(''))
@@ -591,6 +595,7 @@ export function useOTP(options: VueOTPOptions = {}): UseOTPResult {
     hasSuccess,
     isDisabled,
     timerSeconds,
+    timer: timerController,
     isFocused,
     separatorAfter,
     separator,

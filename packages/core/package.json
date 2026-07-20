@@ -56,6 +56,21 @@
       "types": "./dist/toolkit/password-manager.d.ts",
       "import": "./dist/toolkit/password-manager.js",
       "require": "./dist/toolkit/password-manager.cjs"
+    },
+    "./toolkit/storage": {
+      "types": "./dist/toolkit/storage.d.ts",
+      "import": "./dist/toolkit/storage.js",
+      "require": "./dist/toolkit/storage.cjs"
+    },
+    "./toolkit/transport": {
+      "types": "./dist/toolkit/transport.d.ts",
+      "import": "./dist/toolkit/transport.js",
+      "require": "./dist/toolkit/transport.cjs"
+    },
+    "./toolkit/messages": {
+      "types": "./dist/toolkit/messages.d.ts",
+      "import": "./dist/toolkit/messages.js",
+      "require": "./dist/toolkit/messages.cjs"
     }
   },
   "sideEffects": false,
@@ -66,7 +81,7 @@
   ],
   "scripts": {
     "build": "tsup",
-    "typecheck": "tsc -b"
+    "typecheck": "tsc --noEmit --composite false --incremental false"
   },
   "keywords": [
     "otp",

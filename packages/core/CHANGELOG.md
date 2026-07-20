@@ -5,6 +5,31 @@ All notable changes to this package are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+
+- `ResendTimer` now exposes independent `expiryTimer` and `cooldownTimer`
+  controllers. Existing facade methods remain backward compatible and continue
+  to target whichever clock is currently active.
+- `createTimer` accepts an injectable `clock` for deterministic schedulers and
+  non-browser runtimes while retaining browser defaults.
+- `subscribeFeedback` accepts injectable `feedback.haptic` and
+  `feedback.sound` effects for native shells, tests, and custom runtimes.
+- `createTimerPersistence` provides opt-in, fail-closed deadline persistence.
+  Its storage format contains only a version and expiry timestamp—never OTP data.
+- `OTPTransport`, `requestOTPCode`, and `webOTPTransport` provide cancellable,
+  injectable automatic-code retrieval while retaining browser Web OTP defaults.
+- `OTPUIStrings` and `resolveOTPUIStrings` provide shared localization defaults for DOM adapters.
+
+- `createTimer` now derives countdown values from an absolute wall-clock deadline,
+  preventing drift after delayed interval callbacks or tab suspension.
+- `createTimer` accepts `expiresAt` when a duration is not available at mount time.
+- Additive timer controls: `pause`, `resume`, `getRemaining`, `getExpiresAt`,
+  `getSnapshot`, `setExpiresAt`, and `subscribe`.
+- `TimerController`, `TimerSnapshot`, and `TimerListener` types are exported while
+  the original `TimerControls` contract remains available for existing abstractions.
+
 ---
 
 ## [2.0.0] - 2026-04-04
