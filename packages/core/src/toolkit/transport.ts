@@ -86,9 +86,8 @@ export function requestOTPCode(
 
   const controller = new AbortController()
   const transport = options.transport ?? webOTPTransport
-  let settled = false
 
-  let resolveCancellation: (value: null) => void = () => {}
+  let resolveCancellation!: (value: null) => void
   const cancellation = new Promise<null>((resolve) => {
     resolveCancellation = resolve
   })
@@ -114,8 +113,6 @@ export function requestOTPCode(
     })
 
   const promise = Promise.race([received, cancellation]).finally(() => {
-    if (settled) return
-    settled = true
     clearTimeout(timeoutId)
   })
 

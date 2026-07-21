@@ -52,7 +52,7 @@ wrapper (`.verino-wrapper` / the `x-verino` element) or on `<verino-input>`.
 | `--verino-timer-font-size` | `14px` | Timer/resend text size |
 | `--verino-timer-gap` | `8px` | Timer label-to-badge gap |
 | `--verino-timer-spacing` | `20px` | Space above timer |
-| `--verino-timer-badge-bg` | `rgba(255,56,70,.10)` | Timer badge background |
+| `--verino-timer-badge-bg` | `rgba(255,56,70,.12)` | Timer badge background |
 | `--verino-timer-badge-color` | error color | Timer badge text |
 | `--verino-timer-badge-font-weight` | `500` | Timer badge weight |
 | `--verino-timer-badge-height` | `24px` | Timer badge height |

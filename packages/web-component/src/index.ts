@@ -226,7 +226,7 @@ const STYLES = `
     box-sizing:      border-box;
     display:         inline-flex;
     align-items:     center;
-    background:      var(--verino-timer-badge-bg, rgba(255, 56, 70, .10));
+    background:      var(--verino-timer-badge-bg, rgba(255, 56, 70, .12));
     color:           var(--verino-timer-badge-color, var(--verino-error-color, #FF3846));
     font-weight:     var(--verino-timer-badge-font-weight, 500);
     font-size:       inherit;

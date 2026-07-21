@@ -93,7 +93,6 @@ export function createResendTimer(options: ResendTimerOptions): ResendTimer {
   }
 
   function setActiveCountdown(next: TimerController, emitSnapshot = true): void {
-    if (activeCountdown === next) return
     unsubscribeActive()
     activeCountdown = next
     unsubscribeActive = activeCountdown.subscribe(forwardSnapshot)

@@ -12,13 +12,21 @@ import {
   parseBooleanish,
   parseSeparatorAfter,
   createOTP,
+  createTimer,
 } from '@verino/core'
 
 import {
   seedProgrammaticValue,
   syncProgrammaticValue,
   createResendTimer,
+  createTimerPersistence,
   applyTypedInput,
+  defaultOTPUIStrings,
+  getOTPCodeUnit,
+  isWebOTPAvailable,
+  requestOTPCode,
+  resolveOTPUIStrings,
+  webOTPTransport,
 } from '@verino/core/toolkit'
 
 
@@ -333,5 +341,242 @@ describe('applyTypedInput — empty string path (controller.ts lines 198-200)', 
     expect(result.nextSelection).toBe(0)
     expect(result.isComplete).toBe(false)
     expect(otp.getCode()).toBe('')
+  })
+})
+
+
+// ─────────────────────────────────────────────────────────────────────────────
+// timer.ts — stopped deadline rebasing and immediate expiry
+// ─────────────────────────────────────────────────────────────────────────────
+
+describe('createTimer — stopped deadline rebasing', () => {
+  beforeEach(() => {
+    jest.useFakeTimers()
+    jest.setSystemTime(1_000)
+  })
+
+  afterEach(() => {
+    jest.useRealTimers()
+  })
+
+  it('supports an omitted duration and rebases a stopped timer onto a future deadline', () => {
+    const onTick = jest.fn()
+    const timer = createTimer({ onTick })
+
+    expect(timer.getRemaining()).toBe(0)
+
+    timer.setExpiresAt(4_000)
+
+    expect(timer.getSnapshot()).toMatchObject({
+      remainingSeconds: 3,
+      expiresAt: 4_000,
+      isRunning: false,
+      isExpired: false,
+    })
+    expect(onTick).toHaveBeenLastCalledWith(3)
+  })
+
+  it('expires immediately when a stopped timer is rebased onto a past deadline', () => {
+    const onTick = jest.fn()
+    const onExpire = jest.fn()
+    const listener = jest.fn()
+    const timer = createTimer({ totalSeconds: 10, onTick, onExpire })
+    timer.subscribe(listener)
+
+    timer.setExpiresAt(500)
+
+    expect(timer.getSnapshot()).toEqual({
+      remainingSeconds: 0,
+      expiresAt: null,
+      isRunning: false,
+      isExpired: true,
+    })
+    expect(onTick).toHaveBeenCalledWith(0)
+    expect(onExpire).toHaveBeenCalledTimes(1)
+    expect(listener).toHaveBeenCalledWith(expect.objectContaining({ isExpired: true }))
+  })
+
+  it('does not emit duplicate updates when the scheduler fires before time advances', () => {
+    let now = 1_000
+    let scheduledTick: (() => void) | undefined
+    const onTick = jest.fn()
+    const listener = jest.fn()
+    const timer = createTimer({
+      totalSeconds: 3,
+      onTick,
+      clock: {
+        now: () => now,
+        setInterval: (callback) => {
+          scheduledTick = callback
+          return callback
+        },
+        clearInterval: jest.fn(),
+      },
+    })
+    timer.subscribe(listener)
+    timer.start()
+    listener.mockClear()
+
+    scheduledTick?.()
+
+    expect(timer.getRemaining()).toBe(3)
+    expect(onTick).not.toHaveBeenCalled()
+    expect(listener).not.toHaveBeenCalled()
+
+    now = 2_000
+    scheduledTick?.()
+    expect(onTick).toHaveBeenCalledWith(2)
+    expect(listener).toHaveBeenCalledTimes(1)
+  })
+})
+
+
+// ─────────────────────────────────────────────────────────────────────────────
+// messages.ts — defaults, invalid overrides, and accessible code-unit labels
+// ─────────────────────────────────────────────────────────────────────────────
+
+describe('OTP UI messages', () => {
+  it('falls back field-by-field when an overrides object omits localized values', () => {
+    const strings = resolveOTPUIStrings({})
+
+    expect(strings).toEqual(defaultOTPUIStrings)
+    expect(strings.groupLabel(6, 'digit')).toBe('6-digit verification code')
+    expect(strings.inputLabel(6, 'character')).toBe('Enter your 6-character code')
+  })
+
+  it('maps numeric and text input modes to their accessible code units', () => {
+    expect(getOTPCodeUnit('numeric')).toBe('digit')
+    expect(getOTPCodeUnit('alphanumeric')).toBe('character')
+  })
+})
+
+
+// ─────────────────────────────────────────────────────────────────────────────
+// storage.ts — empty storage and rejected save deadlines
+// ─────────────────────────────────────────────────────────────────────────────
+
+describe('timer persistence edge cases', () => {
+  it('returns null for an empty store and clears invalid deadlines instead of saving them', () => {
+    const storage = {
+      getItem: jest.fn(() => null),
+      setItem: jest.fn(),
+      removeItem: jest.fn(),
+    }
+    const persistence = createTimerPersistence({
+      storage,
+      key: 'otp-expiry',
+      now: () => 1_000,
+      maxAgeMs: 10_000,
+    })
+
+    expect(persistence.loadExpiresAt()).toBeNull()
+
+    persistence.saveExpiresAt(1_000)
+    persistence.saveExpiresAt(20_000)
+
+    expect(storage.setItem).not.toHaveBeenCalled()
+    expect(storage.removeItem).toHaveBeenCalledTimes(2)
+  })
+})
+
+
+// ─────────────────────────────────────────────────────────────────────────────
+// transport.ts — default Web OTP path and synchronous transport failures
+// ─────────────────────────────────────────────────────────────────────────────
+
+describe('OTP transport edge cases', () => {
+  afterEach(() => {
+    jest.useRealTimers()
+  })
+
+  it('uses the default Web OTP transport and timeout when the API is unavailable', async () => {
+    expect(isWebOTPAvailable()).toBe(false)
+    await expect(webOTPTransport.receive({ signal: new AbortController().signal })).resolves.toBeNull()
+
+    const request = requestOTPCode()
+    await expect(request.promise).resolves.toBeNull()
+  })
+
+  it('converts a synchronous transport throw into a rejected request promise', async () => {
+    const error = new Error('native bridge failed')
+    const request = requestOTPCode({
+      transport: {
+        receive: () => { throw error },
+      },
+      timeoutMs: 1_000,
+    })
+
+    await expect(request.promise).rejects.toBe(error)
+  })
+
+  it('allows cancellation to be called repeatedly', async () => {
+    const request = requestOTPCode({
+      transport: { receive: () => new Promise(() => {}) },
+      timeoutMs: 1_000,
+    })
+
+    request.cancel()
+    request.cancel()
+
+    await expect(request.promise).resolves.toBeNull()
+  })
+})
+
+
+// ─────────────────────────────────────────────────────────────────────────────
+// timer-policy.ts — delegated controller operations
+// ─────────────────────────────────────────────────────────────────────────────
+
+describe('createResendTimer — delegated timer controls', () => {
+  beforeEach(() => {
+    jest.useFakeTimers()
+    jest.setSystemTime(1_000)
+  })
+
+  afterEach(() => {
+    jest.useRealTimers()
+  })
+
+  it('delegates reset, restart, deadline reads, and deadline updates to the active timer', () => {
+    const timer = createResendTimer({
+      timerSeconds: 10,
+      resendCooldown: 3,
+      showTimer: jest.fn(),
+      showResend: jest.fn(),
+      clearField: jest.fn(),
+    })
+
+    timer.start()
+    expect(timer.getExpiresAt()).toBe(11_000)
+
+    timer.reset()
+    expect(timer.getSnapshot()).toMatchObject({ remainingSeconds: 10, isRunning: false })
+
+    timer.restart()
+    expect(timer.getSnapshot()).toMatchObject({ remainingSeconds: 10, isRunning: true })
+
+    timer.setExpiresAt(6_000)
+    expect(timer.getExpiresAt()).toBe(6_000)
+    expect(timer.getRemaining()).toBe(5)
+  })
+
+  it('delegates the same controls while the resend cooldown is active', () => {
+    const timer = createResendTimer({
+      timerSeconds: 10,
+      resendCooldown: 3,
+      showTimer: jest.fn(),
+      showResend: jest.fn(),
+      clearField: jest.fn(),
+    })
+
+    timer.resend()
+    expect(timer.getExpiresAt()).toBe(4_000)
+
+    timer.reset()
+    expect(timer.getSnapshot()).toMatchObject({ remainingSeconds: 3, isRunning: false })
+
+    timer.restart()
+    timer.setExpiresAt(3_000)
+    expect(timer.getRemaining()).toBe(2)
   })
 })
