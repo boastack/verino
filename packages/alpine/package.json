@@ -1,6 +1,6 @@
 {
   "name": "@verino/alpine",
-  "version": "2.0.0",
+  "version": "2.1.0",
   "description": "Alpine.js adapter for Verino. Reliable OTP inputs from a single core.",
   "type": "module",
   "main": "./dist/index.js",

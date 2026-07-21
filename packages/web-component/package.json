@@ -1,6 +1,6 @@
 {
   "name": "@verino/web-component",
-  "version": "2.0.0",
+  "version": "2.1.0",
   "description": "Web Component adapter for Verino. Reliable OTP inputs from a single core.",
   "type": "module",
   "main": "./dist/index.js",
