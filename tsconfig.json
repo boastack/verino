@@ -4,6 +4,7 @@
     { "path": "packages/core" },
     { "path": "packages/vanilla" },
     { "path": "packages/react" },
+    { "path": "packages/react-native" },
     { "path": "packages/vue" },
     { "path": "packages/svelte" },
     { "path": "packages/alpine" },

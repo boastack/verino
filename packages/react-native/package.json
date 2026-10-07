@@ -1,0 +1,82 @@
+{
+  "name": "@verino/react-native",
+  "version": "0.1.0",
+  "description": "React Native adapter for Verino. Reliable OTP inputs from a single core.",
+  "type": "module",
+  "main": "./dist/index.cjs",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "require": "./dist/index.cjs"
+    }
+  },
+  "files": [
+    "dist/**/*.js",
+    "dist/**/*.d.ts",
+    "dist/**/*.d.cts",
+    "dist/**/*.cjs",
+    "README.md",
+    "LICENSE"
+  ],
+  "sideEffects": false,
+  "scripts": {
+    "build": "tsup",
+    "typecheck": "tsc --noEmit --composite false --incremental false"
+  },
+  "dependencies": {
+    "@verino/core": "workspace:*"
+  },
+  "peerDependencies": {
+    "react": ">=18",
+    "react-native": ">=0.70"
+  },
+  "peerDependenciesMeta": {
+    "react": {
+      "optional": true
+    },
+    "react-native": {
+      "optional": true
+    }
+  },
+  "keywords": [
+    "otp",
+    "otp-input",
+    "one-time-password",
+    "one-time-code",
+    "verification-code",
+    "pin-input",
+    "passcode",
+    "2fa",
+    "mfa",
+    "authentication",
+    "otp-field",
+    "react-native-otp",
+    "expo",
+    "headless",
+    "accessible-otp",
+    "typescript"
+  ],
+  "devDependencies": {
+    "@types/react": "^18.0.0",
+    "react": "^18.0.0",
+    "tsup": "^8.0.0",
+    "typescript": "^5.0.0"
+  },
+  "author": "Olawale Balo",
+  "license": "MIT",
+  "homepage": "https://verino.vercel.app",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/boastack/verino",
+    "directory": "packages/react-native"
+  },
+  "bugs": {
+    "url": "https://github.com/boastack/verino/issues"
+  },
+  "publishConfig": {
+    "access": "public"
+  }
+}
