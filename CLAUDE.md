@@ -88,6 +88,8 @@ examples/
   vanilla.html         ← standalone HTML (imports from packages/vanilla/dist/)
   react.tsx            ← usage pattern for React apps
   react-native.tsx     ← usage pattern for React Native apps
+  react-native-expo/   ← runnable Expo demo app (own package.json; depends on
+                           @verino/react-native via file: — run `pnpm build` first)
   vue.vue              ← usage pattern for Vue apps
   svelte.svelte        ← usage pattern for Svelte apps
   alpine.html          ← standalone HTML (imports from packages/alpine/dist/)
@@ -177,7 +179,8 @@ The React adapter creates the core machine with `type: 'any'` (not the user-supp
 
 ### React Native Adapter — Non-obvious Design Decisions
 
-- **Never imports `react-native`.** `useOTP` returns a plain `hiddenInputProps` object shaped to spread onto a consumer-rendered `<TextInput>`. This keeps the package zero-dependency and RN-version-agnostic — there is no shipped `HiddenOTPInput` wrapper component the way `@verino/react` ships one, because that would require importing the real `TextInput`. `TextInputRefLike` is a local structural type (`focus`/`blur`/optionally `clear`/`isFocused`/`setSelection`) that any real `TextInput` ref satisfies.
+- **Never imports `react-native`.** `useOTP` returns a plain `hiddenInputProps` object shaped to spread onto a consumer-rendered `<TextInput>`. This keeps the package zero-dependency and RN-version-agnostic — there is no shipped `HiddenOTPInput` wrapper component the way `@verino/react` ships one, because that would require importing the real `TextInput`. `TextInputRefLike` is a local structural type (`focus`/`blur`/optionally `clear`/`isFocused`/`setSelection`) that any real `TextInput` ref satisfies, used for the adapter's own internal `useRef<TextInputRefLike>`.
+- **`hiddenInputProps.ref` is typed `RefObject<any>`, not `RefObject<TextInputRefLike>`.** Verified against real `react-native` types: TS ref assignability requires our ref's `current` type to be a *supertype* of the real `TextInput` instance (`measure`, `measureInWindow`, `setNativeProps`, 15+ members) for `<TextInput ref={otp.hiddenInputProps.ref}>` to type-check — `TextInputRefLike` is deliberately narrower than that, so the field is widened to `any` at the public-type boundary only. The underlying value is still the same `TextInputRefLike`-typed ref the hook uses internally.
 - **`onChangeText` is the single source of truth**, mirroring the web adapter's `hiddenInputProps.onChange`: RN's controlled `TextInput` always reports the field's full current value on every edit — typing, backspace, long-press paste, and SMS autofill alike — so all of them flow through `applyTypedInput` the same way. `onKeyPress` only covers what `onChangeText` structurally cannot report: hardware-keyboard `ArrowLeft`/`ArrowRight`.
 - **No imperative DOM-style value sync.** Unlike the DOM adapters (which call `syncInputValue`/`.value =` after mutating the machine), the hidden `TextInput` is a controlled component — its `value` prop already reflects the new machine state on next render, so no `@verino/core/toolkit/controller` DOM helpers (`syncInputValue`, `scheduleInputSelection`, `clearOTPInput`, `focusOTPInput`, etc.) are reusable here; they're all typed to `HTMLInputElement`. The adapter defines its own tiny `scheduleRNFocus`/`scheduleRNBlur` against `TextInputRefLike` instead, but still reuses the platform-agnostic `createFrameScheduler` (RAF-only, no DOM typing) from the shared toolkit.
 - **`getSlotProps(index)` adds `onPress`** — mobile has no mouse-driven mid-field cursor placement, so tapping a slot calls `focus(index)` to reposition the cursor there.

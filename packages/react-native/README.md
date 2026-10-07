@@ -95,7 +95,7 @@ const styles = StyleSheet.create({
 
 > **Note:** `verify(code)` is a placeholder — replace it with your own API call or application logic.
 
-See [`examples/react-native.tsx`](https://github.com/boastack/verino/blob/main/examples/react-native.tsx) for a complete working example, including the fake caret and SMS autofill.
+See [`examples/react-native.tsx`](https://github.com/boastack/verino/blob/main/examples/react-native.tsx) for a complete working example, including the fake caret and SMS autofill, or [`examples/react-native-expo`](https://github.com/boastack/verino/tree/main/examples/react-native-expo) for a full runnable Expo app (works the same in Expo Go, a development build, or bare React Native — no config plugin or native module required).
 
 ---
 
@@ -284,7 +284,7 @@ The exact prop bag spread onto `<TextInput>`:
 
 ```ts
 type HiddenInputProps = {
-  ref:                  RefObject<TextInputRefLike>
+  ref:                  RefObject<any>
   value:                string
   onChangeText:         (text: string) => void
   onKeyPress:            (e: { nativeEvent: { key: string } }) => void
@@ -308,6 +308,8 @@ type HiddenInputProps = {
 ```
 
 `TextInputRefLike` is a structural subset of React Native's real `TextInput` ref (`focus`, `blur`, and optionally `clear` / `isFocused` / `setSelection`) — any real `TextInput` instance satisfies it without this package importing `react-native`.
+
+`hiddenInputProps.ref` is typed `RefObject<any>` rather than `RefObject<TextInputRefLike>`, specifically so `<TextInput {...otp.hiddenInputProps} />` type-checks against the real `TextInput`'s own ref type. TypeScript's ref assignability needs our ref's `current` type to be a *supertype* of the real `TextInput` instance (which includes `measure`, `measureInWindow`, `setNativeProps`, and more) — `TextInputRefLike` deliberately isn't that, since it only models the handful of members this package calls internally. The ref still holds a real `TextInput` instance at runtime; only its public TypeScript type is widened.
 
 ---
 

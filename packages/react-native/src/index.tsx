@@ -161,7 +161,15 @@ export type SlotRenderProps = {
 
 /** Props to spread onto a consumer-rendered `<TextInput>`. */
 export type HiddenInputProps = {
-  ref:                  RefObject<TextInputRefLike>
+  /**
+   * Typed `RefObject<any>` rather than `RefObject<TextInputRefLike>` so it
+   * satisfies a real `<TextInput ref={...}>`'s own ref type — TS ref
+   * assignability needs our ref's `current` type to be a *supertype* of the
+   * real `TextInput` instance (which `TextInputRefLike` deliberately isn't,
+   * since it only models the handful of members this package calls). The
+   * underlying value is still a `TextInputRefLike`-typed ref internally.
+   */
+  ref:                  RefObject<any>
   value:                string
   onChangeText:         (text: string) => void
   onKeyPress:           (e: OTPKeyPressEvent) => void
