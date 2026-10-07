@@ -28,3 +28,4 @@ Initial release.
 ### Fixed
 
 - `hiddenInputProps.ref` was typed `RefObject<TextInputRefLike>`, which failed to type-check against a real `<TextInput ref={...}>` — TS ref assignability needs the ref's `current` type to be a supertype of the real `TextInput` instance. Widened to `RefObject<any>` at the public-type boundary; verified against the real `react-native` package's types.
+- A rejected edit while `readOnly` (where `editable` stays `true` so focus/selection keep working) could leave the native `TextInput` visually showing a character the OS just accepted, because React Native has no DOM-style automatic "restore the controlled value" safety net on rejection — it only reconciles native text back to `value` during a commit. `onChangeText`'s guard now forces a re-render (a fresh, content-identical snapshot) instead of a bare early return, so the native display always gets corrected back.

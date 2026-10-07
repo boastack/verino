@@ -391,6 +391,26 @@ describe('@verino/react-native useOTP', () => {
     expect(screen.getByTestId('code').textContent).toBe('')
   })
 
+  test('a rejected readOnly edit still forces a render, so the native TextInput snaps back', () => {
+    // Unlike a real DOM <input>, RN's TextInput only reconciles its native
+    // text back to the controlled `value` prop during a commit — there is no
+    // browser-level "restore controlled value" safety net. If onChangeText's
+    // readOnly guard returned without updating state, a real device could be
+    // left visually showing a character the OS just accepted. This can't be
+    // observed through the DOM value itself (jsdom/react-dom auto-corrects
+    // that regardless), so this test asserts a render actually happened.
+    let renderCount = 0
+    function CountingFixture() {
+      renderCount++
+      const otp = useOTP({ length: 6, autoFocus: false, readOnly: true })
+      return <FakeTextInput {...otp.hiddenInputProps} />
+    }
+    render(<CountingFixture />)
+    const countBefore = renderCount
+    typeFullValue('1')
+    expect(renderCount).toBeGreaterThan(countBefore)
+  })
+
   test('isFocused tracks native focus/blur events', () => {
     render(<OTPFixture length={6} autoFocus={false} />)
     fireEvent.focus(getInput())

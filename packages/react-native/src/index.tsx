@@ -569,7 +569,18 @@ export function useOTP(options: ReactNativeOTPOptions = {}): UseOTPResult {
   // typing at this handler (transformers are expected to be no-ops on already
   // clean single characters).
   const onChangeText = useCallback((raw: string) => {
-    if (disabledRef.current || readOnlyRef.current) return
+    if (disabledRef.current || readOnlyRef.current) {
+      // Unlike React DOM — which forcibly restores a controlled <input>'s
+      // native value after every change event regardless of a re-render —
+      // React Native's TextInput only reconciles its native text back to
+      // the `value` prop during a commit. Without forcing one here, a
+      // readOnly field (editable stays true so focus/selection still work)
+      // can be left visually showing a character the OS just accepted,
+      // even though no state ever changed. A fresh snapshot forces that
+      // reconciliation even though its contents are identical to before.
+      setState(otp.getSnapshot())
+      return
+    }
 
     if (!raw) {
       otp.reset()
