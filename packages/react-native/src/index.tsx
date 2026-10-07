@@ -3,17 +3,10 @@
  * ─────────────────────────────────────────────────────────────────────────────
  * React Native adapter — useOTP hook.
  *
- * Architecture: a single invisible `TextInput` overlays visual slot Views,
- * mirroring the web single-hidden-input pattern. The real TextInput captures
- * all keyboard input, iOS/Android SMS autofill (`textContentType="oneTimeCode"`
- * / `autoComplete="sms-otp"`), and paste. Slot Views are purely visual mirrors
- * of state — they hold no text input of their own.
- *
- * This package never imports `react-native` at runtime. `useOTP` returns a
- * plain props object (`hiddenInputProps`) shaped to spread directly onto a
- * consumer-rendered `<TextInput>`, so the package stays zero-dependency and
- * works with any React Native runtime (bare RN, Expo, etc.) without version
- * coupling.
+ * Architecture: a single invisible `TextInput` overlays visual slot Views.
+ * Never imports `react-native` — `hiddenInputProps` is a plain object spread
+ * onto a consumer-rendered `<TextInput>`, so the package stays zero-dependency
+ * and works with any React Native runtime (bare RN, Expo, etc.).
  */
 
 import {
@@ -161,14 +154,7 @@ export type SlotRenderProps = {
 
 /** Props to spread onto a consumer-rendered `<TextInput>`. */
 export type HiddenInputProps = {
-  /**
-   * Typed `RefObject<any>` rather than `RefObject<TextInputRefLike>` so it
-   * satisfies a real `<TextInput ref={...}>`'s own ref type — TS ref
-   * assignability needs our ref's `current` type to be a *supertype* of the
-   * real `TextInput` instance (which `TextInputRefLike` deliberately isn't,
-   * since it only models the handful of members this package calls). The
-   * underlying value is still a `TextInputRefLike`-typed ref internally.
-   */
+  /** `any` so this satisfies a real `<TextInput ref={...}>` — see CLAUDE.md. */
   ref:                  RefObject<any>
   value:                string
   onChangeText:         (text: string) => void
@@ -298,12 +284,9 @@ function reportInvalidChars(
   }
 }
 
-// ── RN-local focus/blur scheduling ──────────────────────────────────────────
-// Mirrors @verino/core/toolkit/controller's DOM scheduling helpers, but typed
-// against TextInputRefLike instead of HTMLInputElement — RN has no imperative
-// `.value` setter or `.setSelectionRange()`, and the controlled `value` prop
-// already reflects machine state on every re-render, so no value-sync helper
-// is needed here.
+// RN-local focus/blur/selection scheduling — mirrors the DOM adapters'
+// toolkit/controller helpers, but typed against TextInputRefLike since RN
+// has no `.value` setter or `.setSelectionRange()`.
 
 function scheduleRNFocus(scheduler: FrameScheduler, getInput: () => TextInputRefLike | null | undefined): void {
   scheduler.schedule(() => { getInput()?.focus() })
@@ -313,12 +296,7 @@ function scheduleRNBlur(scheduler: FrameScheduler, getInput: () => TextInputRefL
   scheduler.schedule(() => { getInput()?.blur() })
 }
 
-/**
- * Best-effort native cursor/selection sync, mirroring the DOM adapters'
- * `syncFocusSelection`. `setSelection` is optional on `TextInputRefLike`
- * (support and behavior vary by RN version/platform) — this silently no-ops
- * when the real `TextInput` ref doesn't expose it.
- */
+/** Best-effort — `setSelection` is optional and support varies by RN version/platform. */
 function scheduleRNSelection(
   scheduler: FrameScheduler,
   getInput: () => TextInputRefLike | null | undefined,
@@ -561,23 +539,13 @@ export function useOTP(options: ReactNativeOTPOptions = {}): UseOTPResult {
 
   // ── Event handlers ────────────────────────────────────────────────────────
 
-  // The hidden TextInput's `value` always mirrors the full joined code, so
-  // onChangeText receives the complete new value on every edit — typing,
-  // backspace, long-press paste, and SMS autofill alike. This mirrors the web
-  // adapter's hiddenInputProps.onChange handler exactly, with `pasteTransformer`
-  // applied unconditionally since RN cannot distinguish a paste/autofill from
-  // typing at this handler (transformers are expected to be no-ops on already
-  // clean single characters).
+  // Receives the full current value on every edit — typing, backspace,
+  // paste, and SMS autofill alike — mirroring the web adapter's onChange.
   const onChangeText = useCallback((raw: string) => {
     if (disabledRef.current || readOnlyRef.current) {
-      // Unlike React DOM — which forcibly restores a controlled <input>'s
-      // native value after every change event regardless of a re-render —
-      // React Native's TextInput only reconciles its native text back to
-      // the `value` prop during a commit. Without forcing one here, a
-      // readOnly field (editable stays true so focus/selection still work)
-      // can be left visually showing a character the OS just accepted,
-      // even though no state ever changed. A fresh snapshot forces that
-      // reconciliation even though its contents are identical to before.
+      // Force a render so RN's TextInput corrects any native text drift —
+      // unlike DOM, it has no automatic "restore controlled value" of its
+      // own. See CLAUDE.md's React Native Adapter notes.
       setState(otp.getSnapshot())
       return
     }
