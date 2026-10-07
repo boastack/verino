@@ -58,6 +58,7 @@ const FakeTextInput = forwardRef<TextInputRefLike, HiddenInputProps>((props, ref
     focus: () => domRef.current?.focus(),
     blur:  () => domRef.current?.blur(),
     isFocused: () => document.activeElement === domRef.current,
+    setSelection: (start: number, end: number) => domRef.current?.setSelectionRange(start, end),
   }))
 
   return (
@@ -237,6 +238,15 @@ describe('@verino/react-native useOTP', () => {
     expect(screen.getByTestId('code').textContent).toBe('123')
   })
 
+  test('ArrowLeft/ArrowRight sync the native caret to the new active slot', () => {
+    render(<OTPFixture length={6} autoFocus={false} />)
+    typeFullValue('123')
+    pressKey('ArrowLeft')
+    flushRAF()
+    expect(getInput().selectionStart).toBe(2)
+    expect(getInput().selectionEnd).toBe(2)
+  })
+
   test('ArrowLeft is ignored by onKeyPress while disabled', () => {
     render(<OTPFixture length={6} autoFocus={false} disabled />)
     pressKey('ArrowLeft')
@@ -270,6 +280,44 @@ describe('@verino/react-native useOTP', () => {
     render(<OTPFixture length={6} autoFocus={false} disabled />)
     fireEvent.click(screen.getByTestId('slot-2'))
     expect(screen.getByTestId('active').textContent).toBe('0')
+  })
+
+  test('tapping a slot syncs the native caret to that slot', () => {
+    render(<OTPFixture length={6} autoFocus={false} />)
+    typeFullValue('123')
+    fireEvent.click(screen.getByTestId('slot-0'))
+    flushRAF()
+    expect(getInput().selectionStart).toBe(0)
+    expect(getInput().selectionEnd).toBe(0)
+  })
+
+  test('selectOnFocus selects the existing character at the active slot', () => {
+    render(<OTPFixture length={6} autoFocus={false} selectOnFocus />)
+    typeFullValue('123')
+    fireEvent.click(screen.getByTestId('slot-1'))
+    fireEvent.focus(getInput())
+    flushRAF()
+    expect(getInput().selectionStart).toBe(1)
+    expect(getInput().selectionEnd).toBe(2)
+  })
+
+  test('selectOnFocus places a plain caret when the active slot is empty', () => {
+    render(<OTPFixture length={6} autoFocus={false} selectOnFocus />)
+    typeFullValue('123')
+    fireEvent.focus(getInput())
+    flushRAF()
+    expect(getInput().selectionStart).toBe(3)
+    expect(getInput().selectionEnd).toBe(3)
+  })
+
+  test('without selectOnFocus, focusing a filled slot places a plain caret', () => {
+    render(<OTPFixture length={6} autoFocus={false} />)
+    typeFullValue('123')
+    fireEvent.click(screen.getByTestId('slot-1'))
+    fireEvent.focus(getInput())
+    flushRAF()
+    expect(getInput().selectionStart).toBe(1)
+    expect(getInput().selectionEnd).toBe(1)
   })
 
   test('reset clears slots, restarts the timer, and refocuses', () => {

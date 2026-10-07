@@ -22,3 +22,9 @@ Initial release.
 - Controlled value via `value?: string` and one-time `defaultValue` prefill — same semantics as `@verino/react`.
 - `timer` / `timerSeconds` live countdown, `resend()`, `setError`/`setSuccess`/`setDisabled`/`setReadOnly`, and `focus(slotIndex)` — full parity with the other framework adapters.
 - `feedback` runtime option for injecting platform haptics/audio (e.g. `expo-haptics`), since `navigator.vibrate` and Web Audio don't exist in the RN JS engine.
+- `selectOnFocus` support and native caret-position sync on focus, `ArrowLeft`/`ArrowRight`, and `focus(slotIndex)` — matches the DOM adapters' behavior via the real `TextInput` ref's optional `setSelection(start, end)`, best-effort since support varies by RN version/platform.
+- A runnable Expo demo app at `examples/react-native-expo`.
+
+### Fixed
+
+- `hiddenInputProps.ref` was typed `RefObject<TextInputRefLike>`, which failed to type-check against a real `<TextInput ref={...}>` — TS ref assignability needs the ref's `current` type to be a supertype of the real `TextInput` instance. Widened to `RefObject<any>` at the public-type boundary; verified against the real `react-native` package's types.

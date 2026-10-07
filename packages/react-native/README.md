@@ -323,6 +323,7 @@ Mobile has no DOM, no `data-*` CSS attribute styling, and no mouse-driven cursor
 - `getSlotProps(index)` adds `onPress` — tapping a slot moves the cursor there, since there's no visible text caret to click into on a transparent overlay input.
 - `onChangeText` is the single source of truth for typed input, backspace, long-press paste, and SMS autofill alike (RN always reports the field's full current value on every edit). `onKeyPress` only covers hardware-keyboard `ArrowLeft`/`ArrowRight` navigation, which `onChangeText` cannot represent.
 - `haptic` / `sound` are accepted for API parity with the other adapters but no-op on native unless you supply a `feedback` runtime (`navigator.vibrate` / Web Audio don't exist in the RN JS engine).
+- `selectOnFocus`, native caret placement on focus, and caret sync on `ArrowLeft`/`ArrowRight` all work the same as the DOM adapters, but are **best-effort**: they rely on the real `TextInput` ref exposing an optional `setSelection(start, end)` method, whose presence and exact behavior can vary by React Native version and platform. When unavailable, these calls silently no-op — typing, backspace, paste, and autofill are unaffected either way.
 
 ---
 

@@ -313,6 +313,25 @@ function scheduleRNBlur(scheduler: FrameScheduler, getInput: () => TextInputRefL
   scheduler.schedule(() => { getInput()?.blur() })
 }
 
+/**
+ * Best-effort native cursor/selection sync, mirroring the DOM adapters'
+ * `syncFocusSelection`. `setSelection` is optional on `TextInputRefLike`
+ * (support and behavior vary by RN version/platform) — this silently no-ops
+ * when the real `TextInput` ref doesn't expose it.
+ */
+function scheduleRNSelection(
+  scheduler: FrameScheduler,
+  getInput: () => TextInputRefLike | null | undefined,
+  position: number,
+  selectChar: boolean,
+): void {
+  scheduler.schedule(() => {
+    const input = getInput()
+    if (selectChar) input?.setSelection?.(position, position + 1)
+    else input?.setSelection?.(position, position)
+  })
+}
+
 
 // ─────────────────────────────────────────────────────────────────────────────
 // HOOK
@@ -392,6 +411,7 @@ export function useOTP(options: ReactNativeOTPOptions = {}): UseOTPResult {
   const readOnlyRef         = useLatestRef(readOnlyProp)
   const pasteTransformerRef = useLatestRef(pasteTransformer)
   const onInvalidCharRef    = useLatestRef(onInvalidChar)
+  const selectOnFocusRef    = useLatestRef(selectOnFocus)
 
   // ── Suppress flags ────────────────────────────────────────────────────────
   // suppressCompleteRef: prevents programmatic fills from firing onComplete.
@@ -575,18 +595,24 @@ export function useOTP(options: ReactNativeOTPOptions = {}): UseOTPResult {
     const key = e.nativeEvent.key
     if (key !== 'ArrowLeft' && key !== 'ArrowRight') return
 
-    handleOTPKeyAction(otp, {
+    const result = handleOTPKeyAction(otp, {
       key,
       position: otp.state.activeSlot,
       length,
       readOnly: readOnlyRef.current,
     })
-  }, [length, otp])
+    if (result.nextSelection !== null) {
+      scheduleRNSelection(frameScheduler, () => inputRef.current, result.nextSelection, false)
+    }
+  }, [frameScheduler, length, otp])
 
   const onFocus = useCallback(() => {
     setIsFocused(true)
     onFocusRef.current?.()
-  }, [])
+    const position = otp.state.activeSlot
+    const charPresent = !!otp.state.slotValues[position]
+    scheduleRNSelection(frameScheduler, () => inputRef.current, position, selectOnFocusRef.current && charPresent)
+  }, [frameScheduler, otp])
 
   const onBlur = useCallback(() => {
     setIsFocused(false)
@@ -622,7 +648,9 @@ export function useOTP(options: ReactNativeOTPOptions = {}): UseOTPResult {
 
   const focus = useCallback((slotIndex: number) => {
     otp.move(slotIndex)
+    const nextSelection = otp.state.activeSlot
     scheduleRNFocus(frameScheduler, () => inputRef.current)
+    scheduleRNSelection(frameScheduler, () => inputRef.current, nextSelection, false)
   }, [otp, frameScheduler])
 
   const getCode = useCallback(() => otp.getCode(), [otp])
