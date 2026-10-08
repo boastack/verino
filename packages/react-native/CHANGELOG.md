@@ -1,5 +1,11 @@
 # Changelog — @verino/react-native
 
+## 1.0.0
+
+### Major Changes
+
+- 88f1c53: Initial release of the React Native adapter. Mirrors `@verino/react`'s single-hidden-input architecture with a `TextInput` overlaying visual slot views, native SMS autofill (`textContentType="oneTimeCode"` / `autoComplete="sms-otp"`), and tap-to-focus slots via `getSlotProps(index).onPress`. The package never imports `react-native` — `hiddenInputProps` is a plain props object spread onto a consumer-rendered `<TextInput>`, keeping it zero-dependency and version-agnostic across bare RN and Expo.
+
 All notable changes to this package are documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
