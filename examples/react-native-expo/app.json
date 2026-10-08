@@ -1,0 +1,20 @@
+{
+  "expo": {
+    "name": "verino-demo",
+    "slug": "verino-demo",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "automatic",
+    "newArchEnabled": true,
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "app.verino.demo"
+    },
+    "android": {
+      "package": "app.verino.demo"
+    },
+    "web": {
+      "bundler": "metro"
+    }
+  }
+}

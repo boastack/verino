@@ -23,18 +23,18 @@ If a change touches any row marked as shared, it must go through the shared laye
 
 ## Shared Behavior
 
-| Behavior | Source of truth | React | Vue | Svelte | Alpine | Vanilla | Web Component |
-|---|---|---|---|---|---|---|---|
-| Slot state, cursor movement, delete / clear / paste transitions | `@verino/core` machine | framework binding only | framework binding only | framework binding only | directive wiring only | DOM wiring only | custom-element wiring only |
-| External value control (`value`) | `@verino/core/toolkit` + adapter binding | live external string prop | live Vue watch source | live readable store | no dedicated public contract | no dedicated public contract | element-local contract |
-| One-time prefill (`defaultValue`) | `@verino/core/toolkit` | mount-only | mount-only | mount-only | mount-only | mount-only | mount-only |
-| Input filtering (`type`, `pattern`) and paste normalization (`pasteTransformer`) | `@verino/core` + `@verino/core/toolkit` | pass config, no forked semantics | pass config, no forked semantics | pass config, no forked semantics | pass config, no forked semantics | pass config, no forked semantics | pass config, no forked semantics |
-| Focus, selection, and blur scheduling | `@verino/core/toolkit/controller.ts` | supplies input ref only | supplies input ref only | supplies input node only | supplies input node only | supplies hidden input only | supplies hidden input only |
-| Reset / resend / timer baseline semantics | toolkit + adapter timer wiring | thin shell | thin shell | thin shell | built-in footer / local DOM | built-in footer / plugins | built-in footer / shadow DOM |
-| Disabled and readOnly semantics | core machine semantics | prop + ref wiring | ref / composable wiring | store / action wiring | directive patching | imperative DOM patching | attr / property patching |
-| Hidden input sync and `data-*` attribute contract | shared attr types + toolkit | React prop bags | Vue refs / computed attrs | Svelte attr bags | generated DOM attrs | generated DOM attrs | host attrs + shadow attrs |
-| Feedback helpers (`haptic`, `sound`) | `@verino/core/toolkit` | live subscription wiring | live subscription wiring | live subscription wiring | live subscription wiring | mount-configured only | live subscription wiring |
-| Request-scoped IDs (`idBase`) | `@verino/core` + adapter pass-through | pass-through | pass-through | pass-through | pass-through | pass-through | pass-through |
+| Behavior | Source of truth | React | React Native | Vue | Svelte | Alpine | Vanilla | Web Component |
+|---|---|---|---|---|---|---|---|---|
+| Slot state, cursor movement, delete / clear / paste transitions | `@verino/core` machine | framework binding only | framework binding only | framework binding only | framework binding only | directive wiring only | DOM wiring only | custom-element wiring only |
+| External value control (`value`) | `@verino/core/toolkit` + adapter binding | live external string prop | live external string prop | live Vue watch source | live readable store | no dedicated public contract | no dedicated public contract | element-local contract |
+| One-time prefill (`defaultValue`) | `@verino/core/toolkit` | mount-only | mount-only | mount-only | mount-only | mount-only | mount-only | mount-only |
+| Input filtering (`type`, `pattern`) and paste normalization (`pasteTransformer`) | `@verino/core` + `@verino/core/toolkit` | pass config, no forked semantics | pass config, no forked semantics | pass config, no forked semantics | pass config, no forked semantics | pass config, no forked semantics | pass config, no forked semantics | pass config, no forked semantics |
+| Focus, selection, and blur scheduling | `@verino/core/toolkit/controller.ts` | supplies input ref only | adapter-local scheduler (see exception) | supplies input ref only | supplies input node only | supplies input node only | supplies hidden input only | supplies hidden input only |
+| Reset / resend / timer baseline semantics | toolkit + adapter timer wiring | thin shell | thin shell | thin shell | thin shell | built-in footer / local DOM | built-in footer / plugins | built-in footer / shadow DOM |
+| Disabled and readOnly semantics | core machine semantics | prop + ref wiring | prop + ref wiring | ref / composable wiring | store / action wiring | directive patching | imperative DOM patching | attr / property patching |
+| Hidden input sync and `data-*` attribute contract | shared attr types + toolkit | React prop bags | adapter-local props, no `data-*` (see exception) | Vue refs / computed attrs | Svelte attr bags | generated DOM attrs | generated DOM attrs | host attrs + shadow attrs |
+| Feedback helpers (`haptic`, `sound`) | `@verino/core/toolkit` | live subscription wiring | live subscription wiring (no-ops without a `feedback` runtime) | live subscription wiring | live subscription wiring | live subscription wiring | mount-configured only | live subscription wiring |
+| Request-scoped IDs (`idBase`) | `@verino/core` + adapter pass-through | pass-through | pass-through | pass-through | pass-through | pass-through | pass-through | pass-through |
 
 ---
 
@@ -43,6 +43,11 @@ If a change touches any row marked as shared, it must go through the shared laye
 These are intentional. Do not normalize them without a deliberate decision that applies across the entire adapter layer.
 
 **React** — the core machine instance is stable across re-renders, with live refs handling dynamic callbacks and config. If you change structural options like `type` or `pattern`, preserve the stable-machine policy unless the repo decides to move away from it everywhere.
+
+**React Native** — same stable-machine policy as React, but diverges from every other adapter in three deliberate ways:
+1. It never imports `react-native`. `hiddenInputProps` is a plain props object meant to be spread onto a consumer-rendered `<TextInput>`; there is no shipped wrapper component. `TextInputRefLike` is a local structural type, not an import from `react-native`, used for the adapter's own internal ref. The *public* `hiddenInputProps.ref` field is typed `RefObject<any>` rather than `RefObject<TextInputRefLike>` — verified against real `react-native` types, TS ref assignability needs our ref's `current` type to be a supertype of the real `TextInput` instance for `<TextInput ref={otp.hiddenInputProps.ref}>` to type-check, which the deliberately narrow `TextInputRefLike` is not.
+2. It has no `data-*` attribute contract — RN has no CSS attribute selectors. `getSlotProps(index)` returns plain booleans instead, and adds `onPress` for tap-to-focus (no mouse-driven mid-field click exists on touch devices).
+3. Focus/selection scheduling does not reuse `@verino/core/toolkit/controller`'s `syncInputValue`/`scheduleInputSelection`/`clearOTPInput`/`focusOTPInput` — those are typed to `HTMLInputElement`. The hidden `TextInput` is a controlled component (its `value` prop already reflects machine state on next render), so the adapter only needs its own tiny `scheduleRNFocus`/`scheduleRNBlur`/`scheduleRNSelection` built on the platform-agnostic `createFrameScheduler`. `onChangeText` is the single handler for typing, backspace, paste, and SMS autofill (RN always reports the full current value); `onKeyPress` covers only `ArrowLeft`/`ArrowRight`, which `onChangeText` cannot represent. `selectOnFocus` and caret-position sync (on focus, arrow keys, and `focus(slotIndex)`) match the DOM adapters' behavior but are best-effort — they call the real `TextInput` ref's optional `setSelection(start, end)`, `?.()`-guarded since support varies by RN version/platform.
 
 **Vue** — `value` is live external control only when the caller passes a Vue watch source (a `Ref<string>`). Plain strings belong on `defaultValue`, not `value`.
 

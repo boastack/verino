@@ -5,7 +5,7 @@
 <h1 align="center">verino</h1>
 
 <h3 align="center">
-  A single OTP state machine that powers React, Vue, Svelte, Alpine, Vanilla JS, and Web Components.
+  A single OTP state machine that powers React, React Native, Vue, Svelte, Alpine, Vanilla JS, and Web Components.
 </h3>
 
 <p align="center">
@@ -22,9 +22,9 @@
 
 Verino is a headless OTP and verification code input library built around a single principle: **one state machine and shared controller primitives power every framework adapter without reimplementing the core OTP behavior.**
 
-`@verino/core` is a zero-dependency, zero-DOM TypeScript state machine that handles character filtering, cursor movement, paste normalization, state snapshots, and a typed event system. Countdown policies, feedback helpers, frame scheduling, and other shared adapter utilities live in the explicit `@verino/core/toolkit` layer. Every adapter (React, Vue, Svelte, Alpine.js, Vanilla JS, and Web Components) wraps that shared foundation using the idiomatic primitives of its framework, such as hooks, composables, stores with actions, directives, or custom elements.
+`@verino/core` is a zero-dependency, zero-DOM TypeScript state machine that handles character filtering, cursor movement, paste normalization, state snapshots, and a typed event system. Countdown policies, feedback helpers, frame scheduling, and other shared adapter utilities live in the explicit `@verino/core/toolkit` layer. Every adapter (React, React Native, Vue, Svelte, Alpine.js, Vanilla JS, and Web Components) wraps that shared foundation using the idiomatic primitives of its platform, such as hooks, composables, stores with actions, directives, or custom elements.
 
-The key architectural decision is the **single hidden input.** A single `<input>` sits over purely decorative visual slots and captures keyboard events, paste, SMS autofill via `autocomplete="one-time-code"`, and the Web OTP API natively. Fixes ship once and apply to every framework simultaneously.
+The key architectural decision is the **single hidden input.** On the web, a single `<input>` sits over purely decorative visual slots and captures keyboard events, paste, SMS autofill via `autocomplete="one-time-code"`, and the Web OTP API natively. On mobile, `@verino/react-native` mirrors this exactly with a single invisible `TextInput` over slot `View`s, with native SMS autofill via `textContentType="oneTimeCode"` (iOS) / `autoComplete="sms-otp"` (Android) — works in bare React Native and Expo alike, since the package never imports `react-native` itself. Fixes ship once and apply to every platform simultaneously.
 
 ---
 
@@ -36,6 +36,7 @@ verino/
 │   ├── core/            @verino/core          — pure state machine + toolkit
 │   ├── vanilla/         @verino/vanilla        — DOM adapter + plugins
 │   ├── react/           @verino/react          — useOTP hook + HiddenOTPInput
+│   ├── react-native/    @verino/react-native   — useOTP hook (bare RN + Expo; never imports 'react-native')
 │   ├── vue/             @verino/vue            — useOTP composable with reactive Vue refs
 │   ├── svelte/          @verino/svelte         — useOTP store + use:action
 │   ├── alpine/          @verino/alpine         — x-verino directive
@@ -54,6 +55,7 @@ verino/
 @verino/core
 └── @verino/vanilla   (also ships timerUIPlugin, webOTPPlugin, pmGuardPlugin)
 └── @verino/react
+└── @verino/react-native
 └── @verino/vue
 └── @verino/svelte
 └── @verino/alpine
@@ -69,6 +71,7 @@ verino/
 | [`@verino/core`](./packages/core/README.md) | `npm i @verino/core` | OTP state machine + toolkit |
 | [`@verino/vanilla`](./packages/vanilla/README.md) | `npm i @verino/vanilla` | Vanilla DOM adapter + `timerUIPlugin`, `webOTPPlugin`, `pmGuardPlugin` |
 | [`@verino/react`](./packages/react/README.md) | `npm i @verino/react` | `useOTP` hook + `HiddenOTPInput` component (React ≥ 18) |
+| [`@verino/react-native`](./packages/react-native/README.md) | `npm i @verino/react-native` | `useOTP` hook for bare React Native and Expo (React Native ≥ 0.70); never imports `react-native` |
 | [`@verino/vue`](./packages/vue/README.md) | `npm i @verino/vue` | `useOTP` composable with reactive Vue refs (Vue ≥ 3) |
 | [`@verino/svelte`](./packages/svelte/README.md) | `npm i @verino/svelte` | `useOTP` store + `use:action` directive (Svelte ≥ 4) |
 | [`@verino/alpine`](./packages/alpine/README.md) | `npm i @verino/alpine` | `VerinoAlpine` plugin — `x-verino` directive (Alpine.js ≥ 3) |
@@ -115,6 +118,9 @@ Install only the adapter for your framework:
 # React
 npm i @verino/react
 
+# React Native (bare RN or Expo)
+npm i @verino/react-native
+
 # Vue
 npm i @verino/vue
 
@@ -155,6 +161,35 @@ function OTPField() {
         )
       })}
     </div>
+  )
+}
+```
+
+### React Native
+
+Works in bare React Native and Expo (managed or bare) alike — the package never imports `react-native` at runtime, so there's no version coupling.
+
+```tsx
+import { View, TextInput, Text, Pressable, StyleSheet } from 'react-native'
+import { useOTP } from '@verino/react-native'
+
+function OTPField() {
+  const otp = useOTP({ length: 6, onComplete: (code) => verify(code) })
+
+  return (
+    <View style={{ position: 'relative', flexDirection: 'row', gap: 8 }}>
+      <TextInput {...otp.hiddenInputProps} style={StyleSheet.absoluteFill} />
+      {otp.getSlots().map((slot) => {
+        const { char, isActive, isFilled, placeholder, onPress } = otp.getSlotProps(slot.index)
+        return (
+          <Pressable key={slot.index} onPress={onPress}>
+            <View style={[styles.slot, isActive && styles.active, isFilled && styles.filled]}>
+              <Text>{isFilled ? char : placeholder}</Text>
+            </View>
+          </Pressable>
+        )
+      })}
+    </View>
   )
 }
 ```
@@ -277,7 +312,7 @@ const otp = useOTP({ length: 6, onComplete: (code) => verify(code) })
 
 ## How verino compares
 
-Verino is the only OTP library built on a single core that supports all major web frameworks. The alternatives below are the most widely used within each ecosystem.
+Verino is the only OTP library built on a single core that supports all major web frameworks and React Native. The alternatives below are the most widely used within each ecosystem.
 
 ### React ecosystem
 
@@ -340,6 +375,7 @@ Verino is the only OTP library built on a single core that supports all major we
 | Framework / environment | verino | Single alternative |
 |---|---|---|
 | React | ✅ | ✅ |
+| React Native / Expo | ✅ | Separate library |
 | Vue 3 | ✅ | Separate library |
 | Svelte 4+ | ✅ | Separate library |
 | Alpine.js | ✅ | ✗ |

@@ -46,7 +46,7 @@ There is no bare `npm test` — always use `pnpm test` or invoke Jest directly.
 
 ## Architecture
 
-Verino is a zero-dependency OTP input library. The input state machine in `packages/core/src/machine.ts` is pure and side-effect free, while the `@verino/core` package also exposes a `toolkit` of shared utilities used by adapters. Six framework adapters independently wrap this core.
+Verino is a zero-dependency OTP input library. The input state machine in `packages/core/src/machine.ts` is pure and side-effect free, while the `@verino/core` package also exposes a `toolkit` of shared utilities used by adapters. Seven framework adapters independently wrap this core.
 
 ### Source Layout
 
@@ -76,6 +76,8 @@ packages/
       web-otp.ts        ← Web OTP API (SMS autofill via navigator.credentials)
       pm-guard.ts       ← password manager badge guard (MutationObserver)
   react/     ← @verino/react   (separate npm package, own package.json + tsup build)
+  react-native/ ← @verino/react-native — never imports 'react-native'; hiddenInputProps is a
+                   plain props object spread onto a consumer-rendered <TextInput>
   vue/       ← @verino/vue
   svelte/    ← @verino/svelte
   alpine/    ← @verino/alpine
@@ -85,6 +87,9 @@ packages/
 examples/
   vanilla.html         ← standalone HTML (imports from packages/vanilla/dist/)
   react.tsx            ← usage pattern for React apps
+  react-native.tsx     ← usage pattern for React Native apps
+  react-native-expo/   ← runnable Expo demo app (own package.json; depends on
+                           @verino/react-native via file: — run `pnpm build` first)
   vue.vue              ← usage pattern for Vue apps
   svelte.svelte        ← usage pattern for Svelte apps
   alpine.html          ← standalone HTML (imports from packages/alpine/dist/)
@@ -101,6 +106,8 @@ tests/
   vanilla-missing-coverage.unit.test.ts ← targeted coverage for vanilla + plugins
   react.unit.test.tsx                   ← React adapter (jsdom)
   react-missing-coverage.unit.test.tsx
+  react-native.unit.test.tsx            ← React Native adapter (jsdom; FakeTextInput bridges RN
+                                            prop contract onto a real DOM <input> for testing)
   vue.unit.test.ts                      ← Vue adapter (jsdom)
   vue-missing-coverage.unit.test.ts
   svelte.unit.test.ts                   ← Svelte adapter (jsdom)
@@ -123,6 +130,8 @@ tests/
 ```
 
 One transparent `<input>` overlays the visual slot divs. The browser sees one real field — SMS autofill (`autocomplete="one-time-code"`), password managers, screen readers, and IME all work natively. Slot divs are display-only.
+
+`@verino/react-native` mirrors this exactly with a transparent `TextInput` over slot `View`s (`textContentType="oneTimeCode"` / `autoComplete="sms-otp"` for native SMS autofill), with one addition: `getSlotProps(index).onPress` lets users tap a slot to reposition the cursor, since mobile has no mouse-driven mid-field click.
 
 ### Vanilla Adapter DOM Structure
 
@@ -167,6 +176,17 @@ Plugin cleanup functions are collected in `pluginCleanups` and called sequential
 ### React Adapter — Non-obvious Design Decision
 
 The React adapter creates the core machine with `type: 'any'` (not the user-supplied `type`). This keeps the machine instance stable across re-renders — recreating it only when `length` or `idBase` changes. All type/pattern filtering is handled at the adapter layer using `typeRef` and `patternRef`. Consequence: `onInvalidChar` is never fired by the core in React; the adapter fires it manually in `getInputProps.onInput` and `onPaste`.
+
+### React Native Adapter — Non-obvious Design Decisions
+
+- **Never imports `react-native`.** `useOTP` returns a plain `hiddenInputProps` object shaped to spread onto a consumer-rendered `<TextInput>`. This keeps the package zero-dependency and RN-version-agnostic — there is no shipped `HiddenOTPInput` wrapper component the way `@verino/react` ships one, because that would require importing the real `TextInput`. `TextInputRefLike` is a local structural type (`focus`/`blur`/optionally `clear`/`isFocused`/`setSelection`) that any real `TextInput` ref satisfies, used for the adapter's own internal `useRef<TextInputRefLike>`.
+- **`hiddenInputProps.ref` is typed `RefObject<any>`, not `RefObject<TextInputRefLike>`.** Verified against real `react-native` types: TS ref assignability requires our ref's `current` type to be a *supertype* of the real `TextInput` instance (`measure`, `measureInWindow`, `setNativeProps`, 15+ members) for `<TextInput ref={otp.hiddenInputProps.ref}>` to type-check — `TextInputRefLike` is deliberately narrower than that, so the field is widened to `any` at the public-type boundary only. The underlying value is still the same `TextInputRefLike`-typed ref the hook uses internally.
+- **`onChangeText` is the single source of truth**, mirroring the web adapter's `hiddenInputProps.onChange`: RN's controlled `TextInput` always reports the field's full current value on every edit — typing, backspace, long-press paste, and SMS autofill alike — so all of them flow through `applyTypedInput` the same way. `onKeyPress` only covers what `onChangeText` structurally cannot report: hardware-keyboard `ArrowLeft`/`ArrowRight`.
+- **No imperative DOM-style value sync.** Unlike the DOM adapters (which call `syncInputValue`/`.value =` after mutating the machine), the hidden `TextInput` is a controlled component — its `value` prop already reflects the new machine state on next render, so no `@verino/core/toolkit/controller` DOM helpers (`syncInputValue`, `scheduleInputSelection`, `clearOTPInput`, `focusOTPInput`, etc.) are reusable here; they're all typed to `HTMLInputElement`. The adapter defines its own tiny `scheduleRNFocus`/`scheduleRNBlur` against `TextInputRefLike` instead, but still reuses the platform-agnostic `createFrameScheduler` (RAF-only, no DOM typing) from the shared toolkit.
+- **`getSlotProps(index)` adds `onPress`** — mobile has no mouse-driven mid-field cursor placement, so tapping a slot calls `focus(index)` to reposition the cursor there.
+- **`pasteTransformer`/`onInvalidChar` run on every `onChangeText` call**, not just a distinct "paste" event — RN cannot distinguish a paste/autofill from typing at this handler the way a DOM `onPaste` event can.
+- **`selectOnFocus` and native caret sync are best-effort.** On focus, `ArrowLeft`/`ArrowRight`, and `focus(slotIndex)`, the adapter calls the real `TextInput` ref's optional `setSelection(start, end)` to keep the native caret aligned with the logical `activeSlot` — and, with `selectOnFocus`, to select the existing character at that slot, same as the DOM adapters. `setSelection` isn't part of `TextInputRefLike`'s required members, since its presence/behavior varies by RN version and platform; calls are `?.()`-guarded and silently no-op where unsupported.
+- **A rejected `readOnly` edit still forces a re-render.** `editable` stays `true` under `readOnly` (so focus/selection/navigation keep working), which means the OS can still physically accept a keystroke and fire `onChangeText` before the adapter rejects it. React DOM papers over this for free — it forcibly restores a controlled `<input>`'s native value after every change event regardless of a re-render — but RN's `TextInput` has no such safety net; it only reconciles native text back to the `value` prop during a commit. `onChangeText`'s disabled/readOnly guard therefore calls `setState(otp.getSnapshot())` before returning (a fresh snapshot, so a render always happens even though its contents are unchanged) instead of a bare `return`, so RN's own `TextInput` corrects the native display back to the real value. A jsdom-based test can't observe this difference directly (jsdom/react-dom's own restoration masks it either way), so the regression test asserts a render count increases instead.
 
 ### Design Rules
 
@@ -392,6 +412,40 @@ const otp = useOTP({ timer: 30 })
 {otp.timerSeconds > 0 && <p>Expires in {otp.timerSeconds}s</p>}
 ```
 
+### React Native — useOTP
+
+```tsx
+const otp = useOTP(options)
+
+<View style={{ position: 'relative', flexDirection: 'row', gap: 8 }}>
+  <TextInput {...otp.hiddenInputProps} style={StyleSheet.absoluteFill} />
+  {otp.getSlots().map((slot) => {
+    const { char, isActive, isFilled, onPress } = otp.getSlotProps(slot.index)
+    return (
+      <Pressable key={slot.index} onPress={onPress}>
+        <View style={[styles.slot, isActive && styles.active]}><Text>{char}</Text></View>
+      </Pressable>
+    )
+  })}
+</View>
+
+// Methods: otp.getCode() / reset() / resend() / setError(bool) / setSuccess(bool) / setDisabled(bool) / setReadOnly(bool) / focus(i)
+```
+
+`ReactNativeOTPOptions` adds `value?: string` for controlled integration and `onChange` — same contract as React.
+
+Never imports `react-native`. `hiddenInputProps` is a plain object (`ref`, `value`, `onChangeText`, `onKeyPress`, `maxLength`, `keyboardType`, `textContentType: 'oneTimeCode'`, `autoComplete: 'sms-otp'`, `secureTextEntry`, …) meant to spread directly onto a consumer-rendered `<TextInput>`. There is no shipped `HiddenOTPInput` wrapper.
+
+`SlotRenderProps` (from `getSlotProps(i)`): same fields as React's, plus `onPress: () => void` for tap-to-focus.
+
+`onChangeText` handles typing, backspace, paste, and SMS autofill uniformly (RN always reports the full current value). `onKeyPress` only covers `ArrowLeft`/`ArrowRight` hardware-keyboard navigation.
+
+**Live timer:**
+```tsx
+const otp = useOTP({ timer: 30 })
+{otp.timerSeconds > 0 && <Text>Expires in {otp.timerSeconds}s</Text>}
+```
+
 ### Vue — useOTP
 
 ```ts
@@ -501,7 +555,7 @@ Set on `.verino-wrapper` (or `<verino-input>` host) — all cascade into the sha
 
 ## Package Exports & Build
 
-Seven independently published packages:
+Eight independently published packages:
 
 | Export | Package dir | Purpose |
 |---|---|---|
@@ -512,6 +566,7 @@ Seven independently published packages:
 | `@verino/vanilla/plugins/web-otp` | `packages/vanilla` | Web OTP API plugin (tree-shakeable). |
 | `@verino/vanilla/plugins/pm-guard` | `packages/vanilla` | Password manager badge guard plugin (tree-shakeable). |
 | `@verino/react` | `packages/react` | Built with `tsup`. |
+| `@verino/react-native` | `packages/react-native` | Built with `tsup`. Never imports `react-native` — `react`/`react-native` are both optional peer deps. |
 | `@verino/vue` | `packages/vue` | Built with `tsup`. |
 | `@verino/svelte` | `packages/svelte` | Built with `tsup`. |
 | `@verino/alpine` | `packages/alpine` | Built with `tsup`. |
