@@ -1,0 +1,163 @@
+---
+import ReactDemo from './demos/ReactDemo'
+import VueDemo from './demos/VueDemo.vue'
+import SvelteDemo from './demos/SvelteDemo.svelte'
+import VanillaDemo from './demos/VanillaDemo.astro'
+import AlpineDemo from './demos/AlpineDemo.astro'
+import WebComponentDemo from './demos/WebComponentDemo.astro'
+import ReactNativeDemo from './demos/ReactNativeDemo.astro'
+import CodeSnippet from './CodeSnippet.astro'
+
+const icons: Record<string, string> = {
+  react: '<circle cx="12" cy="12" r="1.8"/><ellipse cx="12" cy="12" rx="9" ry="3.6"/><ellipse cx="12" cy="12" rx="9" ry="3.6" transform="rotate(60 12 12)"/><ellipse cx="12" cy="12" rx="9" ry="3.6" transform="rotate(120 12 12)"/>',
+  vue: '<path d="M3 4h4l5 9 5-9h4L12 20Z"/><path d="M8 4h3l1 2 1-2h3l-4 7Z"/>',
+  svelte: '<path d="M9 3C6 3 4 6 4 9c0 2 1 3.5 3 4M9 3c3 0 5 2 5 5 0 3-2 4-3 5M15 21c3 0 5-3 5-6 0-2-1-3.5-3-4M15 21c-3 0-5-2-5-5 0-3 2-4 3-5"/>',
+  alpine: '<path d="M3 18L8 8l3 5 2-3 8 8Z"/>',
+  vanilla: '<path d="M9 4L5 12l4 8M15 4l4 8-4 8"/>',
+  'web-component': '<path d="M12 2l8 4.5v11L12 22l-8-4.5v-11Z"/><path d="M12 2v9M4 6.5l8 4.5 8-4.5M12 22v-9"/>',
+  'react-native': '<rect x="7" y="2" width="10" height="20" rx="2"/><path d="M10 18.5h4"/>',
+}
+
+const tabs = [
+  { id: 'react', label: 'React', install: 'npm i @verino/react' },
+  { id: 'vue', label: 'Vue', install: 'npm i @verino/vue' },
+  { id: 'svelte', label: 'Svelte', install: 'npm i @verino/svelte' },
+  { id: 'alpine', label: 'Alpine.js', install: 'npm i @verino/alpine' },
+  { id: 'vanilla', label: 'Vanilla JS', install: 'npm i @verino/vanilla' },
+  { id: 'web-component', label: 'Web Component', install: 'npm i @verino/web-component' },
+  { id: 'react-native', label: 'React Native', install: 'npm i @verino/react-native' },
+]
+---
+
+<div class="mx-auto w-full max-w-3xl">
+  <div class="no-scrollbar relative flex items-center gap-1 overflow-x-auto rounded-full border border-ink-200 bg-white p-1.5 shadow-card sm:justify-center" role="tablist">
+    <span class="tab-indicator" id="tab-indicator"></span>
+    {
+      tabs.map((tab, i) => (
+        <button
+          type="button"
+          class={`switcher-tab flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full px-3.5 py-1.5 text-sm font-medium transition-colors duration-200 ${
+            i === 0 ? 'text-white' : 'text-ink-600 hover:text-ink-900'
+          }`}
+          data-tab={tab.id}
+          aria-selected={i === 0 ? 'true' : 'false'}
+        >
+          <svg
+            width="13"
+            height="13"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="1.8"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            class="shrink-0 opacity-80"
+            set:html={icons[tab.id]}
+          />
+          {tab.label}
+        </button>
+      ))
+    }
+  </div>
+
+  <div class="mt-8 overflow-hidden rounded-3xl border border-ink-100 bg-white p-6 shadow-card-hover sm:p-8">
+    <div class="switcher-panel" data-panel="react" data-active="true">
+      <ReactDemo client:visible />
+    </div>
+    <div class="switcher-panel" data-panel="vue" data-hidden="true">
+      <VueDemo client:visible />
+    </div>
+    <div class="switcher-panel" data-panel="svelte" data-hidden="true">
+      <SvelteDemo client:visible />
+    </div>
+    <div class="switcher-panel" data-panel="alpine" data-hidden="true">
+      <AlpineDemo />
+    </div>
+    <div class="switcher-panel" data-panel="vanilla" data-hidden="true">
+      <VanillaDemo id="verino-switcher-vanilla" autoFocus={false} />
+    </div>
+    <div class="switcher-panel" data-panel="web-component" data-hidden="true">
+      <WebComponentDemo />
+    </div>
+    <div class="switcher-panel" data-panel="react-native" data-hidden="true">
+      <ReactNativeDemo />
+    </div>
+  </div>
+
+  <div class="mt-5 flex justify-center">
+    {
+      tabs.map((tab, i) => (
+        <div class={`install-snippet ${i === 0 ? '' : 'hidden'}`} data-install={tab.id}>
+          <CodeSnippet code={tab.install} />
+        </div>
+      ))
+    }
+  </div>
+</div>
+
+<script>
+  const tabRow = document.querySelector('[role="tablist"]')
+  const tabButtons = document.querySelectorAll('.switcher-tab')
+  const indicator = document.getElementById('tab-indicator')
+  const snippets = document.querySelectorAll('.install-snippet')
+
+  function moveIndicator(btn: HTMLElement) {
+    if (!indicator) return
+    indicator.style.width = `${btn.offsetWidth}px`
+    indicator.style.transform = `translateX(${btn.offsetLeft}px)`
+  }
+
+  function switchPanel(target: string) {
+    const current = document.querySelector('.switcher-panel[data-active="true"]') as HTMLElement | null
+    const next = document.querySelector(`.switcher-panel[data-panel="${target}"]`) as HTMLElement | null
+    if (!next || next === current) return
+
+    if (current) {
+      current.style.opacity = '0'
+      current.style.transform = 'translateY(6px)'
+      current.removeAttribute('data-active')
+    }
+
+    window.setTimeout(() => {
+      if (current) current.setAttribute('data-hidden', 'true')
+      next.removeAttribute('data-hidden')
+      next.setAttribute('data-active', 'true')
+      next.style.opacity = '0'
+      next.style.transform = 'translateY(6px)'
+      requestAnimationFrame(() => {
+        next.style.opacity = '1'
+        next.style.transform = 'translateY(0)'
+      })
+    }, 180)
+  }
+
+  const firstTab = document.querySelector('.switcher-tab[data-tab="react"]') as HTMLElement | null
+  if (firstTab) moveIndicator(firstTab)
+  window.addEventListener('resize', () => {
+    const active = document.querySelector('.switcher-tab[aria-selected="true"]') as HTMLElement | null
+    if (active) moveIndicator(active)
+  })
+
+  tabButtons.forEach((btn) => {
+    btn.addEventListener('click', () => {
+      const el = btn as HTMLElement
+      const target = el.getAttribute('data-tab')
+      if (!target) return
+
+      tabButtons.forEach((b) => {
+        const active = b === btn
+        b.setAttribute('aria-selected', String(active))
+        b.classList.toggle('text-white', active)
+        b.classList.toggle('text-ink-600', !active)
+      })
+
+      moveIndicator(el)
+      el.scrollIntoView({ behavior: 'smooth', inline: 'center', block: 'nearest' })
+      switchPanel(target)
+
+      snippets.forEach((s) => {
+        s.classList.toggle('hidden', s.getAttribute('data-install') !== target)
+      })
+    })
+  })
+</script>

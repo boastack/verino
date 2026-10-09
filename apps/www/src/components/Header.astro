@@ -1,0 +1,36 @@
+---
+import CodeSnippet from './CodeSnippet.astro'
+---
+
+<header class="sticky top-0 z-40 border-b border-ink-100 bg-white/95 backdrop-blur-md">
+  <div class="mx-auto flex max-w-6xl items-center justify-between px-6 py-4">
+    <a href="/" class="flex items-center gap-2 text-[15px] font-semibold tracking-tight text-ink-900">
+      <span class="flex h-6 w-6 items-center justify-center rounded-md bg-brand text-xs font-bold text-white">V</span>
+      Verino
+    </a>
+
+    <nav class="hidden items-center gap-7 text-sm font-medium text-ink-600 sm:flex">
+      <a href="#frameworks" class="transition hover:text-ink-900">Frameworks</a>
+      <a href="#scenarios" class="transition hover:text-ink-900">Scenarios</a>
+      <a href="#architecture" class="transition hover:text-ink-900">Architecture</a>
+      <a href="#packages" class="transition hover:text-ink-900">Packages</a>
+    </nav>
+
+    <div class="flex items-center gap-3">
+      <div class="hidden sm:block">
+        <CodeSnippet code="npm i @verino/react" />
+      </div>
+      <a
+        href="https://github.com/boastack/verino"
+        target="_blank"
+        rel="noreferrer"
+        class="group inline-flex items-center gap-1.5 rounded-full bg-ink-900 px-4 py-2 text-sm font-semibold text-white shadow-button transition hover:bg-ink-800 active:scale-[0.97]"
+      >
+        GitHub
+        <svg width="12" height="12" viewBox="0 0 12 12" fill="none" class="transition group-hover:translate-x-0.5">
+          <path d="M2.5 9.5L9.5 2.5M9.5 2.5H4M9.5 2.5V8" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" />
+        </svg>
+      </a>
+    </div>
+  </div>
+</header>

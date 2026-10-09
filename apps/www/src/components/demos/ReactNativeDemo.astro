@@ -1,0 +1,19 @@
+<div class="flex flex-col items-center gap-4">
+  <div class="w-full max-w-sm rounded-xl border border-ink-200 bg-ink-950 p-4 font-mono text-[13px] leading-6 text-ink-100">
+    <pre class="overflow-x-auto"><code>{`const otp = useOTP({ length: 6 })
+
+<TextInput
+  {...otp.hiddenInputProps}
+  style={StyleSheet.absoluteFill}
+/>
+{otp.getSlots().map((slot) => (
+  <View style={styles.slot}>
+    <Text>{slot.value}</Text>
+  </View>
+))}`}</code></pre>
+  </div>
+  <p class="max-w-sm text-center text-sm text-ink-500">
+    Native SMS autofill on iOS and Android. Can't run inside a browser, so this one's a code sample
+    instead of a live demo. Try it in the <a class="font-medium text-brand-dim hover:underline" href="https://github.com/boastack/verino/tree/main/examples/react-native-expo">Expo example</a>.
+  </p>
+</div>

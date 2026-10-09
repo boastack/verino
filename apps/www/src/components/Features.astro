@@ -1,0 +1,70 @@
+---
+const features = [
+  {
+    title: 'One real input, zero hacks',
+    body: 'A single transparent input sits over purely decorative slot divs. The browser only ever sees one field, so SMS autofill, password managers, and IME all work natively.',
+    icon: 'M4 8h16M4 8a2 2 0 012-2h12a2 2 0 012 2M4 8v8a2 2 0 002 2h12a2 2 0 002-2V8M8 12h.01M12 12h.01M16 12h.01',
+  },
+  {
+    title: 'Native SMS autofill',
+    body: '`autocomplete="one-time-code"` on the web, `textContentType="oneTimeCode"` and `autoComplete="sms-otp"` on React Native. Wired in automatically, every adapter.',
+    icon: 'M3 8l9 6 9-6M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z',
+  },
+  {
+    title: 'Zero runtime dependencies',
+    body: '@verino/core has no DOM access and no dependencies at all. Every adapter imports only from the core, never from each other.',
+    icon: 'M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5',
+  },
+  {
+    title: 'Fully accessible by default',
+    body: 'Proper ARIA roles, labelled groups, and screen reader support come from using one real input, not from extra ARIA plumbing bolted on after.',
+    icon: 'M12 15a3 3 0 100-6 3 3 0 000 6zM12 2a10 10 0 100 20 10 10 0 000-20z',
+  },
+  {
+    title: 'Framework native, not ported',
+    body: 'Each adapter is written for its framework: real Vue refs, a real Svelte store and action, a real React hook. Nothing is a wrapped port of another framework’s version.',
+    icon: 'M9 3H5a2 2 0 00-2 2v4m6-6h10a2 2 0 012 2v4M9 3v18m0 0H5a2 2 0 01-2-2v-4m6 6h10a2 2 0 002-2v-4m0-6V5a2 2 0 00-2-2h-4',
+  },
+  {
+    title: 'Tested like it matters',
+    body: '1,330+ tests across 19 suites, Playwright E2E on chromium, firefox, webkit, and mobile chrome, and 100% statement, branch, function, and line coverage on the core.',
+    icon: 'M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z',
+  },
+]
+---
+
+<section id="architecture" class="mx-auto max-w-5xl px-6 py-24">
+  <div class="mx-auto max-w-2xl text-center" data-reveal>
+    <p class="mb-3 text-xs font-semibold uppercase tracking-widest text-brand-dim">Architecture</p>
+    <h2 class="text-3xl font-bold tracking-tight text-ink-950 sm:text-4xl">
+      Built around one architectural decision
+    </h2>
+    <p class="mt-4 text-ink-500">
+      Six glued-together inputs break autofill. Verino uses one.
+    </p>
+  </div>
+
+  <div data-reveal class="mx-auto mt-10 max-w-lg rounded-2xl border border-ink-100 bg-ink-950 p-6 font-mono text-[11px] leading-6 text-ink-200 shadow-card-hover sm:text-sm">
+    <pre class="overflow-x-auto"><code>{`<input opacity:0 inset:0 z-index:1>  ← real input
+[div][div][div][div][div][div]       ← decoration`}</code></pre>
+  </div>
+
+  <div class="mt-14 grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
+    {
+      features.map((feature, i) => (
+        <div
+          data-reveal
+          class="group rounded-2xl border border-ink-100 bg-white p-6 shadow-card transition-all duration-300 hover:-translate-y-1 hover:border-ink-200 hover:shadow-card-hover"
+        >
+          <div class="mb-4 flex h-10 w-10 items-center justify-center rounded-xl bg-brand-50 text-brand-dim transition-colors group-hover:bg-brand group-hover:text-white">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+              <path d={feature.icon} />
+            </svg>
+          </div>
+          <h3 class="text-base font-semibold text-ink-900">{feature.title}</h3>
+          <p class="mt-2 text-sm leading-6 text-ink-500">{feature.body}</p>
+        </div>
+      ))
+    }
+  </div>
+</section>

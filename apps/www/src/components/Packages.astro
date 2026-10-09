@@ -1,0 +1,55 @@
+---
+import CodeSnippet from './CodeSnippet.astro'
+
+const packages = [
+  { name: '@verino/core', desc: 'Pure state machine. Zero DOM, zero dependencies.' },
+  { name: '@verino/vanilla', desc: 'DOM adapter with built-in timer, Web OTP, and password manager plugins.' },
+  { name: '@verino/react', desc: 'useOTP() hook for React.' },
+  { name: '@verino/vue', desc: 'useOTP() composable, every value a real Vue Ref.' },
+  { name: '@verino/svelte', desc: 'useOTP() store, one action wires the hidden input.' },
+  { name: '@verino/alpine', desc: 'Alpine.js plugin, directive driven, no build step.' },
+  { name: '@verino/web-component', desc: '<verino-input>, drop in anywhere, no framework required.' },
+  { name: '@verino/react-native', desc: 'Never imports react-native. Works on bare RN and Expo.' },
+]
+---
+
+<section id="packages" class="border-t border-ink-100 bg-ink-50/60">
+  <div class="mx-auto max-w-5xl px-6 py-24">
+  <div class="mx-auto max-w-2xl text-center" data-reveal>
+    <p class="mb-3 text-xs font-semibold uppercase tracking-widest text-brand-dim">Packages</p>
+    <h2 class="text-3xl font-bold tracking-tight text-ink-950 sm:text-4xl">Eight packages, one core</h2>
+    <p class="mt-4 text-ink-500">Pick the adapter for your stack. They all share the same behavior. Click a row to copy its install command.</p>
+  </div>
+
+  <div data-reveal class="mt-10 overflow-hidden rounded-2xl border border-ink-100 bg-white shadow-card">
+    {
+      packages.map((pkg, i) => (
+        <button
+          type="button"
+          class={`copy-snippet group flex w-full flex-col gap-1 px-6 py-4 text-left transition-colors hover:bg-ink-50 sm:flex-row sm:items-center sm:justify-between ${
+            i === 0 ? '' : 'border-t border-ink-100'
+          }`}
+          data-copy={`npm i ${pkg.name}`}
+          aria-label={`Copy "npm i ${pkg.name}" to clipboard`}
+        >
+          <span class="flex items-center gap-2">
+            <code class="font-mono text-sm font-medium text-brand-dim">{pkg.name}</code>
+            <svg class="copy-icon h-3.5 w-3.5 shrink-0 text-ink-300 opacity-0 transition group-hover:opacity-100" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+              <rect x="5.5" y="5.5" width="8" height="8" rx="1.5" />
+              <path d="M2.5 10.5v-7a1 1 0 0 1 1-1h7" />
+            </svg>
+            <svg class="check-icon hidden h-3.5 w-3.5 shrink-0 text-brand-dim" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M3 8.5l3 3 7-7" />
+            </svg>
+          </span>
+          <span class="text-sm text-ink-500 sm:text-right">{pkg.desc}</span>
+        </button>
+      ))
+    }
+  </div>
+
+  <div data-reveal class="mt-8 flex justify-center">
+    <CodeSnippet code="npm i @verino/react" />
+  </div>
+  </div>
+</section>

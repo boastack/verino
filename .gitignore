@@ -10,6 +10,9 @@ CLAUDE.md
 .turbo/cache/
 packages/*/.turbo/
 
+# Astro
+.astro/
+
 # Jest
 coverage/
 

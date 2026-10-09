@@ -1,0 +1,33 @@
+---
+import Layout from '../layouts/Layout.astro'
+import Hero from '../components/Hero.astro'
+import StatsBar from '../components/StatsBar.astro'
+import FrameworkSwitcher from '../components/FrameworkSwitcher.astro'
+import Scenarios from '../components/Scenarios.astro'
+import Features from '../components/Features.astro'
+import Packages from '../components/Packages.astro'
+import Footer from '../components/Footer.astro'
+---
+
+<Layout>
+  <main>
+    <Hero />
+    <StatsBar />
+
+    <section id="frameworks" class="mx-auto max-w-5xl px-6 py-24">
+      <div class="mx-auto max-w-2xl text-center" data-reveal>
+        <p class="mb-3 text-xs font-semibold uppercase tracking-widest text-brand-dim">Frameworks</p>
+        <h2 class="text-3xl font-bold tracking-tight text-ink-950 sm:text-4xl">Same behavior, every framework</h2>
+        <p class="mt-4 text-ink-500">Pick a tab. This is the real adapter running, not a screenshot.</p>
+      </div>
+      <div class="mt-10" data-reveal>
+        <FrameworkSwitcher />
+      </div>
+    </section>
+
+    <Scenarios />
+    <Features />
+    <Packages />
+    <Footer />
+  </main>
+</Layout>

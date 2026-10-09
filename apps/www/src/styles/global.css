@@ -1,0 +1,117 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  color-scheme: light;
+
+  /* Verino widget theme, light surface, matching docs/DESIGN_TOKENS.md */
+  --verino-size: 56px;
+  --verino-gap: 12px;
+  --verino-radius: 12px;
+  --verino-font-size: 24px;
+  --verino-font-weight: 600;
+  --verino-bg: #f7f8f9;
+  --verino-bg-filled: #ffffff;
+  --verino-color: #121517;
+  --verino-border-color: #e3e6e8;
+  --verino-active-color: #20c55c;
+  --verino-success-color: #00c65b;
+  --verino-error-color: #e0293a;
+  --verino-active-ring: 0 0 0 4px rgba(32, 197, 92, 0.16);
+  --verino-success-ring: 0 0 0 4px rgba(0, 198, 91, 0.14);
+  --verino-caret-color: #20c55c;
+  --verino-placeholder-color: #9aa2a7;
+  --verino-separator-color: #9aa2a7;
+  --verino-timer-color: #6b7378;
+}
+
+html {
+  background: #fcfdfd;
+  scroll-behavior: smooth;
+}
+
+.verino-content {
+  flex-wrap: wrap;
+  justify-content: center;
+}
+
+@media (max-width: 480px) {
+  :root {
+    --verino-size: 42px;
+    --verino-gap: 6px;
+  }
+}
+
+body {
+  @apply bg-ink-25 text-ink-900 font-sans antialiased;
+}
+
+::selection {
+  background: rgba(32, 197, 92, 0.22);
+}
+
+/* Scroll-reveal: elements fade + rise into place as they enter the viewport. */
+[data-reveal] {
+  opacity: 0;
+  transform: translateY(16px);
+  transition: opacity 0.6s cubic-bezier(0.16, 1, 0.3, 1), transform 0.6s cubic-bezier(0.16, 1, 0.3, 1);
+  will-change: opacity, transform;
+}
+
+[data-reveal].is-visible {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  [data-reveal] {
+    opacity: 1;
+    transform: none;
+    transition: none;
+  }
+  .animate-drift,
+  .animate-drift-slow {
+    animation: none;
+  }
+}
+
+.no-scrollbar {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+
+/* Sliding tab indicator */
+.tab-indicator {
+  position: absolute;
+  top: 0;
+  left: 0;
+  height: 100%;
+  border-radius: 9999px;
+  background: #0a0c0d;
+  transition: transform 0.35s cubic-bezier(0.16, 1, 0.3, 1), width 0.35s cubic-bezier(0.16, 1, 0.3, 1);
+  z-index: 0;
+}
+
+.switcher-tab {
+  position: relative;
+  z-index: 1;
+}
+
+/* Panel cross-fade */
+.switcher-panel {
+  transition: opacity 0.3s ease, transform 0.3s ease;
+}
+
+.switcher-panel[data-hidden='true'] {
+  display: none;
+}
+
+.switcher-panel[data-entering='true'] {
+  opacity: 0;
+  transform: translateY(6px);
+}

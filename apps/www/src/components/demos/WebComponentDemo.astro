@@ -1,0 +1,30 @@
+<div class="flex flex-col items-center gap-5">
+  <verino-input length="6" auto-focus="false" id="verino-wc-demo"></verino-input>
+  <p class="text-sm text-ink-500" id="verino-wc-hint">Type any 6 digits</p>
+  <button
+    type="button"
+    class="hidden rounded-full bg-brand-50 px-4 py-1.5 text-sm font-medium text-brand-dim transition hover:bg-brand-100 active:scale-95"
+    id="verino-wc-reset"
+  >
+    Verified. Reset demo
+  </button>
+</div>
+
+<script>
+  import '@verino/web-component'
+
+  const el = document.getElementById('verino-wc-demo')
+  const hintEl = document.getElementById('verino-wc-hint')
+  const resetBtn = document.getElementById('verino-wc-reset')
+
+  el?.addEventListener('complete', () => {
+    hintEl?.classList.add('hidden')
+    resetBtn?.classList.remove('hidden')
+  })
+
+  resetBtn?.addEventListener('click', () => {
+    el?.reset()
+    resetBtn.classList.add('hidden')
+    hintEl?.classList.remove('hidden')
+  })
+</script>

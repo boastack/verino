@@ -1,0 +1,51 @@
+---
+interface Props {
+  id?: string
+  autoFocus?: boolean
+}
+const { id, autoFocus = true } = Astro.props
+---
+
+<div class="flex flex-col items-center gap-5" data-verino-root>
+  <div
+    class="verino-wrapper verino-vanilla-demo"
+    data-verino-pending
+    data-autofocus={String(autoFocus)}
+    id={id}
+  ></div>
+  <p class="verino-hint text-sm text-ink-500">Type any 6 digits</p>
+  <button
+    type="button"
+    class="verino-reset hidden rounded-full bg-brand-50 px-4 py-1.5 text-sm font-medium text-brand-dim transition hover:bg-brand-100 active:scale-95"
+  >
+    Verified. Reset demo
+  </button>
+</div>
+
+<script>
+  import { initOTP } from '@verino/vanilla'
+
+  document.querySelectorAll('.verino-vanilla-demo[data-verino-pending]').forEach((wrapperEl) => {
+    wrapperEl.removeAttribute('data-verino-pending')
+    const root = wrapperEl.closest('[data-verino-root]')
+    if (!root) return
+    const hintEl = root.querySelector('.verino-hint')
+    const resetBtn = root.querySelector('.verino-reset')
+    if (!hintEl || !resetBtn) return
+
+    const [instance] = initOTP(wrapperEl, {
+      length: 6,
+      autoFocus: wrapperEl.getAttribute('data-autofocus') !== 'false',
+      onComplete: () => {
+        hintEl.classList.add('hidden')
+        resetBtn.classList.remove('hidden')
+      },
+    })
+
+    resetBtn.addEventListener('click', () => {
+      instance.reset()
+      resetBtn.classList.add('hidden')
+      hintEl.classList.remove('hidden')
+    })
+  })
+</script>

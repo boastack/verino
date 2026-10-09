@@ -1,0 +1,140 @@
+---
+import CodeSnippet from './CodeSnippet.astro'
+
+const modes = [
+  { id: 'numeric', label: 'Numeric' },
+  { id: 'alphabet', label: 'Alphabet' },
+  { id: 'alphanumeric', label: 'Alphanumeric' },
+  { id: 'any', label: 'Any' },
+  { id: 'regex', label: 'Regex' },
+  { id: 'classic', label: 'Classic' },
+  { id: 'separator', label: 'Separator' },
+  { id: 'masked', label: 'Masked' },
+  { id: '5-digit', label: '5-digit' },
+]
+---
+
+<section id="scenarios" class="bg-ink-50/60">
+  <div class="mx-auto max-w-5xl px-6 py-24">
+  <div class="mx-auto max-w-2xl text-center" data-reveal>
+    <p class="mb-3 text-xs font-semibold uppercase tracking-widest text-brand-dim">Scenarios</p>
+    <h2 class="text-3xl font-bold tracking-tight text-ink-950 sm:text-4xl">One adapter, every scenario</h2>
+    <p class="mt-4 text-ink-500">
+      Same <code class="rounded bg-ink-50 px-1.5 py-0.5 text-ink-700">@verino/vanilla</code> instance, reconfigured
+      live. Including the built-in countdown and resend row.
+    </p>
+  </div>
+
+  <div data-reveal class="mx-auto mt-10 max-w-md">
+    <div class="no-scrollbar flex gap-2 overflow-x-auto pb-1">
+      {
+        modes.map((mode, i) => (
+          <button
+            type="button"
+            data-mode={mode.id}
+            class={`scenario-badge shrink-0 whitespace-nowrap rounded-full border px-3.5 py-1.5 text-sm font-medium transition ${
+              i === 0 ? 'border-ink-900 bg-ink-900 text-white' : 'border-ink-200 bg-white text-ink-600 hover:border-ink-300'
+            }`}
+          >
+            {mode.label}
+          </button>
+        ))
+      }
+    </div>
+
+    <div class="mt-6 rounded-3xl border border-ink-100 bg-white p-6 shadow-card-hover sm:p-10">
+      <div class="flex flex-col items-center gap-4">
+        <div class="verino-wrapper" id="verino-scenario-demo"></div>
+        <p id="verino-scenario-status" class="min-h-[20px] text-sm text-ink-500">Type the code to see it complete</p>
+      </div>
+    </div>
+
+    <div class="mt-5 flex justify-center">
+      <CodeSnippet code="npm i @verino/vanilla" />
+    </div>
+  </div>
+  </div>
+</section>
+
+<script>
+  import { initOTP } from '@verino/vanilla'
+
+  type ModeConfig = {
+    type?: 'numeric' | 'alphabet' | 'alphanumeric' | 'any'
+    pattern?: RegExp
+    length: number
+    placeholder: string
+    timer: number
+    separatorAfter?: number
+    masked?: boolean
+  }
+
+  const modeConfigs: Record<string, ModeConfig> = {
+    numeric: { type: 'numeric', length: 6, placeholder: '○', timer: 45 },
+    alphabet: { type: 'alphabet', length: 6, placeholder: '○', timer: 45 },
+    alphanumeric: { type: 'alphanumeric', length: 6, placeholder: '○', timer: 45 },
+    any: { type: 'any', length: 6, placeholder: '○', timer: 45 },
+    regex: { pattern: /^[A-Z0-9]$/, length: 6, placeholder: '○', timer: 45 },
+    classic: { type: 'numeric', length: 6, placeholder: '', timer: 45 },
+    separator: { type: 'numeric', length: 6, placeholder: '○', timer: 45, separatorAfter: 3 },
+    masked: { type: 'numeric', length: 6, placeholder: '○', timer: 45, masked: true },
+    '5-digit': { type: 'numeric', length: 5, placeholder: '○', timer: 45 },
+  }
+
+  const wrapperEl = document.getElementById('verino-scenario-demo')
+  const statusEl = document.getElementById('verino-scenario-status')
+  const badges = document.querySelectorAll('.scenario-badge')
+
+  function clearFooter() {
+    if (!wrapperEl) return
+    let sibling = wrapperEl.nextElementSibling
+    while (sibling && (sibling.classList.contains('verino-timer') || sibling.classList.contains('verino-resend'))) {
+      const next = sibling.nextElementSibling
+      sibling.remove()
+      sibling = next
+    }
+  }
+
+  function mount(mode: string) {
+    if (!wrapperEl || !statusEl) return
+    clearFooter()
+    const config = modeConfigs[mode]
+
+    initOTP(wrapperEl, {
+      ...config,
+      autoFocus: false,
+      onComplete: () => {
+        statusEl.textContent = 'Complete.'
+        statusEl.classList.add('text-brand-dim', 'font-medium')
+      },
+      onResend: () => {
+        statusEl.textContent = 'A new code has been sent.'
+        statusEl.classList.remove('text-brand-dim', 'font-medium')
+      },
+    })
+
+    statusEl.textContent = 'Type the code to see it complete'
+    statusEl.classList.remove('text-brand-dim', 'font-medium')
+  }
+
+  mount('numeric')
+
+  badges.forEach((badge) => {
+    badge.addEventListener('click', () => {
+      const mode = badge.getAttribute('data-mode')
+      if (!mode) return
+
+      badges.forEach((b) => {
+        const active = b === badge
+        b.classList.toggle('bg-ink-900', active)
+        b.classList.toggle('border-ink-900', active)
+        b.classList.toggle('text-white', active)
+        b.classList.toggle('border-ink-200', !active)
+        b.classList.toggle('bg-white', !active)
+        b.classList.toggle('text-ink-600', !active)
+      })
+
+      mount(mode)
+    })
+  })
+</script>

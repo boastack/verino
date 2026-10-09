@@ -1,0 +1,37 @@
+{
+  "name": "www",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "astro dev",
+    "build": "astro build",
+    "preview": "astro preview",
+    "astro": "astro"
+  },
+  "dependencies": {
+    "@verino/core": "workspace:*",
+    "@verino/vanilla": "workspace:*",
+    "@verino/react": "workspace:*",
+    "@verino/vue": "workspace:*",
+    "@verino/svelte": "workspace:*",
+    "@verino/alpine": "workspace:*",
+    "@verino/web-component": "workspace:*",
+    "alpinejs": "^3.14.0",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "vue": "^3.5.30",
+    "svelte": "^4.2.20"
+  },
+  "devDependencies": {
+    "astro": "^4.16.0",
+    "@astrojs/react": "^3.6.0",
+    "@astrojs/vue": "^4.5.0",
+    "@astrojs/svelte": "^5.7.0",
+    "@astrojs/tailwind": "^5.1.0",
+    "tailwindcss": "^3.4.0",
+    "@types/react": "^18.0.0",
+    "@types/react-dom": "^18.3.7",
+    "typescript": "^5.4.0"
+  }
+}

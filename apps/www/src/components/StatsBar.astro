@@ -1,0 +1,21 @@
+---
+const stats = [
+  { value: '8', label: 'packages, one core' },
+  { value: '1,330+', label: 'tests passing' },
+  { value: '100%', label: 'core coverage' },
+  { value: '0', label: 'runtime dependencies' },
+]
+---
+
+<section class="border-y border-ink-100 bg-white/60">
+  <div class="mx-auto grid max-w-5xl grid-cols-2 gap-8 px-6 py-10 sm:grid-cols-4" data-reveal>
+    {
+      stats.map((stat) => (
+        <div class="text-center sm:text-left">
+          <p class="font-mono text-2xl font-semibold tracking-tight text-ink-950 sm:text-3xl">{stat.value}</p>
+          <p class="mt-1 text-xs text-ink-500 sm:text-sm">{stat.label}</p>
+        </div>
+      ))
+    }
+  </div>
+</section>

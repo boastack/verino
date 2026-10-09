@@ -1,0 +1,39 @@
+---
+interface Props {
+  code: string
+  class?: string
+}
+const { code, class: className = '' } = Astro.props
+---
+
+<button
+  type="button"
+  class={`copy-snippet group inline-flex items-center gap-2 rounded-lg border border-ink-200 bg-white px-3.5 py-2 font-mono text-xs text-ink-700 shadow-xs transition hover:border-ink-300 ${className}`}
+  data-copy={code}
+  aria-label={`Copy "${code}" to clipboard`}
+>
+  <span class="copy-snippet-text">{code}</span>
+  <svg
+    class="copy-icon h-3.5 w-3.5 shrink-0 text-ink-400 transition group-hover:text-ink-600"
+    viewBox="0 0 16 16"
+    fill="none"
+    stroke="currentColor"
+    stroke-width="1.5"
+    stroke-linecap="round"
+    stroke-linejoin="round"
+  >
+    <rect x="5.5" y="5.5" width="8" height="8" rx="1.5" />
+    <path d="M2.5 10.5v-7a1 1 0 0 1 1-1h7" />
+  </svg>
+  <svg
+    class="check-icon hidden h-3.5 w-3.5 shrink-0 text-brand-dim"
+    viewBox="0 0 16 16"
+    fill="none"
+    stroke="currentColor"
+    stroke-width="2"
+    stroke-linecap="round"
+    stroke-linejoin="round"
+  >
+    <path d="M3 8.5l3 3 7-7" />
+  </svg>
+</button>

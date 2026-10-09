@@ -1,7 +1,4 @@
 {
-  "buildCommand": "pnpm build",
-  "outputDirectory": ".",
-  "rewrites": [
-    { "source": "/", "destination": "/examples/vanilla.html" }
-  ]
+  "buildCommand": "pnpm build && pnpm --filter www build",
+  "outputDirectory": "apps/www/dist"
 }

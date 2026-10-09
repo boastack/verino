@@ -1,0 +1,79 @@
+---
+import '../styles/global.css'
+import Header from '../components/Header.astro'
+
+interface Props {
+  title?: string
+  description?: string
+}
+
+const {
+  title = 'Verino — one OTP input, seven frameworks',
+  description = 'A zero-dependency, fully accessible OTP input. One pure core state machine, native adapters for React, Vue, Svelte, Alpine.js, Vanilla JS, Web Components, and React Native/Expo.',
+} = Astro.props
+---
+
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <link
+      rel="icon"
+      type="image/svg+xml"
+      href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%2320C55C'/%3E%3Ctext x='16' y='22.5' font-family='Arial,Helvetica,sans-serif' font-size='18' font-weight='700' fill='white' text-anchor='middle'%3EV%3C/text%3E%3C/svg%3E"
+    />
+    <title>{title}</title>
+    <meta name="description" content={description} />
+    <meta property="og:title" content={title} />
+    <meta property="og:description" content={description} />
+    <meta property="og:type" content="website" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&family=Instrument+Serif:ital@0;1&display=swap"
+      rel="stylesheet"
+    />
+  </head>
+  <body>
+    <Header />
+    <slot />
+
+    <script>
+      const revealEls = document.querySelectorAll('[data-reveal]')
+      const observer = new IntersectionObserver(
+        (entries) => {
+          for (const entry of entries) {
+            if (entry.isIntersecting) {
+              entry.target.classList.add('is-visible')
+              observer.unobserve(entry.target)
+            }
+          }
+        },
+        { threshold: 0.15, rootMargin: '0px 0px -40px 0px' }
+      )
+      revealEls.forEach((el, i) => {
+        el.style.transitionDelay = `${Math.min(i % 4, 3) * 70}ms`
+        observer.observe(el)
+      })
+
+      document.addEventListener('click', (e) => {
+        const btn = (e.target as HTMLElement)?.closest<HTMLElement>('.copy-snippet')
+        if (!btn) return
+        const text = btn.getAttribute('data-copy')
+        if (!text) return
+        navigator.clipboard?.writeText(text).then(() => {
+          const copyIcon = btn.querySelector('.copy-icon')
+          const checkIcon = btn.querySelector('.check-icon')
+          copyIcon?.classList.add('hidden')
+          checkIcon?.classList.remove('hidden')
+          window.setTimeout(() => {
+            copyIcon?.classList.remove('hidden')
+            checkIcon?.classList.add('hidden')
+          }, 1400)
+        })
+      })
+    </script>
+  </body>
+</html>

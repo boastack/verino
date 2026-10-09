@@ -19,7 +19,7 @@
   "type": "module",
   "packageManager": "pnpm@10.13.1",
   "scripts": {
-    "build": "turbo run build",
+    "build": "turbo run build --filter='./packages/*'",
     "build:cdn": "node build-cdn.js",
     "build:all": "pnpm build && pnpm build:cdn",
     "typecheck": "turbo run typecheck",
