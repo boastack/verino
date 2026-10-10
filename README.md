@@ -41,6 +41,8 @@ verino/
 │   ├── svelte/          @verino/svelte         — useOTP store + use:action
 │   ├── alpine/          @verino/alpine         — x-verino directive
 │   └── web-component/   @verino/web-component  — <verino-input> custom element
+├── apps/
+│   └── www/             verino.vercel.app — Astro landing page
 ├── tests/               unit (Jest), SSR, and E2E (Playwright) tests
 ├── examples/            runnable per-framework demos
 ├── .github/             CI workflows, issue templates, CONTRIBUTING.md
